@@ -11,7 +11,7 @@ node scripts/sync-issues.mjs --run   # aplica los cambios
 
 El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de tipo y prioridad y milestone, y cierra las entradas marcadas como **Cerrada**. Es idempotente: si GitHub ya coincide, no hace nada. No toca las etiquetas que no gestiona (por ejemplo `bug`). De OW-001 a OW-044, número de issue = número OW + 1 (OW-001 es la #2, porque la #1 es el PR de documentación). Las issues futuras (releases, Fase 6 en adelante) no siguen esa regla: se enlazan por su número real.
 
-**Project de GitHub (pendiente):** un tablero con la columna `Status` (Backlog, Ready, In Progress, Review, Done) agrupado por milestone. La prioridad y el tipo van en etiquetas y la fase en el milestone, así que el tablero no necesita campos propios. No existe todavía porque el token de `gh` no tiene el scope `project`.
+**Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
 **Foco actual: Sprint 0** (OW-001 a OW-010). Todo lo demás está planificado, pero no listo para empezar.
 
