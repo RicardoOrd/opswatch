@@ -2,7 +2,9 @@
 
 Estado: sincronizado con GitHub Issues · Última revisión: 2026-09-28
 
-Este fichero es la **fuente única** de las issues. Cada issue de GitHub se genera a partir de su entrada aquí: si una issue cambia, se cambia aquí y se vuelve a sincronizar. Número de issue = número OW + 1 (OW-001 es la #2, porque la #1 es el PR de documentación).
+Este fichero es la **fuente única** de las issues. Cada issue de GitHub se genera a partir de su entrada aquí: si una issue cambia, se cambia aquí y se vuelve a sincronizar. De OW-001 a OW-044, número de issue = número OW + 1 (OW-001 es la #2, porque la #1 es el PR de documentación). Las issues futuras (releases, Fase 6 en adelante) no siguen esa regla: se enlazan por su número real.
+
+**Project de GitHub (pendiente):** un tablero con la columna `Status` (Backlog, Ready, In Progress, Review, Done) agrupado por milestone. La prioridad y el tipo van en etiquetas y la fase en el milestone, así que el tablero no necesita campos propios. No existe todavía porque el token de `gh` no tiene el scope `project`.
 
 **Foco actual: Sprint 0** (OW-001 a OW-010). Todo lo demás está planificado, pero no listo para empezar.
 
