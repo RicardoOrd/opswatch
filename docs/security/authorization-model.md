@@ -127,7 +127,7 @@ Spring Security sigue protegiendo **la autenticación** de forma declarativa: to
 | El tenant sale del recurso | Nunca se hace `findById(id)` y se confía en un `organizationId` recibido en la URL o el cuerpo |
 | Consultas de listado filtradas por tenant | Los repositorios de listados exigen `organizationId` o `projectId` como parámetro obligatorio: `findByProjectIdAndDeletedAtIsNull(projectId, pageable)` |
 | FK compuestas | `monitors (project_id, organization_id) → projects (id, organization_id)`: la base de datos impide un monitor cuyo `organization_id` no coincida con el de su proyecto |
-| Recursos anidados por el padre | Crear un monitor en `POST /projects/{projectId}/monitors` autoriza sobre el proyecto de la ruta. El `projectId` nunca va en el cuerpo |
+| Recursos anidados por el padre | Crear un monitor en `POST /api/v1/projects/{projectId}/monitors` autoriza sobre el proyecto de la ruta. El `projectId` nunca va en el cuerpo |
 | Mover recursos entre tenants | No existe en V1. Un monitor no puede cambiar de proyecto |
 | Sin roles en el token | Una membresía revocada deja de valer al instante |
 | Tests dedicados | Para cada endpoint con id: un usuario de la organización B pide un recurso de A y debe recibir `404`, sin efectos secundarios |

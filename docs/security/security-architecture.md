@@ -91,7 +91,7 @@ sequenceDiagram
 
 - **Access token: en memoria** (una variable de la aplicación cliente). Nunca en `localStorage`, donde cualquier XSS lo leería.
 - **Refresh token: cookie `HttpOnly`**, que JavaScript no puede leer.
-- Al recargar la página, el cliente llama a `/auth/refresh` para obtener un access token nuevo.
+- Al recargar la página, el cliente llama a `/api/v1/auth/refresh` para obtener un access token nuevo.
 
 **Requisito de despliegue:** el frontend y la API tienen que ser del **mismo sitio** (mismo dominio registrable, o mismo origen detrás del reverse proxy) para que la cookie `SameSite=Strict` funcione. Un frontend en un dominio ajeno no recibiría la cookie.
 
@@ -212,11 +212,11 @@ Las contraseñas no se cifran: se **hashean**. Los refresh tokens tampoco: se **
 
 | Endpoint | Límite | Clave |
 |---|---|---|
-| `POST /auth/login` | 10/min y 5/min | IP y email |
-| `POST /auth/register` | 5/hora | IP |
-| `POST /auth/refresh` | 30/min | IP |
+| `POST /api/v1/auth/login` | 10/min y 5/min | IP y email |
+| `POST /api/v1/auth/register` | 5/hora | IP |
+| `POST /api/v1/auth/refresh` | 30/min | IP |
 | Resto de la API autenticada | 300/min (Fase 5) | usuario |
-| `POST /notification-channels/{id}/test` | 5/min | canal |
+| `POST /api/v1/notification-channels/{id}/test` | 5/min | canal |
 
 - Implementación en V1: **Bucket4j en memoria** (una instancia). Respuesta `429` con `Retry-After`.
 - Con varias instancias, los límites en memoria se multiplican por el número de instancias. Ese es uno de los disparadores de Redis ([ADR-009](../adr/ADR-009-redis.md)), o de Bucket4j sobre PostgreSQL como alternativa sin infraestructura nueva.

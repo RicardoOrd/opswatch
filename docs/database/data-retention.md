@@ -87,7 +87,7 @@ monitor_check_rollups_hourly (
 )
 ```
 
-- **Disparador:** `GET /monitors/{id}/stats?window=30d` con p95 > 200 ms, dashboards que calculan el uptime de muchos monitores a la vez, o la necesidad de ventanas más largas que la retención cruda (90 días o 12 meses).
+- **Disparador:** `GET /api/v1/monitors/{id}/stats?window=30d` con p95 > 200 ms, dashboards que calculan el uptime de muchos monitores a la vez, o la necesidad de ventanas más largas que la retención cruda (90 días o 12 meses).
 - **Percentiles:** no se pueden agregar sumando percentiles por hora. Se guarda un histograma de buckets fijos (por ejemplo, 12 buckets de 0 a 30 s en escala logarítmica) y los percentiles de ventanas largas se aproximan desde ahí. La precisión se documenta.
 - **Alimentación:** un job cada hora agrega la hora cerrada anterior. Es idempotente (`INSERT … ON CONFLICT DO UPDATE`).
 - **Retención:** 13 meses.

@@ -4,6 +4,10 @@ Estado: diseño inicial · Última revisión: 2026-09-28
 
 Esta carpeta explica qué se construye, por qué, cómo está diseñado, en qué punto va el trabajo y cómo debe evolucionar. Todavía no hay código: donde un documento describe comportamiento, describe el comportamiento **planificado**.
 
+## ¿Qué se hace ahora?
+
+**Sprint 0 — Fundaciones** (OW-001 a OW-010). El orden sugerido, lo que viene después y los milestones están en el [foco actual del roadmap](roadmap/roadmap.md#foco-actual). Las convenciones de trabajo (estados, prioridades, etiquetas, milestones) están en el [backlog](roadmap/backlog.md#convenciones), que es la fuente única de las issues de GitHub.
+
 ## Orden de lectura sugerido
 
 Para entender el proyecto en una hora:
