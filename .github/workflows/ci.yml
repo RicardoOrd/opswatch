@@ -1,0 +1,123 @@
+# Integración continua (docs/devops/ci-cd.md). Acciones fijadas por SHA contra la manipulación de acciones de terceros
+# (T-61); Dependabot las actualiza. Checks obligatorios en la protección de main: build, secrets-scan e image.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # En un PR, un push nuevo cancela la ejecución anterior. En main no: cada merge publica su propia imagen
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      # Primero lo más rápido: un fallo de formato no espera a los tests
+      - name: Formato
+        run: ./mvnw -B spotless:check
+      # Compilación sin warnings, tests unitarios, integración con Testcontainers y límites de módulo
+      - name: Verify
+        run: ./mvnw -B verify
+      - name: Informes de tests
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-reports
+          path: |
+            target/surefire-reports
+            target/failsafe-reports
+      - name: Cobertura y documentación de módulos
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: reports
+          path: |
+            target/site/jacoco
+            target/spring-modulith-docs
+
+  secrets-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # La acción lista los commits del PR
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Sin comentarios en el PR, que pedirían pull-requests: write. El resultado está en el check
+          GITLEAKS_ENABLE_COMMENTS: false
+
+  image:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      # Solo este job puede publicar en GHCR, y solo lo hace en los push a main
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          tags: opswatch:ci
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      # Vulnerabilidades del sistema y de las dependencias Java, y secretos en las capas
+      - name: Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: opswatch:ci
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+      # Criterios de OW-009 que se pueden comprobar sin base de datos (docs/devops/docker.md)
+      - name: Usuario y tamaño
+        run: |
+          uid=$(docker run --rm --entrypoint id opswatch:ci -u)
+          size=$(docker save opswatch:ci | gzip | wc -c)
+          echo "Imagen: UID $uid, $((size / 1000000)) MB comprimida" >> "$GITHUB_STEP_SUMMARY"
+          test "$uid" = 10001
+          test "$size" -lt 200000000
+      - name: Login en GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publicar en GHCR
+        if: github.event_name == 'push'
+        run: |
+          docker tag opswatch:ci "ghcr.io/ricardoord/opswatch:sha-${GITHUB_SHA::7}"
+          docker tag opswatch:ci ghcr.io/ricardoord/opswatch:main
+          docker push --all-tags ghcr.io/ricardoord/opswatch
