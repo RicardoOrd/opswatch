@@ -58,6 +58,13 @@ class DeploymentGuardrailsTest {
     }
 
     @Test
+    void rejectsTheCheapBcryptCostOfTheTests() {
+        assertFailsWith(
+                "opswatch.security.password.bcrypt-strength must be at least 12",
+                "opswatch.security.password.bcrypt-strength=4");
+    }
+
+    @Test
     void rejectsSwaggerInProductionUnlessExplicitlyPublic() {
         production()
                 .withPropertyValues(SAFE_DEPLOYED_CONFIG)

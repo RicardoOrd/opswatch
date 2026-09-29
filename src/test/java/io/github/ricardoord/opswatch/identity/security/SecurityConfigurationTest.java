@@ -2,6 +2,7 @@ package io.github.ricardoord.opswatch.identity.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.ricardoord.opswatch.shared.error.ProblemDetailsErrorController;
 import io.github.ricardoord.opswatch.shared.error.ProblemDetailsSecurityHandlers;
 import io.github.ricardoord.opswatch.shared.error.ProblemFactory;
 import org.junit.jupiter.api.Test;
@@ -18,7 +19,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@WebMvcTest
+// Only the error controller plus the probe below: the real controllers would need their services
+@WebMvcTest(controllers = ProblemDetailsErrorController.class)
 @Import({
     SecurityConfiguration.class,
     ProblemFactory.class,

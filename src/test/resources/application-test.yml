@@ -1,0 +1,7 @@
+# Perfil de los tests automáticos (docs/devops/environments.md#perfiles). Solo las diferencias con application.yml.
+opswatch:
+  security:
+    password:
+      # bcrypt barato: los tests no miden la resistencia del hash y el coste 12 los haría lentos.
+      # DeploymentGuardrails impide que este valor llegue a staging o a producción
+      bcrypt-strength: 4
