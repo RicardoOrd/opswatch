@@ -26,6 +26,7 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | Perfil: editar el nombre y cambiar la contraseña, que cierra todas las sesiones (OW-045) | **Implemented** |
 | Organizaciones con `AccessControl`, roles en código, cuota por usuario, `ETag` e `If-Match` (OW-016) | **Implemented** |
 | Miembros y roles con la invariante del último `OWNER` (OW-017) | **Implemented** |
+| Matriz de autorización endpoint × rol probada en cada build, con test de completitud (OW-018) | **Implemented** |
 | Resto de funcionalidades de producto | Planned |
 
 **Qué se hace ahora:** el milestone [v0.1.0 — Identity y organizaciones](https://github.com/RicardoOrd/opswatch/milestone/2). Orden sugerido y siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
