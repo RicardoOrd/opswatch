@@ -45,6 +45,9 @@ services:
     # El apagado ordenado espera hasta 35 s (spring.lifecycle.timeout-per-shutdown-phase); los 10 s por defecto de
     # Docker lo cortarían con un SIGKILL
     stop_grace_period: 40s
+    # Claves de desarrollo de scripts/dev-keys.sh: el perfil local las lee de secrets/, relativo al directorio de trabajo
+    volumes:
+      - ./secrets:/app/secrets:ro
     read_only: true
     tmpfs:
       - /tmp

@@ -14,7 +14,8 @@ import org.springframework.util.StringUtils;
  * {@code deployed} group) with configuration that is only acceptable for development. See
  * docs/devops/environments.md#salvaguardas-de-arranque.
  *
- * <p>Rules for secrets that do not exist yet (JWT keys, encryption keys) are added by the issues that introduce them.
+ * <p>A missing JWT key already stops every environment (validation of {@code JwtProperties}), and so does one shorter
+ * than 2048 bits ({@code JwtKeys}). Rules for the encryption key arrive with OW-022.
  */
 @Component
 public class DeploymentGuardrails implements SmartInitializingSingleton {
@@ -63,6 +64,12 @@ public class DeploymentGuardrails implements SmartInitializingSingleton {
             if (!StringUtils.hasText(environment.getProperty(required))) {
                 violations.add(required + " must be set");
             }
+        }
+
+        // Tokens are only as trustworthy as the issuer they name, and the client only reaches it over TLS
+        String issuer = environment.getProperty("opswatch.security.jwt.issuer", "");
+        if (!issuer.startsWith("https://")) {
+            violations.add("opswatch.security.jwt.issuer must be an https URL");
         }
 
         // The tests hash with cost 4 for speed: that value must never reach a real environment

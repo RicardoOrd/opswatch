@@ -1,5 +1,11 @@
 # Configuración común a staging y production (grupo "deployed"). DeploymentGuardrails impide arrancar con
 # configuración de desarrollo.
+spring:
+  config:
+    # Docker secrets: /run/secrets/opswatch.security.jwt.private-key pasa a ser la propiedad del mismo nombre
+    # (docs/devops/environments.md#lectura-de-secretos-en-producción)
+    import: "optional:configtree:/run/secrets/"
+
 logging:
   structured:
     format:

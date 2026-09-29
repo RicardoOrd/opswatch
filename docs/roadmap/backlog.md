@@ -286,24 +286,24 @@ Hecha el 2026-09-28: documentación publicada en el PR #1, issues creadas desde 
 - **Definition of Done:** endpoint documentado en OpenAPI con sus errores; el [diseño de base de datos](../database/database-design.md#3-uuid-o-bigint), el [modelo de dominio](../architecture/domain-model.md) y los [estándares de código](../development/code-standards.md) describen igual la generación de ids.
 
 ### OW-013 · Login con access token JWT
-`feature` `security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Ready**
+`feature` `security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Hecha**
 
 - **Context:** [ADR-004](../adr/ADR-004-security-strategy.md): JWT RS256 de 15 minutos validado por el Resource Server de Spring Security. `GET /api/v1/me` devuelve solo los datos del usuario: `identity` no puede depender de `organization` ([módulos](../architecture/modules.md)), y las organizaciones del usuario con su rol ya salen en `GET /api/v1/organizations` (OW-016).
 - **Objective:** `POST /api/v1/auth/login` que emite el access token, y validación del JWT en toda la API.
 - **Tasks:**
-  - [ ] Dependencia `spring-boot-starter-oauth2-resource-server` (versión gestionada por Boot).
-  - [ ] `JwtEncoder` y `JwtDecoder` con las propiedades `opswatch.security.jwt.*` del [catálogo](../devops/environments.md#seguridad): `kid`, `iss`, `aud`, RS256 fijado y 30 s de tolerancia de reloj.
-  - [ ] Los rechazos del Resource Server (token ausente, inválido o caducado) salen como `401` en Problem Details, con el `AuthenticationEntryPoint` de OW-008.
-  - [ ] `AuthenticationService` con hash señuelo para emails inexistentes, generado al arrancar con el mismo coste que los hashes reales. Un usuario `DISABLED` recibe el mismo `401 invalid-credentials`.
-  - [ ] `CurrentUser` en `shared.security`.
-  - [ ] `GET /api/v1/me` (id, email, nombre y fecha de alta).
-  - [ ] Claves: el perfil `local` lee las de `secrets/` (`scripts/dev-keys.sh` ya las genera); los tests generan su propio par al arrancar.
-  - [ ] `DeploymentGuardrails`: `staging` y `production` no arrancan sin clave privada, clave pública, `kid` o `issuer`, ni con una clave RSA de menos de 2048 bits.
+  - [x] Dependencia del Resource Server (versión gestionada por Boot). En Boot 4 el starter es `spring-boot-starter-security-oauth2-resource-server`; `spring-boot-starter-oauth2-resource-server` está deprecado.
+  - [x] `JwtEncoder` y `JwtDecoder` con las propiedades `opswatch.security.jwt.*` del [catálogo](../devops/environments.md#seguridad): `kid`, `iss`, `aud`, RS256 fijado y 30 s de tolerancia de reloj. El decoder solo acepta RS256 con las claves propias y valida `exp`, `iss`, `aud` y que `sub` sea un UUID con el `Clock` inyectado. Cambio respecto al plan: el `kid` es la huella RFC 7638 de la clave y la clave pública se deriva de la privada, así que no se configuran y no pueden contradecirse. Para rotar basta `previous-public-key`.
+  - [x] Los rechazos del Resource Server (token ausente, inválido o caducado) salen como `401` en Problem Details, con el `AuthenticationEntryPoint` de OW-008. Un token rechazado lleva `WWW-Authenticate: Bearer error="invalid_token"` (RFC 6750), sin el motivo.
+  - [x] `AuthenticationService` con hash señuelo para emails inexistentes, generado al arrancar con el mismo coste que los hashes reales. Un usuario `DISABLED` recibe el mismo `401 invalid-credentials`. Cada intento cuesta exactamente una comprobación de bcrypt; una contraseña de más de 72 bytes no la hace en ningún caso. Los fallos se registran como evento de seguridad `auth.login.failed`, con el email solo como hash.
+  - [x] `CurrentUser` en `shared.security`, como parámetro de los controladores.
+  - [x] `GET /api/v1/me` (id, email, nombre y fecha de alta).
+  - [x] Claves: el perfil `local` lee las de `secrets/` con `configtree` (`scripts/dev-keys.sh` ya las genera; el servicio `app` de Compose monta la carpeta); los tests generan su propio par al arrancar (`TestJwtKeys`). Los despliegues leen los Docker secrets de `/run/secrets/`.
+  - [x] Arranque sin claves: sin clave privada o `issuer`, o con una clave RSA de menos de 2048 bits, la aplicación no arranca **en ningún entorno** (validación de `JwtProperties` y `JwtKeys`), no solo en `staging` y `production`. `DeploymentGuardrails` añade que el `issuer` de un despliegue sea `https`.
 - **Acceptance Criteria:** un login correcto da un token que sirve en `GET /api/v1/me`; unas credenciales erróneas o un usuario deshabilitado dan `401 invalid-credentials`, con el mismo cuerpo exista o no el email y una diferencia de tiempo mediana inferior a 50 ms entre los dos casos; un token inválido da `401` en Problem Details; un despliegue sin claves no arranca.
 - **Testing:**
-  - Seguridad: `JwtSecurityIT` con firma alterada, `alg: none`, HS256 firmado con la clave pública, token caducado, `iss` o `aud` incorrectos y `kid` desconocido (todos → `401`).
-  - API: login correcto, incorrecto y de un usuario deshabilitado; `GET /api/v1/me`.
-  - Unitarios: las reglas nuevas de `DeploymentGuardrails`.
+  - Seguridad: `JwtSecurityIT` con firma alterada, payload cambiado bajo una firma válida, `alg: none`, HS256 firmado con la clave pública, token caducado y sin `exp`, `iss` o `aud` incorrectos, `sub` que no es un UUID, `kid` desconocido y clave ajena con el `kid` propio (todos → `401`), más la tolerancia de 30 s.
+  - API: `LoginApiIT` con login correcto, incorrecto, de un email inexistente y de un usuario deshabilitado (mismo cuerpo), la diferencia de tiempo mediana, `GET /api/v1/me`, el log sin email ni contraseña y la documentación OpenAPI.
+  - Unitarios: `AuthenticationServiceTest` (una comprobación de bcrypt por intento, señuelo con el coste real), `JwtKeysTest`, `JwtConfigurationTest` (arranque sin claves o con una clave débil), `CurrentUserArgumentResolverTest` y la regla nueva de `DeploymentGuardrails`.
 - **Security considerations:** algoritmo fijado contra la confusión de algoritmos (T-04); el token no lleva roles, así que la autorización nunca se basa en datos del token; la clave privada solo se lee de un secreto. El hash señuelo con el coste real evita que el tiempo de respuesta revele qué emails existen. Un access token emitido antes de deshabilitar al usuario vale hasta caducar (15 minutos como máximo): es el compromiso aceptado en ADR-004; el refresh sí se corta (OW-014).
 - **Dependencies:** OW-012.
 - **Definition of Done:** el flujo de autenticación de la arquitectura de seguridad coincide con lo implementado.

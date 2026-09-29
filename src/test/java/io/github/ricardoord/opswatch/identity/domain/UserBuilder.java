@@ -5,6 +5,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * Test data for {@link User} (docs/testing/testing-strategy.md#convenciones). Every built user has a fresh id and a
@@ -21,6 +22,7 @@ public final class UserBuilder {
     private String email = uniqueEmail();
     private String displayName = "Ana";
     private String passwordHash = "{bcrypt}$2a$04$not.a.real.hash.only.test.data";
+    private UserStatus status = UserStatus.ACTIVE;
 
     private UserBuilder() {}
 
@@ -42,7 +44,20 @@ public final class UserBuilder {
         return this;
     }
 
+    public UserBuilder withPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+        return this;
+    }
+
+    public UserBuilder disabled() {
+        this.status = UserStatus.DISABLED;
+        return this;
+    }
+
     public User build() {
-        return User.register(id, email, displayName, passwordHash, CLOCK);
+        User user = User.register(id, email, displayName, passwordHash, CLOCK);
+        // No use case disables an account yet: the field is set directly
+        ReflectionTestUtils.setField(user, "status", status);
+        return user;
     }
 }

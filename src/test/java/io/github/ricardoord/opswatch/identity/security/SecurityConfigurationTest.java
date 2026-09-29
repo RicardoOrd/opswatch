@@ -1,6 +1,8 @@
 package io.github.ricardoord.opswatch.identity.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
 
 import io.github.ricardoord.opswatch.shared.error.ProblemDetailsErrorController;
 import io.github.ricardoord.opswatch.shared.error.ProblemDetailsSecurityHandlers;
@@ -11,8 +13,11 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.jwt.BadJwtException;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,6 +40,10 @@ class SecurityConfigurationTest {
     @Autowired
     private MockMvcTester mvc;
 
+    // Real token validation is covered by JwtSecurityIT; here only its outcome matters
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
+
     @Test
     void protectedEndpointsRequireAuthenticationWithProblemDetails() {
         MvcTestResult result = mvc.get().uri("/api/v1/probe").exchange();
@@ -43,6 +52,22 @@ class SecurityConfigurationTest {
         assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("unauthenticated");
         assertThat(result).headers().hasValue(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
         assertThat(result).headers().containsHeader("X-Request-Id");
+    }
+
+    @Test
+    void rejectedBearerTokensGetProblemDetailsAndAnInvalidTokenChallenge() throws Exception {
+        given(jwtDecoder.decode(anyString())).willThrow(new BadJwtException("Signature mismatch"));
+
+        MvcTestResult result = mvc.get()
+                .uri("/api/v1/probe")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer not.a.valid-token")
+                .exchange();
+
+        assertThat(result).hasStatus(401).hasContentType(MediaType.APPLICATION_PROBLEM_JSON);
+        assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("unauthenticated");
+        assertThat(result).headers().hasValue(HttpHeaders.WWW_AUTHENTICATE, "Bearer error=\"invalid_token\"");
+        // Why the token was rejected stays in the server
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("Signature");
     }
 
     @Test

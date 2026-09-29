@@ -11,7 +11,9 @@ import org.springframework.core.io.ClassPathResource;
 class DeploymentGuardrailsTest {
 
     private static final String[] SAFE_DEPLOYED_CONFIG = {
-        "spring.datasource.url=jdbc:postgresql://db:5432/opswatch", "spring.datasource.password=from-a-secret",
+        "spring.datasource.url=jdbc:postgresql://db:5432/opswatch",
+        "spring.datasource.password=from-a-secret",
+        "opswatch.security.jwt.issuer=https://opswatch.example.com",
     };
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner().withBean(DeploymentGuardrails.class);
@@ -55,6 +57,13 @@ class DeploymentGuardrailsTest {
                 .run(context -> assertThat(context.getStartupFailure())
                         .hasMessageContaining("spring.datasource.url must be set")
                         .hasMessageContaining("spring.datasource.password must be set"));
+    }
+
+    @Test
+    void requiresAnHttpsIssuer() {
+        assertFailsWith(
+                "opswatch.security.jwt.issuer must be an https URL",
+                "opswatch.security.jwt.issuer=http://opswatch.example.com");
     }
 
     @Test
