@@ -175,7 +175,8 @@ Los rangos de validación del dominio (intervalo de 30 a 3600 s, timeout de 1 a 
 | `spring.jpa.properties.hibernate.jdbc.time_zone` | `UTC` | |
 | `spring.flyway.clean-disabled` | `true` | |
 | `spring.jackson.deserialization.fail-on-unknown-properties` | `true` | Evita el mass assignment silencioso |
-| `spring.mvc.problemdetails.enabled` | `true` | |
+| `spring.web.locale` / `spring.web.locale-resolver` | `en` / `fixed` | Los mensajes de la API (incluidos los de validación) salen siempre en inglés, sea cual sea el idioma del servidor o del cliente |
+| `spring.mvc.problemdetails.enabled` | No se usa | `ProblemDetailsHandler` sustituye al manejador de Problem Details de Spring Boot, que se desactiva solo al existir otro `ResponseEntityExceptionHandler` |
 | `server.shutdown` | `graceful` | |
 | `spring.lifecycle.timeout-per-shutdown-phase` | `35s` | |
 | `server.forward-headers-strategy` | `framework` | Solo con proxies de confianza |

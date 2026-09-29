@@ -2,11 +2,11 @@ package io.github.ricardoord.opswatch.shared.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Properties;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.WebApplicationType;
-import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.ClassPathResource;
 
 class DeploymentGuardrailsTest {
 
@@ -78,15 +78,16 @@ class DeploymentGuardrailsTest {
 
     @Test
     void productionAndStagingActivateTheDeployedGroup() {
-        // The guardrails only run under "deployed": if the group in application.yml broke, they would silently stop
-        for (String profile : new String[] {"production", "staging"}) {
-            try (var context = new SpringApplicationBuilder(EmptyConfiguration.class)
-                    .web(WebApplicationType.NONE)
-                    .profiles(profile)
-                    .run()) {
-                assertThat(context.getEnvironment().getActiveProfiles()).contains(profile, "deployed");
-            }
-        }
+        // The guardrails only run under "deployed": if the group in application.yml broke, they would silently stop.
+        // Read statically: starting an application with the production profile would switch the whole test JVM to
+        // JSON logging.
+        var yaml = new YamlPropertiesFactoryBean();
+        yaml.setResources(new ClassPathResource("application.yml"));
+        Properties properties = yaml.getObject();
+
+        assertThat(properties).isNotNull();
+        assertThat(properties.getProperty("spring.profiles.group.production")).isEqualTo(DeploymentGuardrails.DEPLOYED);
+        assertThat(properties.getProperty("spring.profiles.group.staging")).isEqualTo(DeploymentGuardrails.DEPLOYED);
     }
 
     private ApplicationContextRunner production() {
@@ -101,7 +102,4 @@ class DeploymentGuardrailsTest {
                 .withPropertyValues(badProperties)
                 .run(context -> assertThat(context.getStartupFailure()).hasMessageContaining(expectedMessage));
     }
-
-    @Configuration(proxyBeanMethods = false)
-    static class EmptyConfiguration {}
 }

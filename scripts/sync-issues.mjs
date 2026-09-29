@@ -6,6 +6,7 @@
 //   node scripts/sync-issues.mjs --run    # applies the changes
 //
 // What it manages: title, body, type/priority labels and milestone of every OW-NNN entry.
+// Entries marked **Hecha** keep their full body and are closed as "completed".
 // Entries marked **Cerrada** are closed ("not planned" when the text says "Fusionada",
 // "completed" otherwise). Missing issues are created. Labels outside the managed set
 // (for example `bug`) are left untouched. Issues are matched by the "OW-NNN ·" title prefix.
@@ -30,6 +31,7 @@ const STATUS_TEXT = {
   Ready: '**Estado:** Ready: refinada y en el milestone actual. Se puede empezar.',
   Planned: '**Estado:** Planned: refinada, pero en un milestone futuro. Se revisa al empezar su milestone.',
   'Por detallar': '**Estado:** Por detallar: existe el objetivo, no el detalle. Se refina antes de empezar su milestone.',
+  Hecha: '**Estado:** Hecha: implementada y mergeada.',
 };
 const FOOTER = `\n\n---\n\nFuente: [\`${BACKLOG}\`](${blob}${BACKLOG}) · `
   + `Cumple además la [Definition of Done](${blob}docs/roadmap/definition-of-done.md). `
@@ -51,7 +53,7 @@ for (const m of text.matchAll(detailed)) {
   const [, code, id, title, meta, body] = m;
   const priority = meta.match(/\b(P[0-3])\b/)?.[1];
   const milestone = meta.match(/Milestone: (.+?) · \*\*/)?.[1];
-  const status = meta.match(/\*\*(Ready|Planned|Cerrada)\*\*/)?.[1];
+  const status = meta.match(/\*\*(Ready|Planned|Hecha|Cerrada)\*\*/)?.[1];
   if (!priority || !milestone || !status) throw new Error(`Malformed metadata line for ${code}: ${meta}`);
   const labels = [...meta.matchAll(/`([^`]+)`/g)].map((x) => x[1]);
   entries.push({ id, code, title: `${code} · ${title.trim()}`, labels: [...labels, priority], milestone, status, rawBody: body.trim() });
@@ -87,7 +89,7 @@ for (const issue of issues) {
 
 // ---- Create missing issues first, so every OW-NNN reference can be linked -----------------
 
-for (const e of entries.filter((entry) => !byCode.has(entry.code) && entry.status !== 'Cerrada')) {
+for (const e of entries.filter((entry) => !byCode.has(entry.code) && entry.status !== 'Cerrada' && entry.status !== 'Hecha')) {
   if (!run) {
     console.log(`[create] ${e.title}`);
     byCode.set(e.code, { number: null, title: '', body: '', labels: [], milestone: null, state: 'OPEN' });
@@ -142,8 +144,9 @@ for (const e of entries) {
   if ((issue.body ?? '').replace(/\r\n/g, '\n').trim() !== body.trim()) edits.push('body');
   if (issue.milestone?.title !== e.milestone) edits.push('milestone');
   if (add.length || remove.length) edits.push('labels');
-  const close = e.status === 'Cerrada' && issue.state === 'OPEN';
-  if (e.status !== 'Cerrada' && issue.state === 'CLOSED') {
+  const finished = e.status === 'Cerrada' || e.status === 'Hecha';
+  const close = finished && issue.state === 'OPEN';
+  if (!finished && issue.state === 'CLOSED') {
     console.log(`[warn] #${issue.number} ${e.code} is closed on GitHub but open in the backlog; reopen it manually if intended`);
   }
   if (!edits.length && !close) continue;
@@ -161,8 +164,9 @@ for (const e of entries) {
     gh(args, body);
   }
   if (close) {
-    const reason = /Fusionada/.test(e.rawBody) ? 'not planned' : 'completed';
-    gh(['issue', 'close', String(issue.number), '--repo', repo, '--reason', reason, '--comment', linkCodes(absolutizeLinks(e.rawBody))]);
+    const reason = e.status === 'Cerrada' && /Fusionada/.test(e.rawBody) ? 'not planned' : 'completed';
+    const comment = e.status === 'Hecha' ? 'Hecha según el backlog.' : linkCodes(absolutizeLinks(e.rawBody));
+    gh(['issue', 'close', String(issue.number), '--repo', repo, '--reason', reason, '--comment', comment]);
   }
   await pause();
 }

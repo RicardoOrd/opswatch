@@ -14,6 +14,14 @@ spring:
       enabled: true
   lifecycle:
     timeout-per-shutdown-phase: 35s
+  jackson:
+    deserialization:
+      # Una propiedad desconocida en un request es un error (400), no algo que se ignora en silencio (mass assignment)
+      fail-on-unknown-properties: true
+  web:
+    # Los mensajes de la API son un contrato técnico en inglés, sea cual sea el idioma del servidor o del cliente
+    locale: en
+    locale-resolver: fixed
 
 server:
   shutdown: graceful

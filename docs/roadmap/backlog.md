@@ -24,7 +24,8 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 | **Ready** | Refinada, en el milestone actual y cumple la [Definition of Ready](definition-of-done.md#definition-of-ready-antes-de-empezar-una-issue). Se puede empezar | Línea de metadatos de la issue. Columna `Ready` del Project |
 | **Planned** | Refinada, pero en un milestone futuro. Se revisa al empezar su milestone, porque el trabajo anterior puede cambiarla | Ídem. Columna `Backlog` |
 | **Por detallar** | Existe el objetivo, no el detalle. No se empieza hasta refinarla | Ídem. Columna `Backlog` |
-| **Cerrada** | Hecha, o fusionada en otra issue | Issue cerrada en GitHub |
+| **Hecha** | Implementada y mergeada. La entrada conserva su detalle como registro | Issue cerrada en GitHub. Columna `Done` |
+| **Cerrada** | Cerrada sin implementarse como tal: fusionada en otra issue o resuelta fuera del código | Issue cerrada en GitHub |
 
 El trabajo de las Etapas 2 a 5 (Redis, broker, microservicios, analytics) **no tiene issues**: vive en el [roadmap](roadmap.md), en las [decisiones abiertas](../architecture/open-decisions.md) y en los ADR propuestos 009 a 013. Se convierte en issues solo cuando su disparador se cumpla.
 
@@ -91,7 +92,7 @@ Línea de metadatos: `tipos` · prioridad · milestone · estado. Después: Cont
 - **Definition of Done:** estado real de la configuración anotado en [CI/CD](../devops/ci-cd.md).
 
 ### OW-002 · Generar el proyecto Spring Boot con las dependencias base
-`architecture` · P0 · Milestone: Sprint 0 — Fundaciones · **Ready**
+`architecture` · P0 · Milestone: Sprint 0 — Fundaciones · **Hecha**
 
 - **Context:** hace falta el esqueleto con versiones fijadas y solo las dependencias justificadas para el Sprint 0.
 - **Objective:** proyecto Maven que compila, con el wrapper, sin warnings y con las verificaciones abiertas del Sprint 0 resueltas.
@@ -108,7 +109,7 @@ Línea de metadatos: `tipos` · prioridad · milestone · estado. Después: Cont
 - **Definition of Done:** versiones anotadas en el README y en los ADR afectados.
 
 ### OW-003 · Declarar los módulos y verificarlos con Spring Modulith
-`architecture` `testing` · P1 · Milestone: Sprint 0 — Fundaciones · **Ready**
+`architecture` `testing` · P1 · Milestone: Sprint 0 — Fundaciones · **Hecha**
 
 - **Context:** los límites de módulo tienen que romper el build desde el principio ([ADR-003](../adr/ADR-003-spring-modulith.md)).
 - **Objective:** los siete módulos declarados con sus dependencias permitidas y verificados en CI.
@@ -143,25 +144,27 @@ Línea de metadatos: `tipos` · prioridad · milestone · estado. Después: Cont
 - **Definition of Done:** instrucciones de arranque del README comprobadas desde un clon limpio.
 
 ### OW-005 · Manejo de errores base con Problem Details
-`architecture` · P1 · Milestone: Sprint 0 — Fundaciones · **Ready**
+`architecture` · P1 · Milestone: Sprint 0 — Fundaciones · **Hecha**
 
 - **Context:** todos los errores deben tener el mismo formato ([guía de API](../api/api-guidelines.md#8-formato-de-error-problem-details-rfc-9457)).
 - **Objective:** jerarquía `DomainException` y traducción uniforme a `application/problem+json`.
 - **Tasks:**
-  - [ ] Excepciones base en `shared.error`.
-  - [ ] `@RestControllerAdvice` para las excepciones de dominio, la validación, el JSON malformado, las propiedades desconocidas, `404`, `405` y `500`.
-  - [ ] `AuthenticationEntryPoint` y `AccessDeniedHandler` con el mismo formato.
-  - [ ] `PageResponse<T>`.
+  - [x] `ProblemCode` (catálogo con estado y título fijos) y la jerarquía `DomainException` en `shared.error`.
+  - [x] `ProblemDetailsHandler` (`@RestControllerAdvice`) para las excepciones de dominio, la validación (`errors[]`), el JSON malformado, las propiedades desconocidas, los parámetros inválidos, el bloqueo optimista, `404`, `405`, `415` y `500`.
+  - [x] `ProblemDetailsErrorController` para los errores fuera de Spring MVC (`/error`).
+  - [x] `AuthenticationEntryPoint` y `AccessDeniedHandler` que delegan en el mismo handler. Se conectan al `SecurityFilterChain` en OW-008.
+  - [x] `PageResponse<T>`.
+  - [x] Mensajes de la API en inglés (locale fijo) y propiedades JSON desconocidas rechazadas.
 - **Acceptance Criteria:** cada tipo de error devuelve el `code` del catálogo y el `requestId`; un `500` no revela ni la clase ni el mensaje de la excepción.
 - **Testing:**
-  - Integración: `ProblemDetailsIT` con un controlador de prueba (solo en `src/test`) que lanza cada excepción.
-  - Seguridad: el `500` no contiene stack trace, SQL ni nombres de clase.
+  - Slice (`@WebMvcTest`): `ProblemDetailsHandlerTest`, con un controlador de prueba (solo en `src/test`) que lanza cada excepción. Es un test de serialización, no de persistencia, así que no necesita PostgreSQL.
+  - Seguridad: el `500` no contiene stack trace, SQL ni nombres de clase; el entry point de Spring Security produce el mismo formato.
 - **Security considerations:** fuga de información por errores (T-17 del threat model). Los errores de autenticación no distinguen causas que ayuden a un atacante.
 - **Dependencies:** OW-002.
 - **Definition of Done:** el catálogo de códigos de la guía de API coincide con el código.
 
 ### OW-006 · Logging estructurado, request id, perfiles y salvaguardas de arranque
-`devops` `security` · P2 · Milestone: Sprint 0 — Fundaciones · **Ready**
+`devops` `security` · P2 · Milestone: Sprint 0 — Fundaciones · **Hecha**
 
 - **Context:** hace falta trazabilidad por petición y configuración segura por entorno.
 - **Objective:** logs correlacionables y perfiles que fallan si están mal configurados.
