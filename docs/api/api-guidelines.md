@@ -68,7 +68,7 @@ En el código, un campo que no admite nulo lleva `@JsonDeserialize(using = NotNu
 | `Authorization: Bearer <jwt>` | Request | Autenticación |
 | `Content-Type: application/json` | Ambas | Obligatorio en los requests con cuerpo |
 | `X-Request-Id` | Ambas | Si el cliente lo envía y es válido (hasta 64 caracteres `[A-Za-z0-9-_]`), se reutiliza. Si no, se genera uno. Se devuelve siempre y aparece en los logs y los errores |
-| `ETag` / `If-Match` | Response / Request | Versión del recurso (`"<version>"`) en los recursos editables. `If-Match` es **opcional**: si se envía y no coincide, `412`. Sin él, el `@Version` de JPA sigue protegiendo contra escrituras concurrentes (`409`) |
+| `ETag` / `If-Match` | Response / Request | Versión del recurso (`"<version>"`) en los recursos editables (`ETags`). `If-Match` es **opcional**: si se envía y no coincide, `412`. Acepta `*` y listas; la comparación es fuerte, así que una etiqueta débil (`W/"3"`) no coincide nunca. Sin él, el `@Version` de JPA sigue protegiendo contra escrituras concurrentes (`409`) |
 | `Location` | Response | URL del recurso creado |
 | `Retry-After` | Response | En `429` y `503` |
 
@@ -164,6 +164,7 @@ GET /api/v1/projects/{projectId}/monitors?page=0&size=20&sort=name,asc
 
 - `page` empieza en 0. `size` vale 20 por defecto y 100 como máximo. Por encima → `400 invalid-parameter`.
 - La respuesta es un DTO propio (`PageResponse<T>`), **no** la serialización de `Page` de Spring Data, que no es un contrato estable.
+- En el código, el controlador declara un parámetro `PageQuery` y llama a `toPageable(sortable, defaultSort)` con su lista blanca. `PageQueryArgumentResolver` lee `page`, `size` y cada `sort` tal como llegan: la conversión de Spring partiría un único `sort=name,asc` en dos valores. Los tres parámetros se documentan en OpenAPI con `@Parameter` en el método.
 
 ### Por cursor (keyset): series temporales
 

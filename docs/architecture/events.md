@@ -93,7 +93,7 @@ public record OrganizationDeleted(UUID organizationId, Instant occurredAt) {}
 | `IncidentResolved` | `incident` | `notification` | **Asíncrono, después del commit, con registro** | Ídem |
 | `IncidentAcknowledged` | `incident` | — (Fase 8: tiempo real) | — | Se publica ya por consistencia del catálogo |
 | `ProjectDeleted` | `organization` | `monitoring` | **Asíncrono, después del commit, con registro** | Limpieza que puede tardar y no tiene que bloquear la petición |
-| `OrganizationDeleted` | `organization` | `organization` (borra sus proyectos) | Síncrono, dentro del módulo | Mismo módulo |
+| `OrganizationDeleted` | `organization` | `organization` (borra sus proyectos, desde que existan en OW-019; en la v0.1.0 nadie lo escucha) | Síncrono, dentro del módulo | Mismo módulo |
 
 ## 4. Semántica transaccional
 

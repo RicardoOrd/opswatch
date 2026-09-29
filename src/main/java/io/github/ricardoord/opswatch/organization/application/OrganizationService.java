@@ -1,0 +1,124 @@
+package io.github.ricardoord.opswatch.organization.application;
+
+import io.github.ricardoord.opswatch.organization.AccessControl;
+import io.github.ricardoord.opswatch.organization.OrganizationDeleted;
+import io.github.ricardoord.opswatch.organization.Permission;
+import io.github.ricardoord.opswatch.organization.Role;
+import io.github.ricardoord.opswatch.organization.domain.Membership;
+import io.github.ricardoord.opswatch.organization.domain.MembershipRepository;
+import io.github.ricardoord.opswatch.organization.domain.Organization;
+import io.github.ricardoord.opswatch.organization.domain.OrganizationRepository;
+import io.github.ricardoord.opswatch.organization.domain.OrganizationWithRole;
+import io.github.ricardoord.opswatch.shared.error.QuotaExceededException;
+import io.github.ricardoord.opswatch.shared.error.ResourceNotFoundException;
+import io.github.ricardoord.opswatch.shared.id.IdGenerator;
+import io.github.ricardoord.opswatch.shared.web.ETags;
+import java.time.Clock;
+import java.util.UUID;
+import org.jspecify.annotations.Nullable;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * Organizations as their members see them. Every use case loads the organization first and then asks
+ * {@link AccessControl}: the organization never comes from data the client chose.
+ */
+@Service
+@EnableConfigurationProperties(OrganizationLimits.class)
+public class OrganizationService {
+
+    private final OrganizationRepository organizations;
+    private final MembershipRepository memberships;
+    private final AccessControl access;
+    private final IdGenerator ids;
+    private final ApplicationEventPublisher events;
+    private final OrganizationLimits limits;
+    private final Clock clock;
+
+    public OrganizationService(
+            OrganizationRepository organizations,
+            MembershipRepository memberships,
+            AccessControl access,
+            IdGenerator ids,
+            ApplicationEventPublisher events,
+            OrganizationLimits limits,
+            Clock clock) {
+        this.organizations = organizations;
+        this.memberships = memberships;
+        this.access = access;
+        this.ids = ids;
+        this.events = events;
+        this.limits = limits;
+        this.clock = clock;
+    }
+
+    /**
+     * The creator becomes its {@code OWNER} in the same transaction.
+     *
+     * @throws QuotaExceededException if the user already owns as many organizations as allowed (422), also when the
+     *     creations are simultaneous: they take turns per user
+     */
+    @Transactional
+    public OrganizationWithRole create(UUID userId, String name) {
+        organizations.lockQuotaOf(OrganizationRepository.QUOTA_LOCK_NAMESPACE, userId);
+        int limit = limits.organizationsPerUser();
+        if (organizations.countActiveWithRole(userId, Role.OWNER) >= limit) {
+            throw new QuotaExceededException("You already own " + limit + " organizations, the most allowed.");
+        }
+        Organization organization = organizations.save(Organization.create(ids.next(), name, clock));
+        memberships.save(Membership.of(organization.id(), userId, Role.OWNER, clock));
+        // Assigns the version for the ETag of the response
+        organizations.flush();
+        return new OrganizationWithRole(organization, Role.OWNER);
+    }
+
+    /** Only those the user is a member of, with the user's role in each. */
+    @Transactional(readOnly = true)
+    public Page<OrganizationWithRole> listOf(UUID userId, Pageable pageable) {
+        return organizations.findActiveOfMember(userId, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public OrganizationWithRole get(UUID userId, UUID organizationId) {
+        Organization organization = active(organizationId);
+        Role role = access.require(userId, organization.id(), Permission.ORGANIZATION_READ);
+        return new OrganizationWithRole(organization, role);
+    }
+
+    /**
+     * @param name null to keep it
+     * @param ifMatch the {@code If-Match} header, if the client sent one
+     */
+    @Transactional
+    public OrganizationWithRole rename(
+            UUID userId, UUID organizationId, @Nullable String name, @Nullable String ifMatch) {
+        Organization organization = active(organizationId);
+        Role role = access.require(userId, organization.id(), Permission.ORGANIZATION_UPDATE);
+        ETags.requireMatch(ifMatch, organization.savedVersion());
+        if (name != null) {
+            organization.rename(name, clock);
+            // Fails here on a concurrent change (@Version), and gives the response its new version
+            organizations.flush();
+        }
+        return new OrganizationWithRole(organization, role);
+    }
+
+    /** Logical: it disappears for everyone, its members included. */
+    @Transactional
+    public void delete(UUID userId, UUID organizationId) {
+        Organization organization = active(organizationId);
+        access.require(userId, organization.id(), Permission.ORGANIZATION_DELETE);
+        organization.delete(clock);
+        events.publishEvent(new OrganizationDeleted(organization.id(), clock.instant()));
+    }
+
+    private Organization active(UUID organizationId) {
+        return organizations
+                .findByIdAndDeletedAtIsNull(organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("organization", organizationId));
+    }
+}

@@ -104,6 +104,31 @@ class MeApiIT {
     }
 
     @Test
+    void theAccountCarriesItsVersionAndAStaleIfMatchChangesNothing() {
+        String token = signedIn(uniqueEmail());
+        assertThat(me(token)).headers().hasValue(HttpHeaders.ETAG, "\"0\"");
+
+        MvcTestResult renamed = mvc.patch()
+                .uri("/api/v1/me")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .header(HttpHeaders.IF_MATCH, "\"0\"")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"displayName\": \"Bea\"}")
+                .exchange();
+        MvcTestResult stale = mvc.patch()
+                .uri("/api/v1/me")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .header(HttpHeaders.IF_MATCH, "\"0\"")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"displayName\": \"Lost update\"}")
+                .exchange();
+
+        assertThat(renamed).hasStatus(200).headers().hasValue(HttpHeaders.ETAG, "\"1\"");
+        assertThat(stale).hasStatus(412).bodyJson().extractingPath("$.code").isEqualTo("precondition-failed");
+        assertThat(me(token)).bodyJson().extractingPath("$.displayName").isEqualTo("Bea");
+    }
+
+    @Test
     void needsAnAccessToken() {
         MvcTestResult result = mvc.patch()
                 .uri("/api/v1/me")

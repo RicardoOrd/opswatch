@@ -2,7 +2,7 @@
 
 Estado: diseño inicial · Última revisión: 2026-09-29 · Convenciones: [api-guidelines.md](api-guidelines.md) · Permisos: [authorization-model.md](../security/authorization-model.md)
 
-**Existen `POST /api/v1/auth/register` (OW-012), `POST /api/v1/auth/login` y `GET /api/v1/me` (OW-013), y `POST /api/v1/auth/refresh` y `POST /api/v1/auth/logout` (OW-014), con rate limiting desde OW-015, y `PATCH /api/v1/me` y `POST /api/v1/me/password` (OW-045). El resto está planificado.** La columna "Fase" indica cuándo se implementa cada uno. Los errores comunes a todos los endpoints autenticados (`401`, `404` a quien no es miembro, `429` y `500`) no se repiten en cada tabla.
+**Existen `POST /api/v1/auth/register` (OW-012), `POST /api/v1/auth/login` y `GET /api/v1/me` (OW-013), y `POST /api/v1/auth/refresh` y `POST /api/v1/auth/logout` (OW-014), con rate limiting desde OW-015, `PATCH /api/v1/me` y `POST /api/v1/me/password` (OW-045), y los cinco endpoints de organizaciones (OW-016). El resto está planificado.** La columna "Fase" indica cuándo se implementa cada uno. Los errores comunes a todos los endpoints autenticados (`401`, `404` a quien no es miembro, `429` y `500`) no se repiten en cada tabla.
 
 ## Autenticación (`identity`)
 
@@ -12,8 +12,8 @@ Estado: diseño inicial · Última revisión: 2026-09-29 · Convenciones: [api-g
 | `POST` | `/api/v1/auth/login` | Pública | `200` y cookie de refresh | `400`, `401 invalid-credentials` (el mismo cuerpo exista o no el email), `429 rate-limited` (más de 10 por minuto desde una IP o más de 5 contra un email) | 1 |
 | `POST` | `/api/v1/auth/refresh` | Cookie | `200` y cookie nueva | `401 unauthenticated` (token ausente, desconocido, caducado, revocado o reutilizado, o cuenta deshabilitada), `403 access-denied` (`Origin` ausente o no permitido), `415` (sin `Content-Type: application/json`), `429 rate-limited` (más de 30 por minuto desde una IP) | 1 |
 | `POST` | `/api/v1/auth/logout` | Cookie | `204` y cookie borrada, también sin cookie o con un token desconocido | `403 access-denied` (`Origin` ausente o no permitido), `415` | 1 |
-| `GET` | `/api/v1/me` | JWT | `200` | `401` (token ausente, inválido o caducado) | 1 |
-| `PATCH` | `/api/v1/me` | JWT | `200` con la cuenta | `400` (`displayName` inválido o `null`; `email` u otra propiedad desconocida) | 1 |
+| `GET` | `/api/v1/me` | JWT | `200` y `ETag` | `401` (token ausente, inválido o caducado) | 1 |
+| `PATCH` | `/api/v1/me` | JWT | `200` con la cuenta y su `ETag` | `400` (`displayName` inválido o `null`; `email` u otra propiedad desconocida), `409`, `412` | 1 |
 | `POST` | `/api/v1/me/password` | JWT | `204` (revoca todos los refresh tokens del usuario) | `400` (también con la contraseña actual incorrecta, como error `incorrect-password` de `currentPassword`), `409 concurrent-modification` (otro cambio de contraseña se adelantó), `429 rate-limited` (más de 5 intentos cada 15 minutos por usuario, desde cualquier IP) | 1 |
 
 ```jsonc
@@ -56,24 +56,39 @@ Validaciones: `email` con formato válido, solo ASCII imprimible y hasta 254 car
 - `GET /api/v1/me` no incluye las organizaciones del usuario: `identity` no puede depender de `organization` ([módulos](../architecture/modules.md)). Salen, con el rol del usuario en cada una, en `GET /api/v1/organizations`.
 - La contraseña actual incorrecta en `POST /api/v1/me/password` da `400` y no `401`: el access token es válido, y un `401` haría que el cliente intentara refrescarlo.
 - El cambio de contraseña revoca todas las sesiones del usuario, también la de quien lo hace: su refresh token da `401` y tiene que volver a iniciar sesión. Los access tokens ya emitidos siguen valiendo hasta caducar ([ADR-004](../adr/ADR-004-security-strategy.md)).
-- `PATCH /api/v1/me` solo edita `displayName`. El email no cambia en V1, porque cambiarlo exige verificarlo (OW-037): un `email` en el cuerpo es una propiedad desconocida y da `400`. `/me` todavía no lleva `ETag` ni `If-Match`: llegan con OW-016.
+- `PATCH /api/v1/me` solo edita `displayName`. El email no cambia en V1, porque cambiarlo exige verificarlo (OW-037): un `email` en el cuerpo es una propiedad desconocida y da `400`. `GET` y `PATCH /api/v1/me` devuelven el `ETag` de la cuenta, y `PATCH` acepta `If-Match` (OW-016).
 
 ## Organizaciones (`organization`)
 
 | Método | Ruta | Permiso | Éxito | Errores específicos | Fase |
 |---|---|---|---|---|---|
-| `POST` | `/api/v1/organizations` | Autenticado | `201` (quien la crea queda como `OWNER`) | `400`, `422 quota-exceeded` | 1 |
-| `GET` | `/api/v1/organizations` | Autenticado | `200`, paginado (solo aquellas de las que es miembro, con su rol) | — | 1 |
-| `GET` | `/api/v1/organizations/{orgId}` | `ORGANIZATION_READ` | `200` | — | 1 |
-| `PATCH` | `/api/v1/organizations/{orgId}` | `ORGANIZATION_UPDATE` | `200` | `400`, `403`, `409`, `412` | 1 |
+| `POST` | `/api/v1/organizations` | Autenticado | `201` y `ETag` (quien la crea queda como `OWNER`) | `400`, `422 quota-exceeded` (ya es `OWNER` de 5 organizaciones no borradas) | 1 |
+| `GET` | `/api/v1/organizations` | Autenticado | `200`, paginado (solo aquellas de las que es miembro, con su rol). `sort` por `name` (por defecto) o `createdAt` | `400 invalid-parameter` | 1 |
+| `GET` | `/api/v1/organizations/{orgId}` | `ORGANIZATION_READ` | `200` y `ETag` | — | 1 |
+| `PATCH` | `/api/v1/organizations/{orgId}` | `ORGANIZATION_UPDATE` | `200` y `ETag` nuevo | `400` (`name` inválido o `null`), `403`, `409`, `412` | 1 |
 | `DELETE` | `/api/v1/organizations/{orgId}` | `ORGANIZATION_DELETE` | `204` | `403` | 1 |
 
 ```jsonc
 // POST /api/v1/organizations
 { "name": "CharityLink" }
-// 201, Location: /api/v1/organizations/0192…
+// 201, Location: /api/v1/organizations/0192…, ETag: "0"
 { "id": "0192…", "name": "CharityLink", "myRole": "OWNER", "createdAt": "…", "version": 0 }
+
+// GET /api/v1/organizations?page=0&size=20&sort=name,asc
+{
+  "items": [ { "id": "0192…", "name": "CharityLink", "myRole": "OWNER", "createdAt": "…" } ],
+  "page": { "number": 0, "size": 20, "totalElements": 1, "totalPages": 1 }
+}
+
+// PATCH /api/v1/organizations/{orgId}, con If-Match: "0" (opcional)
+{ "name": "Charity Link" }
+// 200, ETag: "1"
+{ "id": "0192…", "name": "Charity Link", "myRole": "OWNER", "createdAt": "…", "version": 1 }
 ```
+
+- Quien no es miembro recibe `404` en cualquier endpoint con `{orgId}`, igual que con un id inexistente o una organización borrada.
+- Borrar es lógico y publica `OrganizationDeleted`. La organización desaparece para todos sus miembros, también del listado, y deja de contar en la cuota de su `OWNER`.
+- Validación de `name`: de 1 a 100 caracteres, sin caracteres de control, separadores de línea ni de formato bidireccional, y sin los espacios alrededor. No tiene que ser único.
 
 ## Miembros
 
