@@ -235,22 +235,22 @@ Línea de metadatos: `tipos` · prioridad · milestone · estado. Después: Cont
 - **Definition of Done:** tamaño anotado en `docker.md`.
 
 ### OW-010 · Pipeline de CI inicial
-`devops` · P1 · Milestone: Sprint 0 — Fundaciones · **Ready**
+`devops` · P1 · Milestone: Sprint 0 — Fundaciones · **Hecha**
 
 - **Context:** `main` debe estar siempre verde de forma verificable.
 - **Objective:** CI con compilación, formato, tests, secretos, imagen y escaneo de vulnerabilidades.
 - **Tasks:**
-  - [ ] `ci.yml` con los jobs `build`, `secrets-scan` e `image` ([CI/CD](../devops/ci-cd.md)).
-  - [ ] Acciones fijadas por SHA y `permissions` mínimos.
-  - [ ] Trivy, que falla ante `CRITICAL` o `HIGH` con corrección disponible.
-  - [ ] Publicación en GHCR en los push a `main`.
-  - [ ] Añadir `build` e `image` como checks obligatorios en la protección de `main`.
+  - [x] `ci.yml` con los jobs `build`, `secrets-scan` e `image` ([CI/CD](../devops/ci-cd.md)).
+  - [x] Acciones fijadas por SHA, `permissions` mínimos por job y `persist-credentials: false`. Validado con actionlint y zizmor.
+  - [x] Trivy, que falla ante `CRITICAL` o `HIGH` con corrección disponible. En la primera pasada detectó 3 CVE críticas de Tomcat y 1 alta de jackson-databind, corregidas fijando parches por encima de Boot 4.1.1.
+  - [x] Publicación en GHCR en los push a `main` (`:sha-<7>` y `:main`), además de la comprobación del UID y del tamaño de la imagen.
+  - [x] `build`, `secrets-scan` e `image` como checks obligatorios en la protección de `main`, ligados a la app GitHub Actions y con la rama al día.
 - **Acceptance Criteria:** un PR mal formateado falla; un PR con una clave privada falsa falla en gitleaks; un merge a `main` publica `ghcr.io/ricardoord/opswatch:sha-…`; un PR con los checks en rojo no se puede mergear.
 - **Testing:**
-  - Manual: un PR de prueba por cada caso de fallo.
+  - Manual: PR de prueba #58, que falló por formato y por la clave falsa y quedó bloqueado. `verify()` de Modulith, comprobado en local con una dependencia prohibida.
 - **Security considerations:** `packages: write` solo en el job `image`; acciones fijadas por SHA contra la manipulación de acciones de terceros (T-61); ningún secreto de la aplicación en el pipeline.
 - **Dependencies:** OW-003, OW-007, OW-009.
-- **Definition of Done:** tiempo total del pipeline anotado; la [configuración de GitHub](../devops/ci-cd.md) refleja los checks obligatorios.
+- **Definition of Done:** tiempo total del pipeline anotado (unos 5 min en frío y 1 min 39 s con caches); la [configuración de GitHub](../devops/ci-cd.md) refleja los checks obligatorios.
 
 ### OW-011 · Publicar la documentación de diseño
 `documentation` · P1 · Milestone: Sprint 0 — Fundaciones · **Cerrada**

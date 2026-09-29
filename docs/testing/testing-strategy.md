@@ -185,7 +185,7 @@ class MonitorRepositoryIT { … }
 5. **Separación Surefire y Failsafe:** `*Test` y `*Tests` son unitarios (`./mvnw test`, sin Docker) y `*IT` son de integración (`./mvnw verify`). Se puede iterar sobre lógica pura sin arrancar contenedores.
 6. **Objetivo:** la suite completa por debajo de 5 minutos en CI. Si se supera, primero se revisa el número de contextos de Spring.
 
-**Baseline (OW-007, 2026-09-28):** `./mvnw clean verify` tarda **28 s** en local, con Windows 11, 12 hilos, 16 GB, Docker Desktop 29.6, la imagen ya descargada y sin reutilización. Son 56 tests unitarios y 8 de integración, con un solo contenedor que arranca en unos 4 s. La medida de CI llega con OW-010.
+**Baseline (OW-007, 2026-09-28):** `./mvnw clean verify` tarda **28 s** en local, con Windows 11, 12 hilos, 16 GB, Docker Desktop 29.6, la imagen ya descargada y sin reutilización. Son 56 tests unitarios y 8 de integración, con un solo contenedor que arranca en unos 4 s. En CI (OW-010), el job `build` (formato más `verify`) tarda 39 s con la cache de Maven y 1 min 36 s sin ella.
 
 ### CI
 
