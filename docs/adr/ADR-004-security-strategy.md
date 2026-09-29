@@ -66,6 +66,7 @@ Hay que autenticar a los usuarios de una API REST y autorizar cada acción dentr
 ## 8. ¿Qué costo o complejidad introduce?
 
 - Lógica de rotación y reutilización del refresh token, con sus carreras (se resuelve con `FOR UPDATE` y tests concurrentes).
+- Detección estricta de la reutilización: dos refresh simultáneos con el mismo token (dos pestañas del mismo navegador) se ven como una reutilización y cierran la sesión. Se prefiere a un periodo de gracia en el que el token anterior siga valiendo, que abriría una ventana a quien lo haya robado. El cliente debe serializar sus refresh, por ejemplo con un único refresh en curso compartido entre pestañas.
 - Gestión de claves: par RSA como secreto y rotación con `kid`.
 - Una consulta de membresía por petición autorizada. Se cachea si se mide que pesa ([ADR-009](ADR-009-redis.md)).
 - El frontend y la API tienen que servirse desde el mismo sitio para la cookie `SameSite=Strict`.

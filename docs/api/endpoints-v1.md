@@ -2,16 +2,16 @@
 
 Estado: diseño inicial · Última revisión: 2026-09-29 · Convenciones: [api-guidelines.md](api-guidelines.md) · Permisos: [authorization-model.md](../security/authorization-model.md)
 
-**Existen `POST /api/v1/auth/register` (OW-012), `POST /api/v1/auth/login` y `GET /api/v1/me` (OW-013). El resto está planificado.** La columna "Fase" indica cuándo se implementa cada uno. Los errores comunes a todos los endpoints autenticados (`401`, `404` a quien no es miembro, `429` y `500`) no se repiten en cada tabla.
+**Existen `POST /api/v1/auth/register` (OW-012), `POST /api/v1/auth/login` y `GET /api/v1/me` (OW-013), y `POST /api/v1/auth/refresh` y `POST /api/v1/auth/logout` (OW-014). El resto está planificado.** La columna "Fase" indica cuándo se implementa cada uno. Los errores comunes a todos los endpoints autenticados (`401`, `404` a quien no es miembro, `429` y `500`) no se repiten en cada tabla.
 
 ## Autenticación (`identity`)
 
 | Método | Ruta | Autenticación | Éxito | Errores específicos | Fase |
 |---|---|---|---|---|---|
 | `POST` | `/api/v1/auth/register` | Pública | `201` (no inicia sesión) | `400`, `409 conflict` (email registrado), `429` (desde OW-015) | 1 |
-| `POST` | `/api/v1/auth/login` | Pública | `200` (la cookie de refresh llega con OW-014) | `400`, `401 invalid-credentials` (el mismo cuerpo exista o no el email), `429` (desde OW-015) | 1 |
-| `POST` | `/api/v1/auth/refresh` | Cookie | `200` y cookie nueva | `401` (token inválido, caducado o reutilizado), `403` (`Origin` no permitido) | 1 |
-| `POST` | `/api/v1/auth/logout` | Cookie | `204` | — | 1 |
+| `POST` | `/api/v1/auth/login` | Pública | `200` y cookie de refresh | `400`, `401 invalid-credentials` (el mismo cuerpo exista o no el email), `429` (desde OW-015) | 1 |
+| `POST` | `/api/v1/auth/refresh` | Cookie | `200` y cookie nueva | `401 unauthenticated` (token ausente, desconocido, caducado, revocado o reutilizado, o cuenta deshabilitada), `403 access-denied` (`Origin` ausente o no permitido), `415` (sin `Content-Type: application/json`) | 1 |
+| `POST` | `/api/v1/auth/logout` | Cookie | `204` y cookie borrada, también sin cookie o con un token desconocido | `403 access-denied` (`Origin` ausente o no permitido), `415` | 1 |
 | `GET` | `/api/v1/me` | JWT | `200` | `401` (token ausente, inválido o caducado) | 1 |
 | `PATCH` | `/api/v1/me` | JWT | `200` | `400` | 1 |
 | `POST` | `/api/v1/me/password` | JWT | `204` (revoca todos los refresh tokens) | `400` (también con la contraseña actual incorrecta, como error de `currentPassword`), `429` | 1 |
@@ -24,8 +24,15 @@ Estado: diseño inicial · Última revisión: 2026-09-29 · Convenciones: [api-g
 
 // POST /api/v1/auth/login
 { "email": "ana@example.com", "password": "correct horse battery" }
-// 200. Desde OW-014, también Set-Cookie: opswatch_refresh=…; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=1209600
+// 200, Set-Cookie: opswatch_refresh=…; Path=/api/v1/auth; Max-Age=1209600; Secure; HttpOnly; SameSite=Strict
 { "accessToken": "eyJ…", "tokenType": "Bearer", "expiresIn": 900 }
+
+// POST /api/v1/auth/refresh, con Cookie: opswatch_refresh=…, Origin y Content-Type: application/json. El cuerpo se ignora
+// 200, Set-Cookie con el token nuevo: el anterior deja de servir
+{ "accessToken": "eyJ…", "tokenType": "Bearer", "expiresIn": 900 }
+
+// POST /api/v1/auth/logout, con los mismos headers
+// 204, Set-Cookie: opswatch_refresh=; Path=/api/v1/auth; Max-Age=0; …
 
 // GET /api/v1/me
 { "id": "0192…", "email": "ana@example.com", "displayName": "Ana", "createdAt": "2026-09-28T10:00:00Z" }
@@ -39,6 +46,8 @@ Validaciones: `email` con formato válido, solo ASCII imprimible y hasta 254 car
 
 - El access token (RS256, 15 minutos) solo identifica al usuario: no lleva roles ni organizaciones ([ADR-004](../adr/ADR-004-security-strategy.md)). Un token rechazado da `401` con `WWW-Authenticate: Bearer error="invalid_token"`, sin decir por qué.
 - Un email inexistente, una contraseña incorrecta y una cuenta deshabilitada dan el mismo `401 invalid-credentials`, y tardan lo mismo: el email inexistente se compara con un hash señuelo del mismo coste.
+- El refresh token rota en cada uso. Presentar uno ya gastado revoca la sesión entera, también el token más reciente: dos pestañas que refrescan a la vez con la misma cookie cierran la sesión ([ADR-004](../adr/ADR-004-security-strategy.md)). El cliente debe serializar sus refresh.
+- `refresh` y `logout` solo aceptan un `Origin` igual al del `issuer` de los JWT o a uno de `opswatch.security.cors.allowed-origins`, y solo JSON: defensa contra CSRF además de `SameSite=Strict` ([arquitectura de seguridad](../security/security-architecture.md#csrf)).
 - `GET /api/v1/me` no incluye las organizaciones del usuario: `identity` no puede depender de `organization` ([módulos](../architecture/modules.md)). Salen, con el rol del usuario en cada una, en `GET /api/v1/organizations`.
 - La contraseña actual incorrecta en `POST /api/v1/me/password` da `400` y no `401`: el access token es válido, y un `401` haría que el cliente intentara refrescarlo.
 

@@ -309,18 +309,18 @@ Hecha el 2026-09-28: documentación publicada en el PR #1, issues creadas desde 
 - **Definition of Done:** el flujo de autenticación de la arquitectura de seguridad coincide con lo implementado.
 
 ### OW-014 · Refresh token con rotación, detección de reutilización y logout
-`feature` `security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Ready**
+`feature` `security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Hecha**
 
 - **Context:** refresh token opaco en una cookie `HttpOnly`, que rota en cada uso y detecta la reutilización.
 - **Objective:** `POST /api/v1/auth/refresh` y `POST /api/v1/auth/logout`, más la revocación de todas las sesiones de un usuario que usa el cambio de contraseña (OW-045).
 - **Tasks:**
-  - [ ] Migración `identity_create_refresh_tokens`.
-  - [ ] El login de OW-013 abre una familia y emite el primer refresh token.
-  - [ ] `RefreshTokenService`: emitir, rotar con `SELECT … FOR UPDATE`, detectar la reutilización, revocar la familia y revocar todas las familias de un usuario.
-  - [ ] Cookie con `HttpOnly`, `Secure`, `SameSite=Strict` y `Path=/api/v1/auth`.
-  - [ ] Comprobación del header `Origin` en refresh y logout: solo se aceptan el origen de `opswatch.security.jwt.issuer` y los de `opswatch.security.cors.allowed-origins`. Una petición sin `Origin` se rechaza.
-  - [ ] Un usuario `DISABLED` no refresca: `401` y su familia revocada (`USER_DISABLED`).
-  - [ ] Job de purga de tokens vencidos.
+  - [x] Migración `identity_create_refresh_tokens`, igual al DDL del [diseño de base de datos](../database/database-design.md#9-ddl-preliminar).
+  - [x] El login de OW-013 abre una familia y emite el primer refresh token.
+  - [x] `RefreshTokenService`: emitir, rotar con `SELECT … FOR UPDATE`, detectar la reutilización, revocar la familia y revocar todas las familias de un usuario (`revokeAllOf`, para OW-045). Las reglas de rotación y de familia viven en la entidad `RefreshToken`. La revocación por reutilización se confirma aunque la petición termine en `401`, y se registra como evento de seguridad `auth.refresh.reuse_detected`.
+  - [x] Cookie con `HttpOnly`, `Secure`, `SameSite=Strict` y `Path=/api/v1/auth`. Su `Max-Age` es lo que le queda al token; el logout la borra con `Max-Age=0`.
+  - [x] Comprobación del header `Origin` en refresh y logout (`TrustedOrigins`): solo se aceptan el origen de `opswatch.security.jwt.issuer` y los de `opswatch.security.cors.allowed-origins`. Una petición sin `Origin`, o con `Origin: null`, se rechaza. Además, los dos endpoints solo aceptan `Content-Type: application/json` (la tercera capa de la [arquitectura de seguridad](../security/security-architecture.md#csrf)); el cuerpo se ignora.
+  - [x] Un usuario `DISABLED` no refresca: `401` y su familia revocada (`USER_DISABLED`).
+  - [x] Job de purga de tokens vencidos (`RefreshTokenPurgeJob`), diario con `opswatch.retention.cron`, en lotes de `batch-size` y con `refresh-tokens-grace` de gracia. Un token rotado se conserva hasta caducar, para seguir detectando su reutilización. Sin lock entre instancias: borrar es idempotente.
 - **Acceptance Criteria:**
   - Refresh → token nuevo, y el anterior deja de servir.
   - Reutilizar el anterior → `401` y la familia entera revocada.
@@ -329,9 +329,9 @@ Hecha el 2026-09-28: documentación publicada en el PR #1, issues creadas desde 
   - `Origin` ajeno o ausente → `403`.
   - Dos refresh concurrentes con el mismo token (50 repeticiones): exactamente uno recibe `200`, el otro `401`, y la familia queda revocada en todos los casos. Es el comportamiento estricto elegido: dos pestañas que refrescan a la vez cierran la sesión (compromiso documentado en ADR-004).
 - **Testing:**
-  - Unitarios: lógica de rotación y de familias.
-  - Integración (concurrencia): `RefreshTokenIT` con PostgreSQL real.
-  - Seguridad: atributos de la cookie, `Origin` ajeno o ausente → `403`, el token en claro nunca se guarda.
+  - Unitarios: lógica de rotación y de familias (`RefreshTokenTest`) y orígenes permitidos (`TrustedOriginsTest`).
+  - Integración (concurrencia): `RefreshTokenIT` con PostgreSQL real: la carrera de dos refresh (50 repeticiones), la revocación de todas las sesiones de un usuario y la purga.
+  - Seguridad y API: `RefreshApiIT` con los atributos de la cookie, rotación, reutilización, logout, usuario deshabilitado, `Origin` ajeno, ausente o `null` → `403` sin gastar el token, formulario → `415`, el token en claro nunca se guarda ni aparece en el log, y la documentación OpenAPI.
 - **Security considerations:** solo se guarda el SHA-256 del token; la reutilización genera un evento de seguridad; `FOR UPDATE` evita que una carrera emita dos tokens válidos de la misma familia (T-03, T-09). La comprobación de `Origin` es defensa en profundidad sobre `SameSite=Strict`: los navegadores siempre envían `Origin` en un `POST`, así que rechazar su ausencia solo afecta a clientes que no son navegadores, que pueden añadirlo.
 - **Dependencies:** OW-013.
 - **Definition of Done:** cubiertos T-03 y T-09 del threat model.

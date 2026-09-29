@@ -21,6 +21,7 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | CI: build, secretos, imagen y Trivy, con checks obligatorios en `main` (OW-010) | **Implemented** |
 | Registro de usuarios (OW-012) | **Implemented** |
 | Login con access token JWT RS256 y `GET /api/v1/me` (OW-013) | **Implemented** |
+| Refresh token en cookie con rotación, detección de reutilización y logout (OW-014) | **Implemented** |
 | Resto de funcionalidades de producto | Planned |
 
 **Qué se hace ahora:** el milestone [v0.1.0 — Identity y organizaciones](https://github.com/RicardoOrd/opswatch/milestone/2). Orden sugerido y siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
@@ -48,7 +49,7 @@ Cada monitor hace algo como `GET https://api.example.com/health` cada 60 segundo
 | Característica | Estado | Fase |
 |---|---|---|
 | Registro de usuarios, login y access token JWT | **Implemented** | 1 |
-| Refresh token con rotación y logout | Planned | 1 |
+| Refresh token con rotación y logout | **Implemented** | 1 |
 | Organizaciones, miembros y roles por organización (`OWNER`, `ADMIN`, `MEMBER`, `VIEWER`) | Planned | 1 |
 | Proyectos y monitores HTTP/HTTPS configurables | Planned | 2 |
 | Motor de health checks periódicos con protección contra SSRF | Planned | 3 |
