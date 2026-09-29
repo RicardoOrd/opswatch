@@ -62,7 +62,7 @@ Decisiones de OW-004:
 
 - Las claves de un fichero importado **no** pasan por el *relaxed binding* de las variables de entorno: `SPRING_DATASOURCE_PASSWORD` en `.env` no se convierte en `spring.datasource.password`. Por eso `application-local.yml` mapea cada variable de forma explícita, y así lo harán las propiedades que lleguen después.
 - La importación es opcional porque las variables también pueden llegar del entorno (el servicio `app` de Compose, OW-009), que tiene prioridad sobre el fichero. La contrapartida: sin `.env`, el placeholder queda sin resolver y el arranque falla con `password authentication failed`, no con un mensaje sobre `.env`. El README lo explica.
-- Las claves JWT y de cifrado de desarrollo **no** van en `.env`: `dev-keys.sh` las deja en `secrets/` (`jwt-dev-private.pem`, `jwt-dev-public.pem` y `encryption-dev-key`). OW-013 y OW-022 las conectan a sus propiedades.
+- Las claves JWT y de cifrado de desarrollo **no** van en `.env`: `dev-keys.sh` las deja en `secrets/` (`jwt-dev-private.pem`, `jwt-dev-public.pem` y `encryption-dev-key`). El perfil `local` importa la carpeta con `optional:configtree:secrets/`, que convierte cada fichero en una propiedad con su nombre, y `application-local.yml` la asigna: `opswatch.security.jwt.private-key: ${jwt-dev-private.pem}` (OW-013). El servicio `app` de Compose monta `secrets/` en solo lectura. OW-022 conectará la clave de cifrado igual.
 
 ### Gestor de secretos (futuro)
 
@@ -78,12 +78,11 @@ Los rangos de validación del dominio (intervalo de 30 a 3600 s, timeout de 1 a 
 
 | Propiedad | Por defecto | Notas |
 |---|---|---|
-| `opswatch.security.jwt.issuer` | — (obligatoria) | URL pública de la API |
+| `opswatch.security.jwt.issuer` | — (obligatoria) | URL pública de la API. `https` en `staging` y `production`; `http://localhost:8080` en `local` |
 | `opswatch.security.jwt.audience` | `opswatch-api` | |
 | `opswatch.security.jwt.access-token-ttl` | `15m` | |
-| `opswatch.security.jwt.private-key` | — (**secreto**) | PEM RSA de 2048 bits como mínimo |
-| `opswatch.security.jwt.public-key` | — | PEM. Durante una rotación, lista con la anterior |
-| `opswatch.security.jwt.key-id` | — | `kid` del header |
+| `opswatch.security.jwt.private-key` | — (**secreto**) | PEM PKCS#8 RSA de 2048 bits como mínimo. La clave pública y el `kid` (huella RFC 7638) se derivan de ella |
+| `opswatch.security.jwt.previous-public-key` | — | PEM X.509. Solo durante una rotación: la pública anterior, que sigue validando sus tokens hasta que caducan |
 | `opswatch.security.refresh-token.ttl` | `14d` | |
 | `opswatch.security.refresh-token.family-max-ttl` | `30d` | |
 | `opswatch.security.refresh-token.cookie-name` | `opswatch_refresh` | |
@@ -193,6 +192,9 @@ Con el perfil `staging` o `production`, la aplicación falla al arrancar si:
 - `spring.jpa.hibernate.ddl-auto` no es `validate` ni `none`;
 - `spring.flyway.clean-disabled` es `false`;
 - `opswatch.security.password.bcrypt-strength` es menor que 12 (el coste 4 del perfil `test` nunca llega a un despliegue);
+- `opswatch.security.jwt.issuer` no es una URL `https`;
 - Swagger UI está activado en `production` sin la propiedad explícita que lo permite (`opswatch.api.docs-public=true`).
+
+En **cualquier** perfil, también en `local`, la aplicación no arranca sin `opswatch.security.jwt.private-key` ni `opswatch.security.jwt.issuer`, ni con una clave RSA de menos de 2048 bits (validación de `JwtProperties` y `JwtKeys`, OW-013). El mensaje nombra la propiedad, nunca la clave.
 
 Cada regla tiene su test ([testing](../testing/testing-strategy.md#pruebas-de-seguridad)).

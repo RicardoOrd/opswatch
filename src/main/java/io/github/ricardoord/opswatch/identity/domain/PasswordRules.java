@@ -15,7 +15,11 @@ public final class PasswordRules {
     private PasswordRules() {}
 
     public static boolean accepts(String password) {
-        return password.codePointCount(0, password.length()) >= MIN_CHARACTERS
-                && password.getBytes(StandardCharsets.UTF_8).length <= MAX_UTF8_BYTES;
+        return password.codePointCount(0, password.length()) >= MIN_CHARACTERS && fitsInBcrypt(password);
+    }
+
+    /** Whether bcrypt can hash the whole password. A longer one can never be an account's password. */
+    public static boolean fitsInBcrypt(String password) {
+        return password.getBytes(StandardCharsets.UTF_8).length <= MAX_UTF8_BYTES;
     }
 }

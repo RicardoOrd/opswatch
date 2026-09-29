@@ -4,11 +4,22 @@ spring:
     # .env (fuera de Git) como fuente de propiedades: las mismas variables con las que docker compose crea la base de
     # datos. Opcional porque las variables también pueden llegar del entorno (servicio app de Compose, OW-009), que
     # tiene prioridad sobre el fichero
-    import: "optional:file:.env[.properties]"
+    import:
+      - "optional:file:.env[.properties]"
+      # Claves de desarrollo de scripts/dev-keys.sh: cada fichero de secrets/ pasa a ser una propiedad con su nombre
+      # (configtree, como los Docker secrets de los despliegues). Sin ellas, el arranque falla al resolver
+      # ${jwt-dev-private.pem}
+      - "optional:configtree:secrets/"
   datasource:
     url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:opswatch}
     username: ${POSTGRES_USER:opswatch}
     password: ${POSTGRES_PASSWORD}
+
+opswatch:
+  security:
+    jwt:
+      issuer: http://localhost:8080
+      private-key: ${jwt-dev-private.pem}
 
 logging:
   level:

@@ -47,11 +47,11 @@ Documentos relacionados: [Modelo de autorización](authorization-model.md) · [T
 - El token es pequeño y no depende del número de organizaciones del usuario.
 - Costo: una consulta indexada por petición autorizada. Si los benchmarks la señalan, se cachea ([ADR-009](../adr/ADR-009-redis.md)).
 
-**Validaciones del JWT:** firma, `exp` y `nbf` (con 30 s de tolerancia de reloj), `iss` y `aud`. El algoritmo está fijado a RS256: no se acepta `none` ni HS256.
+**Validaciones del JWT:** firma, `exp` (obligatorio) y `nbf` (con 30 s de tolerancia de reloj), `iss`, `aud` y que `sub` sea un UUID. El algoritmo está fijado a RS256: no se acepta `none` ni HS256. Un token rechazado da `401` con `WWW-Authenticate: Bearer error="invalid_token"`, sin el motivo (`JwtConfiguration`, OW-013).
 
 **Por qué asimétrico (RS256) y no HS256:** con una clave compartida, cualquier servicio capaz de validar tokens también podría emitirlos. Con un par de claves, solo Core firma, y cualquier servicio futuro valida con la clave pública (JWKS). Es una preparación barata para la [Etapa 3](../architecture/evolution.md).
 
-**Rotación de la clave de firma:** el header lleva `kid`. Durante una rotación, el decoder acepta la clave anterior y la nueva hasta que caducan todos los tokens firmados con la anterior (15 minutos).
+**Rotación de la clave de firma:** el header lleva `kid`, que es la huella RFC 7638 de la clave: se calcula, no se configura, así que nunca puede apuntar a otra clave. La clave pública se deriva de la privada. Durante una rotación, `opswatch.security.jwt.private-key` pasa a ser la nueva y la pública anterior va en `opswatch.security.jwt.previous-public-key`: el decoder acepta las dos hasta que caducan todos los tokens firmados con la anterior (15 minutos), y después se quita.
 
 ### Flujo de autenticación
 

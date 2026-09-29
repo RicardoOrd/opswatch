@@ -23,8 +23,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  * Deny by default: every request needs authentication except an explicit public list. See
  * docs/security/security-architecture.md.
  *
- * <p>Sprint 0 has no authentication mechanism yet (JWT arrives in OW-013), so every protected endpoint answers
- * {@code 401} in Problem Details format.
+ * <p>Authentication is a Bearer access token validated by Spring Security's Resource Server with the decoder of
+ * {@link JwtConfiguration}. A missing or invalid token gets {@code 401} in Problem Details format.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(CorsProperties.class)
@@ -64,6 +64,9 @@ public class SecurityConfiguration {
                         .permitAll()
                         .anyRequest()
                         .authenticated())
+                // Rejected tokens go through the same entry point, so they also get Problem Details
+                .oauth2ResourceServer(
+                        oauth2 -> oauth2.jwt(Customizer.withDefaults()).authenticationEntryPoint(entryPoint))
                 // The API authenticates with a Bearer token that browsers never attach on their own, so CSRF does
                 // not apply. The only cookie (the refresh token, OW-014) is protected with SameSite=Strict and an
                 // Origin check on its two endpoints.

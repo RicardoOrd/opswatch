@@ -85,6 +85,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
+        <!-- Access tokens JWT: emisión con JwtEncoder y validación con el Resource Server (ADR-004). En Boot 4 el
+             starter lleva el prefijo security-; spring-boot-starter-oauth2-resource-server está deprecado -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
+        </dependency>
 
         <!-- Healthchecks de Docker y Compose -->
         <dependency>

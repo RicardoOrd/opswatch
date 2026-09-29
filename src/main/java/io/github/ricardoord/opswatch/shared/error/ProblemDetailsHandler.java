@@ -12,11 +12,13 @@ import org.springframework.beans.TypeMismatchException;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.ServletRequestBindingException;
@@ -41,6 +43,7 @@ public class ProblemDetailsHandler extends ResponseEntityExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(ProblemDetailsHandler.class);
     private static final String GENERIC_SERVER_ERROR =
             "An unexpected error occurred. Quote the requestId when reporting it.";
+    private static final String BEARER = "Bearer";
 
     private final ProblemFactory problems;
 
@@ -51,7 +54,14 @@ public class ProblemDetailsHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(DomainException.class)
     ResponseEntity<ProblemDetail> handleDomain(DomainException ex, HttpServletRequest request) {
         log.debug("Domain error {}: {}", ex.code().slug(), ex.getMessage());
-        return respond(problems.create(ex.code(), ex.getMessage(), request.getRequestURI()));
+        ProblemDetail problem = problems.create(ex.code(), ex.getMessage(), request.getRequestURI());
+        if (ex.code().status() == HttpStatus.UNAUTHORIZED) {
+            // RFC 9110: every 401 names the authentication scheme to use
+            return ResponseEntity.status(problem.getStatus())
+                    .header(HttpHeaders.WWW_AUTHENTICATE, BEARER)
+                    .body(problem);
+        }
+        return respond(problem);
     }
 
     @ExceptionHandler(OptimisticLockingFailureException.class)
@@ -69,8 +79,11 @@ public class ProblemDetailsHandler extends ResponseEntityExceptionHandler {
                 ProblemCode.UNAUTHENTICATED,
                 "A valid access token is required to access this resource.",
                 request.getRequestURI());
+        // RFC 6750: a token that was sent but rejected is "invalid_token"; without a token, the scheme alone. The
+        // reason (expired, bad signature...) stays out of the response
+        String challenge = ex instanceof OAuth2AuthenticationException ? BEARER + " error=\"invalid_token\"" : BEARER;
         return ResponseEntity.status(problem.getStatus())
-                .header(HttpHeaders.WWW_AUTHENTICATE, "Bearer")
+                .header(HttpHeaders.WWW_AUTHENTICATE, challenge)
                 .body(problem);
     }
 

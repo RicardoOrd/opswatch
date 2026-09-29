@@ -30,7 +30,7 @@ import org.springframework.security.web.FilterChainProxy;
 
 /** The whole application on real ports against PostgreSQL: what a deployment would run, minus the profile. */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
-@Import(PostgresTestcontainer.class)
+@Import({PostgresTestcontainer.class, TestJwtKeys.class})
 @ExtendWith(OutputCaptureExtension.class)
 class ApplicationStartupIT {
 

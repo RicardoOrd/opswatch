@@ -10,7 +10,7 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 
 ## Estado actual
 
-**v0.1.0 en curso** (Identity y organizaciones). Sprint 0 cerrado: documentación de arquitectura, decisiones (ADR), plan de trabajo y el esqueleto del proyecto Spring Boot con CI. La primera funcionalidad de producto es el registro de usuarios.
+**v0.1.0 en curso** (Identity y organizaciones). Sprint 0 cerrado: documentación de arquitectura, decisiones (ADR), plan de trabajo y el esqueleto del proyecto Spring Boot con CI. Ya hay registro de usuarios y login con access token JWT.
 
 | Qué | Estado |
 |---|---|
@@ -20,6 +20,7 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | Módulos, errores, logging, seguridad base, PostgreSQL, Flyway, infraestructura de tests y Docker (OW-003 a OW-009) | **Implemented** |
 | CI: build, secretos, imagen y Trivy, con checks obligatorios en `main` (OW-010) | **Implemented** |
 | Registro de usuarios (OW-012) | **Implemented** |
+| Login con access token JWT RS256 y `GET /api/v1/me` (OW-013) | **Implemented** |
 | Resto de funcionalidades de producto | Planned |
 
 **Qué se hace ahora:** el milestone [v0.1.0 — Identity y organizaciones](https://github.com/RicardoOrd/opswatch/milestone/2). Orden sugerido y siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
@@ -46,8 +47,8 @@ Cada monitor hace algo como `GET https://api.example.com/health` cada 60 segundo
 
 | Característica | Estado | Fase |
 |---|---|---|
-| Registro de usuarios | **Implemented** | 1 |
-| Login, access token JWT y refresh token con rotación | Planned | 1 |
+| Registro de usuarios, login y access token JWT | **Implemented** | 1 |
+| Refresh token con rotación y logout | Planned | 1 |
 | Organizaciones, miembros y roles por organización (`OWNER`, `ADMIN`, `MEMBER`, `VIEWER`) | Planned | 1 |
 | Proyectos y monitores HTTP/HTTPS configurables | Planned | 2 |
 | Motor de health checks periódicos con protección contra SSRF | Planned | 3 |
@@ -157,9 +158,14 @@ curl localhost:8081/actuator/health/readiness   # {"status":"UP"}
 curl -i localhost:8080/api/v1/anything           # 401 en application/problem+json, con X-Request-Id
 curl -i localhost:8080/api/v1/auth/register -H 'Content-Type: application/json' \
   -d '{"email":"ana@example.com","displayName":"Ana","password":"correct horse battery"}'   # 201; repetido, 409
+curl -i localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' \
+  -d '{"email":"ana@example.com","password":"correct horse battery"}'                      # 200 con accessToken
+curl -i localhost:8080/api/v1/me -H "Authorization: Bearer <accessToken>"                  # 200
 ```
 
-Desde el IDE: `OpsWatchApplication` con el perfil `local` y la raíz del repositorio como directorio de trabajo, que es de donde se lee `.env`.
+Desde el IDE: `OpsWatchApplication` con el perfil `local` y la raíz del repositorio como directorio de trabajo, que es de donde se leen `.env` y `secrets/`.
+
+Si el arranque falla con `Could not resolve placeholder 'jwt-dev-private.pem'`, falta la clave de firma de los access tokens: `bash scripts/dev-keys.sh` la crea en `secrets/`.
 
 Si el arranque falla con `password authentication failed for user "opswatch"`, falta `.env` o su contraseña no es la del volumen, que PostgreSQL fija al crearlo. Para empezar de cero: `docker compose down -v` (**borra los datos locales**).
 

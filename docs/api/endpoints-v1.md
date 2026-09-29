@@ -2,17 +2,17 @@
 
 Estado: diseño inicial · Última revisión: 2026-09-29 · Convenciones: [api-guidelines.md](api-guidelines.md) · Permisos: [authorization-model.md](../security/authorization-model.md)
 
-**Solo existe `POST /api/v1/auth/register` (OW-012). El resto está planificado.** La columna "Fase" indica cuándo se implementa cada uno. Los errores comunes a todos los endpoints autenticados (`401`, `404` a quien no es miembro, `429` y `500`) no se repiten en cada tabla.
+**Existen `POST /api/v1/auth/register` (OW-012), `POST /api/v1/auth/login` y `GET /api/v1/me` (OW-013). El resto está planificado.** La columna "Fase" indica cuándo se implementa cada uno. Los errores comunes a todos los endpoints autenticados (`401`, `404` a quien no es miembro, `429` y `500`) no se repiten en cada tabla.
 
 ## Autenticación (`identity`)
 
 | Método | Ruta | Autenticación | Éxito | Errores específicos | Fase |
 |---|---|---|---|---|---|
 | `POST` | `/api/v1/auth/register` | Pública | `201` (no inicia sesión) | `400`, `409 conflict` (email registrado), `429` (desde OW-015) | 1 |
-| `POST` | `/api/v1/auth/login` | Pública | `200` y cookie | `400`, `401 invalid-credentials`, `429` | 1 |
+| `POST` | `/api/v1/auth/login` | Pública | `200` (la cookie de refresh llega con OW-014) | `400`, `401 invalid-credentials` (el mismo cuerpo exista o no el email), `429` (desde OW-015) | 1 |
 | `POST` | `/api/v1/auth/refresh` | Cookie | `200` y cookie nueva | `401` (token inválido, caducado o reutilizado), `403` (`Origin` no permitido) | 1 |
 | `POST` | `/api/v1/auth/logout` | Cookie | `204` | — | 1 |
-| `GET` | `/api/v1/me` | JWT | `200` | — | 1 |
+| `GET` | `/api/v1/me` | JWT | `200` | `401` (token ausente, inválido o caducado) | 1 |
 | `PATCH` | `/api/v1/me` | JWT | `200` | `400` | 1 |
 | `POST` | `/api/v1/me/password` | JWT | `204` (revoca todos los refresh tokens) | `400` (también con la contraseña actual incorrecta, como error de `currentPassword`), `429` | 1 |
 
@@ -24,7 +24,7 @@ Estado: diseño inicial · Última revisión: 2026-09-29 · Convenciones: [api-g
 
 // POST /api/v1/auth/login
 { "email": "ana@example.com", "password": "correct horse battery" }
-// 200 + Set-Cookie: opswatch_refresh=…; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=1209600
+// 200. Desde OW-014, también Set-Cookie: opswatch_refresh=…; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=1209600
 { "accessToken": "eyJ…", "tokenType": "Bearer", "expiresIn": 900 }
 
 // GET /api/v1/me
@@ -37,6 +37,8 @@ Estado: diseño inicial · Última revisión: 2026-09-29 · Convenciones: [api-g
 
 Validaciones: `email` con formato válido, solo ASCII imprimible y hasta 254 caracteres, normalizado a minúsculas. `displayName` de 1 a 100 caracteres, sin caracteres de control, separadores de línea ni de formato bidireccional. `password` y `newPassword` de 12 caracteres a 72 bytes UTF-8, con el código de error `password-policy`. Los espacios alrededor del email y del nombre se quitan; los de la contraseña, no.
 
+- El access token (RS256, 15 minutos) solo identifica al usuario: no lleva roles ni organizaciones ([ADR-004](../adr/ADR-004-security-strategy.md)). Un token rechazado da `401` con `WWW-Authenticate: Bearer error="invalid_token"`, sin decir por qué.
+- Un email inexistente, una contraseña incorrecta y una cuenta deshabilitada dan el mismo `401 invalid-credentials`, y tardan lo mismo: el email inexistente se compara con un hash señuelo del mismo coste.
 - `GET /api/v1/me` no incluye las organizaciones del usuario: `identity` no puede depender de `organization` ([módulos](../architecture/modules.md)). Salen, con el rol del usuario en cada una, en `GET /api/v1/organizations`.
 - La contraseña actual incorrecta en `POST /api/v1/me/password` da `400` y no `401`: el access token es válido, y un `401` haría que el cliente intentara refrescarlo.
 
