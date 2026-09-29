@@ -1,6 +1,6 @@
 # Backlog
 
-Estado: sincronizado con GitHub Issues · Última revisión: 2026-09-28
+Estado: sincronizado con GitHub Issues · Última revisión: 2026-09-29
 
 Este fichero es la **fuente única** de las issues. Cada issue de GitHub se genera a partir de su entrada aquí: si una issue cambia, se cambia aquí y se vuelve a sincronizar con [`scripts/sync-issues.mjs`](../../scripts/sync-issues.mjs) (Node 22 y `gh` autenticado):
 
@@ -13,7 +13,7 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 
 **Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
-**Foco actual: Sprint 0** (OW-001 a OW-010). Todo lo demás está planificado, pero no listo para empezar.
+**Foco actual: v0.1.0 — Identity y organizaciones** (OW-012 a OW-018 y OW-045), refinada el 2026-09-29 contra lo que dejó construido el Sprint 0 (cerrado el 2026-09-28). Todo lo demás está planificado, pero no listo para empezar.
 
 ## Convenciones
 
@@ -53,7 +53,7 @@ Cada fase del roadmap es un milestone. Cerrar un milestone de versión = publica
 | Milestone | Issues | Resultado demostrable |
 |---|---|---|
 | Sprint 0 — Fundaciones | OW-001 a OW-010 | Esqueleto que arranca con PostgreSQL, rechaza todo con `401` en formato Problem Details y tiene CI en verde |
-| v0.1.0 — Identity y organizaciones | OW-012 a OW-018 | Registro, login, organizaciones y roles, con el aislamiento entre organizaciones probado |
+| v0.1.0 — Identity y organizaciones | OW-012 a OW-018, OW-045 | Registro, login, organizaciones y roles, con el aislamiento entre organizaciones probado |
 | v0.2.0 — Proyectos y monitores | OW-019 a OW-022, OW-034, OW-044 | Configurar monitores con la política SSRF aplicada al guardar |
 | v0.3.0 — Motor de monitoreo | OW-024 a OW-030 | Checks reales, historial, uptime y métricas, sin duplicados con varias instancias |
 | v0.4.0 — Incidentes y notificaciones | OW-032, OW-033, OW-035, OW-036, OW-043 | Una caída = un incidente, un aviso de apertura y uno de resolución |
@@ -262,110 +262,123 @@ Hecha el 2026-09-28: documentación publicada en el PR #1, issues creadas desde 
 ## v0.1.0 — Identity y organizaciones
 
 ### OW-012 · Registro de usuarios
-`feature` `security` · P2 · Milestone: v0.1.0 — Identity y organizaciones · **Planned**
+`feature` `security` · P2 · Milestone: v0.1.0 — Identity y organizaciones · **Ready**
 
-- **Context:** primer caso de uso real. Fija el patrón que seguirán los demás: DTO, servicio, dominio, migración y tests de API.
+- **Context:** primer caso de uso real. Fija el patrón que seguirán los demás: DTO, servicio, dominio, migración y tests de API. Del Sprint 0 ya existen la cadena de seguridad que deja pasar `/api/v1/auth/**` sin autenticación, el rechazo de propiedades desconocidas en Jackson y los errores en Problem Details.
 - **Objective:** `POST /api/v1/auth/register` según el [catálogo](../api/endpoints-v1.md#autenticación-identity).
 - **Tasks:**
-  - [ ] Migración `identity_create_users` (el número de versión se asigna al implementarla).
-  - [ ] Entidad `User` con sus invariantes (email normalizado, longitud del nombre).
-  - [ ] `RegistrationService` con `DelegatingPasswordEncoder` (bcrypt, coste 12).
+  - [ ] Migración `identity_create_users` con el [DDL](../database/database-design.md#9-ddl-preliminar) (el número de versión se asigna al implementarla).
+  - [ ] `IdGenerator` en `shared`: UUIDv7 (RFC 9562) con el `Clock` inyectado y `SecureRandom`. El id se asigna al construir la entidad, no al guardarla ([decisión](../database/database-design.md#3-uuid-o-bigint)).
+  - [ ] Entidad `User` con sus invariantes: email normalizado a minúsculas y de hasta 254 caracteres; nombre de 1 a 100 caracteres sin caracteres de control. `version` es un `Long` nulo hasta el primer guardado, para que Spring Data inserte sin un `SELECT` previo.
+  - [ ] `RegistrationService` con `DelegatingPasswordEncoder`: bcrypt con el coste de `opswatch.security.password.bcrypt-strength` (12, y 4 en los tests).
   - [ ] Validación de la contraseña: de 12 caracteres a 72 bytes UTF-8.
-  - [ ] Generador de UUIDv7.
+  - [ ] Email duplicado → `409 conflict`, también cuando dos registros con el mismo email llegan a la vez: la violación de `ux_users_email` se traduce al mismo error.
+  - [ ] `RegisterRequest.toString()` oculta la contraseña ([logs y datos sensibles](../security/security-architecture.md#9-logs-y-datos-sensibles)).
   - [ ] Primer builder de test (`aUser()`), según la [convención](../testing/testing-strategy.md#convenciones); aplazado desde OW-007, que no tenía entidades.
-- **Acceptance Criteria:** `201` con el usuario sin hash; un email duplicado, sin distinguir mayúsculas, da `409`; una contraseña de 73 bytes da `400`; el hash guardado empieza por `{bcrypt}`.
+- **Acceptance Criteria:** `201` con el usuario sin hash; un email duplicado, sin distinguir mayúsculas, da `409`; una contraseña de 73 bytes da `400`; el hash guardado empieza por `{bcrypt}`; `RegisterRequest.toString()` no contiene la contraseña.
 - **Testing:**
-  - Unitarios: invariantes de `User`, validación de la contraseña (límites de 12 caracteres y 72 bytes con caracteres multibyte).
+  - Unitarios: invariantes de `User`, validación de la contraseña (límites de 12 caracteres y 72 bytes con caracteres multibyte), `IdGenerator` (versión 7, variante RFC y orden por instante con un `Clock` fijo) y `toString()` de `RegisterRequest`.
   - Integración: `UserRepositoryIT` (índice único de email).
   - API: `RegistrationApiIT` (`201`, `400` con `errors[]`, `409`, propiedad desconocida → `400`).
-- **Security considerations:** el hash nunca sale en respuestas ni en logs; las propiedades desconocidas se rechazan (mass assignment). Enumeración de emails aceptada hasta la Fase 5 (T-06), mitigada por el rate limit de OW-015.
-- **Dependencies:** Sprint 0.
-- **Definition of Done:** endpoint documentado en OpenAPI con sus errores.
+- **Security considerations:** el hash nunca sale en respuestas ni en logs; las propiedades desconocidas se rechazan (mass assignment). La contraseña se mide en bytes antes de hashear, porque bcrypt ignora lo que pasa de 72. Enumeración de emails aceptada hasta la Fase 5 (T-06), mitigada por el rate limit de OW-015.
+- **Dependencies:** Sprint 0 (cerrado).
+- **Definition of Done:** endpoint documentado en OpenAPI con sus errores; el [diseño de base de datos](../database/database-design.md#3-uuid-o-bigint), el [modelo de dominio](../architecture/domain-model.md) y los [estándares de código](../development/code-standards.md) describen igual la generación de ids.
 
 ### OW-013 · Login con access token JWT
-`feature` `security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Planned**
+`feature` `security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Ready**
 
-- **Context:** [ADR-004](../adr/ADR-004-security-strategy.md): JWT RS256 de 15 minutos validado por el Resource Server de Spring Security.
+- **Context:** [ADR-004](../adr/ADR-004-security-strategy.md): JWT RS256 de 15 minutos validado por el Resource Server de Spring Security. `GET /api/v1/me` devuelve solo los datos del usuario: `identity` no puede depender de `organization` ([módulos](../architecture/modules.md)), y las organizaciones del usuario con su rol ya salen en `GET /api/v1/organizations` (OW-016).
 - **Objective:** `POST /api/v1/auth/login` que emite el access token, y validación del JWT en toda la API.
 - **Tasks:**
-  - [ ] Dependencia de OAuth2 Resource Server.
-  - [ ] `JwtEncoder` y `JwtDecoder` con claves desde la configuración (`kid`, `iss`, `aud`, algoritmo fijado).
-  - [ ] `AuthenticationService` con hash señuelo para emails inexistentes.
+  - [ ] Dependencia `spring-boot-starter-oauth2-resource-server` (versión gestionada por Boot).
+  - [ ] `JwtEncoder` y `JwtDecoder` con las propiedades `opswatch.security.jwt.*` del [catálogo](../devops/environments.md#seguridad): `kid`, `iss`, `aud`, RS256 fijado y 30 s de tolerancia de reloj.
+  - [ ] Los rechazos del Resource Server (token ausente, inválido o caducado) salen como `401` en Problem Details, con el `AuthenticationEntryPoint` de OW-008.
+  - [ ] `AuthenticationService` con hash señuelo para emails inexistentes, generado al arrancar con el mismo coste que los hashes reales. Un usuario `DISABLED` recibe el mismo `401 invalid-credentials`.
   - [ ] `CurrentUser` en `shared.security`.
-  - [ ] `GET /api/v1/me`.
-- **Acceptance Criteria:** un login correcto da un token que sirve en `GET /api/v1/me`; unas credenciales erróneas dan `401 invalid-credentials`, con el mismo cuerpo exista o no el email y una diferencia de tiempo mediana inferior a 50 ms entre los dos casos.
+  - [ ] `GET /api/v1/me` (id, email, nombre y fecha de alta).
+  - [ ] Claves: el perfil `local` lee las de `secrets/` (`scripts/dev-keys.sh` ya las genera); los tests generan su propio par al arrancar.
+  - [ ] `DeploymentGuardrails`: `staging` y `production` no arrancan sin clave privada, clave pública, `kid` o `issuer`, ni con una clave RSA de menos de 2048 bits.
+- **Acceptance Criteria:** un login correcto da un token que sirve en `GET /api/v1/me`; unas credenciales erróneas o un usuario deshabilitado dan `401 invalid-credentials`, con el mismo cuerpo exista o no el email y una diferencia de tiempo mediana inferior a 50 ms entre los dos casos; un token inválido da `401` en Problem Details; un despliegue sin claves no arranca.
 - **Testing:**
-  - Seguridad: `JwtSecurityIT` con firma alterada, `alg: none`, HS256 firmado con la clave pública, token caducado, `iss` o `aud` incorrectos (todos → `401`) y usuario deshabilitado.
-  - API: login correcto e incorrecto.
-- **Security considerations:** algoritmo fijado contra la confusión de algoritmos (T-04); el token no lleva roles, así que la autorización nunca se basa en datos del token; la clave privada solo se lee de un secreto.
+  - Seguridad: `JwtSecurityIT` con firma alterada, `alg: none`, HS256 firmado con la clave pública, token caducado, `iss` o `aud` incorrectos y `kid` desconocido (todos → `401`).
+  - API: login correcto, incorrecto y de un usuario deshabilitado; `GET /api/v1/me`.
+  - Unitarios: las reglas nuevas de `DeploymentGuardrails`.
+- **Security considerations:** algoritmo fijado contra la confusión de algoritmos (T-04); el token no lleva roles, así que la autorización nunca se basa en datos del token; la clave privada solo se lee de un secreto. El hash señuelo con el coste real evita que el tiempo de respuesta revele qué emails existen. Un access token emitido antes de deshabilitar al usuario vale hasta caducar (15 minutos como máximo): es el compromiso aceptado en ADR-004; el refresh sí se corta (OW-014).
 - **Dependencies:** OW-012.
 - **Definition of Done:** el flujo de autenticación de la arquitectura de seguridad coincide con lo implementado.
 
 ### OW-014 · Refresh token con rotación, detección de reutilización y logout
-`feature` `security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Planned**
+`feature` `security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Ready**
 
 - **Context:** refresh token opaco en una cookie `HttpOnly`, que rota en cada uso y detecta la reutilización.
-- **Objective:** `POST /api/v1/auth/refresh` y `POST /api/v1/auth/logout`; `POST /api/v1/me/password` revoca todas las familias.
+- **Objective:** `POST /api/v1/auth/refresh` y `POST /api/v1/auth/logout`, más la revocación de todas las sesiones de un usuario que usa el cambio de contraseña (OW-045).
 - **Tasks:**
   - [ ] Migración `identity_create_refresh_tokens`.
-  - [ ] `RefreshTokenService`: emitir, rotar con `SELECT … FOR UPDATE`, detectar la reutilización, revocar la familia.
+  - [ ] El login de OW-013 abre una familia y emite el primer refresh token.
+  - [ ] `RefreshTokenService`: emitir, rotar con `SELECT … FOR UPDATE`, detectar la reutilización, revocar la familia y revocar todas las familias de un usuario.
   - [ ] Cookie con `HttpOnly`, `Secure`, `SameSite=Strict` y `Path=/api/v1/auth`.
-  - [ ] Comprobación del header `Origin` en refresh y logout.
+  - [ ] Comprobación del header `Origin` en refresh y logout: solo se aceptan el origen de `opswatch.security.jwt.issuer` y los de `opswatch.security.cors.allowed-origins`. Una petición sin `Origin` se rechaza.
+  - [ ] Un usuario `DISABLED` no refresca: `401` y su familia revocada (`USER_DISABLED`).
   - [ ] Job de purga de tokens vencidos.
 - **Acceptance Criteria:**
   - Refresh → token nuevo, y el anterior deja de servir.
   - Reutilizar el anterior → `401` y la familia entera revocada.
   - Logout → cookie borrada y familia revocada.
+  - Refresh de un usuario deshabilitado → `401`.
+  - `Origin` ajeno o ausente → `403`.
   - Dos refresh concurrentes con el mismo token (50 repeticiones): exactamente uno recibe `200`, el otro `401`, y la familia queda revocada en todos los casos. Es el comportamiento estricto elegido: dos pestañas que refrescan a la vez cierran la sesión (compromiso documentado en ADR-004).
 - **Testing:**
   - Unitarios: lógica de rotación y de familias.
   - Integración (concurrencia): `RefreshTokenIT` con PostgreSQL real.
-  - Seguridad: atributos de la cookie, `Origin` ajeno → `403`, el token en claro nunca se guarda.
-- **Security considerations:** solo se guarda el SHA-256 del token; la reutilización genera un evento de seguridad; `FOR UPDATE` evita que una carrera emita dos tokens válidos de la misma familia (T-03, T-09).
+  - Seguridad: atributos de la cookie, `Origin` ajeno o ausente → `403`, el token en claro nunca se guarda.
+- **Security considerations:** solo se guarda el SHA-256 del token; la reutilización genera un evento de seguridad; `FOR UPDATE` evita que una carrera emita dos tokens válidos de la misma familia (T-03, T-09). La comprobación de `Origin` es defensa en profundidad sobre `SameSite=Strict`: los navegadores siempre envían `Origin` en un `POST`, así que rechazar su ausencia solo afecta a clientes que no son navegadores, que pueden añadirlo.
 - **Dependencies:** OW-013.
 - **Definition of Done:** cubiertos T-03 y T-09 del threat model.
 
 ### OW-015 · Rate limiting de los endpoints de autenticación
-`security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Planned**
+`security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Ready**
 
-- **Context:** protección contra fuerza bruta y credential stuffing, sin bloquear cuentas.
-- **Objective:** los límites de la [tabla de rate limiting](../security/security-architecture.md#8-rate-limiting) con Bucket4j en memoria.
+- **Context:** protección contra fuerza bruta y credential stuffing, sin bloquear cuentas. `application-deployed.yml` usa hoy `server.forward-headers-strategy=framework`, que acepta `X-Forwarded-For` de cualquier cliente que llegue a la aplicación: solo la red impide falsear la IP.
+- **Objective:** los límites de autenticación de la [tabla de rate limiting](../security/security-architecture.md#8-rate-limiting) con Bucket4j en memoria: login por IP y por email, registro por IP y refresh por IP.
 - **Tasks:**
-  - [ ] Dependencia de Bucket4j.
-  - [ ] `AuthRateLimiter` con claves por IP y por email.
+  - [ ] Dependencia de Bucket4j. No la gestiona Boot: la versión se confirma con Ricardo al empezar.
+  - [ ] `AuthRateLimiter` con los límites `opswatch.security.rate-limit.*` del [catálogo](../devops/environments.md#seguridad). La clave por email usa el email normalizado.
+  - [ ] Buckets en una cache acotada (tamaño máximo y expiración). Sin límite, millones de IP o de emails distintos agotarían la memoria.
   - [ ] `429` con `Retry-After` y Problem Details.
-  - [ ] IP real detrás del proxy de confianza (`forward-headers-strategy`).
-- **Acceptance Criteria:** el undécimo login por minuto desde una IP → `429`; el sexto intento contra un mismo email desde IPs distintas → `429`; un `X-Forwarded-For` enviado por un cliente directo no cambia la IP usada.
+  - [ ] IP real: `server.forward-headers-strategy=native` con `server.tomcat.remoteip.internal-proxies` limitado a Caddy, para que la aplicación compruebe de dónde viene el header en lugar de confiar solo en la red. Corregir también la [arquitectura de seguridad](../security/security-architecture.md#5-transporte) y el [catálogo](../devops/environments.md), que hoy describen `framework` como si restringiera los proxies.
+- **Acceptance Criteria:** el undécimo login por minuto desde una IP → `429`; el sexto intento por minuto contra un mismo email desde IPs distintas, aunque cambien las mayúsculas → `429`; el sexto registro en una hora desde una IP → `429`; el refresh número 31 en un minuto desde una IP → `429`; un `X-Forwarded-For` que no llega desde el proxy de confianza no cambia la IP usada.
 - **Testing:**
   - Integración: `AuthRateLimitIT` con `Clock` controlado.
-  - Seguridad: suplantación de IP con `X-Forwarded-For`.
-- **Security considerations:** sin bloqueo de cuentas, para que un atacante no pueda dejar fuera a la víctima; `X-Forwarded-For` solo desde proxies de confianza. Límite conocido: con varias instancias, los límites en memoria se multiplican (ADR-009).
-- **Dependencies:** OW-013.
-- **Definition of Done:** límites en el catálogo de propiedades.
+  - Seguridad: suplantación de IP con `X-Forwarded-For`, con la configuración de proxies de `application-deployed.yml` y no la de los tests.
+- **Security considerations:** sin bloqueo de cuentas, para que un atacante no pueda dejar fuera a la víctima; `X-Forwarded-For` solo desde proxies de confianza; la cache acotada evita que el propio limitador sea una vía de agotamiento de memoria. Límite conocido: con varias instancias, los límites en memoria se multiplican (ADR-009).
+- **Dependencies:** OW-013 y OW-014 (el límite de refresh necesita su endpoint).
+- **Definition of Done:** la arquitectura de seguridad y el catálogo de propiedades describen la configuración de proxies que existe.
 
 ### OW-016 · Organizaciones y `AccessControl`
-`feature` `security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Planned**
+`feature` `security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Ready**
 
-- **Context:** la organización es el tenant raíz y quien la crea queda como `OWNER`. Sus propios endpoints ya necesitan comprobar la membresía, así que `AccessControl` nace aquí.
+- **Context:** la organización es el tenant raíz y quien la crea queda como `OWNER`. Sus propios endpoints ya necesitan comprobar la membresía, así que `AccessControl` nace aquí. `requireForProject` espera a que existan los proyectos (OW-019). En la v0.1.0 nadie escucha `OrganizationDeleted`: sus listeners llegan en la v0.2.0, después del registro de publicaciones de eventos (OW-034).
 - **Objective:** endpoints de organizaciones del catálogo y la API pública `AccessControl` del módulo `organization`.
 - **Tasks:**
   - [ ] Migración `organization_create_organizations_and_memberships`.
   - [ ] Entidades `Organization` y `Membership`.
   - [ ] `Role` → `Permission` como mapa inmutable, según la [matriz](../security/authorization-model.md#matriz-rbac).
-  - [ ] `AccessControl.require` y `requireForProject`: `404` a quien no es miembro, `403` al miembro sin permiso.
-  - [ ] `OrganizationService`: creación con membresía `OWNER` en la misma transacción, cuota por usuario, borrado lógico y evento `OrganizationDeleted`.
+  - [ ] `AccessControl.require`: `404` a quien no es miembro, `403` al miembro sin permiso. Una organización borrada da `404` a todos, también a sus miembros.
+  - [ ] `OrganizationService`: creación con membresía `OWNER` en la misma transacción, borrado lógico y evento `OrganizationDeleted`.
+  - [ ] Cuota `opswatch.limits.organizations-per-user`: cuenta las organizaciones no borradas de las que el usuario es `OWNER`. Se serializa por usuario (`pg_advisory_xact_lock`), para que dos creaciones simultáneas no la superen.
   - [ ] `ETag` e `If-Match` en `PATCH`.
-- **Acceptance Criteria:** una organización nueva aparece en `GET /api/v1/organizations` con `myRole: OWNER`; un no miembro recibe `404` en `GET /api/v1/organizations/{orgId}`; un `VIEWER` recibe `403` en `PATCH`; la sexta organización de un usuario → `422 quota-exceeded`; un `If-Match` obsoleto → `412`.
+- **Acceptance Criteria:** una organización nueva aparece en `GET /api/v1/organizations` con `myRole: OWNER`; un no miembro recibe `404` en `GET /api/v1/organizations/{orgId}`; un `VIEWER` recibe `403` en `PATCH`; la sexta organización de un usuario → `422 quota-exceeded`, también con creaciones simultáneas; un `If-Match` obsoleto → `412`; después de borrarla, sus miembros reciben `404` y deja de aparecer en su listado.
 - **Testing:**
   - Unitarios: mapa `Role` → `Permission` contra una tabla de datos.
-  - API: endpoints por rol y `412`.
+  - Integración (concurrencia): creaciones simultáneas en el límite de la cuota.
+  - API: endpoints por rol, `412` y organización borrada.
   - Seguridad: IDOR (usuario de la organización B contra la A → `404` sin efectos).
-- **Security considerations:** es el control del que dependen T-10 y T-11. La organización se obtiene del recurso, nunca de datos del cliente; los listados solo devuelven las organizaciones de las que el usuario es miembro.
+- **Security considerations:** es el control del que dependen T-10 y T-11. La organización se obtiene del recurso, nunca de datos del cliente; los listados solo devuelven las organizaciones de las que el usuario es miembro. Una cuota que se comprueba sin serializar se supera con peticiones en paralelo.
 - **Dependencies:** OW-013.
 - **Definition of Done:** eventos documentados en `events.md`; la matriz del modelo de autorización coincide con el código.
 
 ### OW-017 · Miembros y roles con la invariante del último `OWNER`
-`feature` `security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Planned**
+`feature` `security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Ready**
 
 - **Context:** las reglas de gestión de roles del [modelo de autorización](../security/authorization-model.md#reglas-que-la-matriz-no-expresa).
 - **Objective:** endpoints de miembros con todas las reglas.
@@ -376,6 +389,7 @@ Hecha el 2026-09-28: documentación publicada en el PR #1, issues creadas desde 
   - [ ] Cuota de miembros.
 - **Acceptance Criteria:**
   - Un `ADMIN` no puede asignar `ADMIN` → `403`.
+  - Un `ADMIN` no puede subirse a sí mismo a `OWNER` → `403`.
   - El último `OWNER` no puede abandonar → `409`.
   - Dos `OWNER` que se degradan el uno al otro a la vez (50 repeticiones): siempre queda al menos un `OWNER` y una de las dos peticiones recibe `409`.
 - **Testing:**
@@ -387,7 +401,7 @@ Hecha el 2026-09-28: documentación publicada en el PR #1, issues creadas desde 
 - **Definition of Done:** las reglas de la sección 3 del modelo de autorización coinciden con el código.
 
 ### OW-018 · Matriz de autorización probada
-`security` `testing` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Planned**
+`security` `testing` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Ready**
 
 - **Context:** la autorización por recurso es la defensa principal contra el IDOR. Tiene que ser imposible añadir un endpoint sin probar su autorización.
 - **Objective:** la tabla endpoint × rol como test, con un test de completitud que la mantiene al día.
@@ -401,6 +415,25 @@ Hecha el 2026-09-28: documentación publicada en el PR #1, issues creadas desde 
 - **Security considerations:** convierte T-10 y T-11 en una comprobación automática en cada PR, en lugar de depender de la revisión.
 - **Dependencies:** OW-016, OW-017.
 - **Definition of Done:** la [estrategia de testing](../testing/testing-strategy.md#pruebas-de-seguridad) describe cómo añadir filas.
+
+### OW-045 · Perfil del usuario: editar el nombre y cambiar la contraseña
+`feature` `security` · P2 · Milestone: v0.1.0 — Identity y organizaciones · **Ready**
+
+- **Context:** el [catálogo](../api/endpoints-v1.md#autenticación-identity) y la [Fase 1 del roadmap](roadmap.md#fase-1-identity-y-organizaciones--010) incluyen `PATCH /api/v1/me` y `POST /api/v1/me/password`, pero ninguna issue los implementaba. Detectado al refinar la v0.1.0 (2026-09-29).
+- **Objective:** `PATCH /api/v1/me` y `POST /api/v1/me/password`.
+- **Tasks:**
+  - [ ] `PATCH /api/v1/me` con `displayName` como único campo editable. El email no cambia en V1: cambiarlo exige verificarlo (OW-037).
+  - [ ] `POST /api/v1/me/password` con `currentPassword` y `newPassword`: comprueba la actual, valida la nueva con las reglas de OW-012 y revoca todas las familias de refresh tokens del usuario (`PASSWORD_CHANGED`) en la misma transacción.
+  - [ ] Límite `opswatch.security.rate-limit.password-change-per-user` (`5/15m`) con el limitador de OW-015.
+  - [ ] `toString()` de los DTOs con contraseñas oculta sus valores.
+- **Acceptance Criteria:** `PATCH` con `displayName` → `200`; con `email` → `400` (propiedad desconocida); cambio con la contraseña actual correcta → `204`, y el refresh token de antes da `401`; con la actual incorrecta → `400` con el error en `currentPassword`; el sexto intento en 15 minutos → `429`.
+- **Testing:**
+  - API: `MeApiIT` y `PasswordChangeApiIT`.
+  - Integración: el cambio revoca todas las familias del usuario, y solo las suyas.
+  - Seguridad: `toString()` de los DTOs y log del cambio sin contraseñas.
+- **Security considerations:** pedir la contraseña actual impide que un access token robado sirva para quedarse la cuenta, y el límite por usuario impide usarlo para adivinarla. Revocar todas las sesiones echa a quien tuviera un refresh token robado; los access tokens ya emitidos valen hasta caducar (ADR-004). La contraseña actual incorrecta da `400` y no `401`: el access token es válido, y un `401` haría que el cliente intentara refrescarlo.
+- **Dependencies:** OW-014 y OW-015.
+- **Definition of Done:** endpoints documentados en OpenAPI con sus errores; el límite nuevo en el catálogo de propiedades y en la tabla de rate limiting.
 
 ---
 
@@ -432,6 +465,7 @@ Hecha el 2026-09-28: documentación publicada en el PR #1, issues creadas desde 
   - [ ] Migración `organization_create_projects`, con índice único parcial y `UNIQUE (id, organization_id)` para la FK compuesta de los monitores.
   - [ ] `ProjectService`: cuota, borrado lógico y evento `ProjectDeleted`.
   - [ ] `ProjectDirectory` como API pública.
+  - [ ] `AccessControl.requireForProject`, que OW-016 no pudo hacer sin proyectos.
   - [ ] Filas nuevas en la matriz de autorización (OW-018).
 - **Acceptance Criteria:** un nombre duplicado en la misma organización → `409`; se puede repetir en otra organización o después de borrar el proyecto; un no miembro → `404` en todos los endpoints con id.
 - **Testing:**

@@ -1,6 +1,6 @@
 # Roadmap
 
-Estado: diseño inicial · Última revisión: 2026-09-28
+Estado: diseño inicial · Última revisión: 2026-09-29
 
 Sin fechas: es un proyecto personal y el ritmo es variable. El orden y los criterios de salida sí son firmes. Cada fase cumple la [Definition of Done global](definition-of-done.md) además de la suya.
 
@@ -8,9 +8,9 @@ Sin fechas: es un proyecto personal y el ritmo es variable. El orden y los crite
 
 | | |
 |---|---|
-| **Ahora** | **Sprint 0 — Fundaciones**: issues OW-001 a OW-010 (#2 a #11). Nada más está listo para empezar |
-| **Siguiente** | v0.1.0 — Identity y organizaciones (OW-012 a OW-018) |
-| **Orden sugerido** | OW-002 → OW-003 → OW-004 → OW-007 → OW-005 → OW-008 → OW-006 → OW-009 → OW-010, con OW-001 en paralelo |
+| **Ahora** | **v0.1.0 — Identity y organizaciones**: OW-012 a OW-018 (#13 a #19) y OW-045, refinadas el 2026-09-29. Sprint 0 cerrado el 2026-09-28 |
+| **Siguiente** | v0.2.0 — Proyectos y monitores |
+| **Orden sugerido** | OW-012 → OW-013 → OW-014 → OW-015 → OW-045 → OW-016 → OW-017 → OW-018. OW-016 solo necesita OW-013, así que puede adelantarse |
 | **Fuera de foco** | Todo lo de V2 a V5 (Redis, broker, microservicios, tiempo real). Vive en este roadmap y en los ADR propuestos, no en issues |
 
 ## Milestones
@@ -80,7 +80,7 @@ flowchart LR
 
 - **Objetivo:** usuarios que se autentican y organizaciones con roles, con el aislamiento multi-tenant probado desde el primer endpoint.
 - **Funcionalidades:** registro, login, refresh con rotación, logout, `GET/PATCH /api/v1/me`, cambio de contraseña, CRUD de organizaciones, gestión de miembros y roles.
-- **Tareas:** OW-012 a OW-018 del [backlog](backlog.md).
+- **Tareas:** OW-012 a OW-018 y OW-045 del [backlog](backlog.md).
 - **Dependencias:** Fase 0.
 - **Definition of Done:** todos los endpoints de autenticación, organizaciones y miembros del [catálogo](../api/endpoints-v1.md) implementados y documentados en OpenAPI; matriz RBAC en código y en tests; rate limiting de autenticación activo.
 - **Criterios de aceptación:**

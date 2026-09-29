@@ -1,6 +1,6 @@
 # Modelo de dominio
 
-Estado: diseño inicial · Última revisión: 2026-09-28
+Estado: diseño inicial · Última revisión: 2026-09-29
 
 Este documento define las entidades, su responsabilidad, campos, reglas y ciclo de vida. El DDL preliminar está en [Diseño de base de datos](../database/database-design.md). Los límites configurables (cuotas, rangos, TTL) están en el [catálogo de propiedades](../devops/environments.md#catálogo-de-propiedades).
 
@@ -135,10 +135,10 @@ erDiagram
 
 ## 3. Convenciones comunes
 
-- **Identificadores:** `UUID` versión 7, generados en la aplicación antes de persistir. Son ordenables por tiempo, lo que evita la fragmentación de índices de UUIDv4, y no revelan cuántos registros hay. La excepción es `monitor_checks`, que usa una clave compuesta natural. Justificación en [Diseño de base de datos](../database/database-design.md#3-uuid-o-bigint).
+- **Identificadores:** `UUID` versión 7, generados en la aplicación al construir la entidad (`IdGenerator`, en `shared`). Son ordenables por tiempo, lo que evita la fragmentación de índices de UUIDv4, y no revelan cuántos registros hay. La excepción es `monitor_checks`, que usa una clave compuesta natural. Justificación en [Diseño de base de datos](../database/database-design.md#3-uuid-o-bigint).
 - **Tiempo:** `Instant` en Java y `timestamptz` en PostgreSQL, siempre en UTC. El instante actual sale de un `Clock` inyectado, no de `Instant.now()`, para que los tests controlen el tiempo.
 - **Auditoría mínima:** `created_at` y `updated_at` en todas las entidades mutables. `created_by`, `acknowledged_by` y `resolved_by` donde el actor importa.
-- **Bloqueo optimista:** `version` (`@Version`) en las entidades que editan personas.
+- **Bloqueo optimista:** `version` (`@Version`) en las entidades que editan personas. Es un `Long` nulo hasta el primer guardado: con el id ya asignado, es lo que le dice a Spring Data que la entidad es nueva.
 - **Borrado:** lógico (`deleted_at`) solo en `Organization`, `Project` y `Monitor`, porque tienen historial que debe sobrevivir. Físico en el resto.
 - **Enums:** se guardan como `text` con `CHECK`. Se mapean con `@Enumerated(EnumType.STRING)`.
 
@@ -157,7 +157,7 @@ erDiagram
 | `status` | `UserStatus` | `text` | `ACTIVE` o `DISABLED` |
 | `emailVerifiedAt` | `Instant` | `timestamptz` | Nulo hasta que llegue la verificación de email (Fase 5) |
 | `createdAt`, `updatedAt` | `Instant` | `timestamptz` | Obligatorios |
-| `version` | `long` | `bigint` | Bloqueo optimista |
+| `version` | `Long` | `bigint` | Bloqueo optimista |
 
 **Reglas:**
 - El email se normaliza (trim y minúsculas) antes de validar la unicidad.
@@ -205,7 +205,7 @@ erDiagram
 
 **Reglas:**
 - Quien la crea queda como `OWNER` en la misma transacción.
-- Un usuario puede crear como mucho `opswatch.limits.organizations-per-user` organizaciones.
+- Un usuario puede ser `OWNER` de como mucho `opswatch.limits.organizations-per-user` organizaciones no borradas. Se comprueba al crear una, serializado por usuario para que las creaciones simultáneas no superen el límite.
 - Borrarla es borrado lógico: publica `OrganizationDeleted`, borra sus proyectos (lo que publica `ProjectDeleted` por cada uno) y deja de aparecer en todas las consultas. La purga física a los 30 días se deja para después de V1.
 
 **Ciclo de vida:** creada → activa → borrada (lógicamente) → purgada (futuro).
@@ -283,7 +283,7 @@ En una sola fila, cada check incrementaría `version` y casi toda edición human
 | `enabled` | `boolean` | `boolean` | Por defecto `true` |
 | `createdBy` | `UUID` | `uuid` | FK → `users`, `ON DELETE SET NULL` |
 | `createdAt`, `updatedAt`, `deletedAt` | `Instant` | `timestamptz` | |
-| `version` | `long` | `bigint` | |
+| `version` | `Long` | `bigint` | |
 
 **Reglas:**
 - Máximo `opswatch.limits.monitors-per-organization` monitores activos (no borrados) por organización.

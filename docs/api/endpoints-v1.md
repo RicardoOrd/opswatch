@@ -1,6 +1,6 @@
 # Catálogo de endpoints `/api/v1`
 
-Estado: diseño inicial · Última revisión: 2026-09-28 · Convenciones: [api-guidelines.md](api-guidelines.md) · Permisos: [authorization-model.md](../security/authorization-model.md)
+Estado: diseño inicial · Última revisión: 2026-09-29 · Convenciones: [api-guidelines.md](api-guidelines.md) · Permisos: [authorization-model.md](../security/authorization-model.md)
 
 **Todos los endpoints están planificados. Ninguno existe todavía.** La columna "Fase" indica cuándo se implementa. Los errores comunes a todos los endpoints autenticados (`401`, `404` a quien no es miembro, `429` y `500`) no se repiten en cada tabla.
 
@@ -14,7 +14,7 @@ Estado: diseño inicial · Última revisión: 2026-09-28 · Convenciones: [api-g
 | `POST` | `/api/v1/auth/logout` | Cookie | `204` | — | 1 |
 | `GET` | `/api/v1/me` | JWT | `200` | — | 1 |
 | `PATCH` | `/api/v1/me` | JWT | `200` | `400` | 1 |
-| `POST` | `/api/v1/me/password` | JWT | `204` (revoca todos los refresh tokens) | `400`, `401` (contraseña actual incorrecta) | 1 |
+| `POST` | `/api/v1/me/password` | JWT | `204` (revoca todos los refresh tokens) | `400` (también con la contraseña actual incorrecta, como error de `currentPassword`), `429` | 1 |
 
 ```jsonc
 // POST /api/v1/auth/register
@@ -28,13 +28,17 @@ Estado: diseño inicial · Última revisión: 2026-09-28 · Convenciones: [api-g
 { "accessToken": "eyJ…", "tokenType": "Bearer", "expiresIn": 900 }
 
 // GET /api/v1/me
-{
-  "id": "0192…", "email": "ana@example.com", "displayName": "Ana",
-  "memberships": [ { "organizationId": "0192…", "organizationName": "CharityLink", "role": "OWNER" } ]
-}
+{ "id": "0192…", "email": "ana@example.com", "displayName": "Ana", "createdAt": "2026-09-28T10:00:00Z" }
+
+// POST /api/v1/me/password
+{ "currentPassword": "correct horse battery", "newPassword": "another long passphrase" }
+// 204
 ```
 
-Validaciones: `email` con formato válido y hasta 254 caracteres, normalizado a minúsculas. `displayName` de 1 a 100 caracteres, sin caracteres de control. `password` de 12 caracteres a 72 bytes UTF-8.
+Validaciones: `email` con formato válido y hasta 254 caracteres, normalizado a minúsculas. `displayName` de 1 a 100 caracteres, sin caracteres de control. `password` y `newPassword` de 12 caracteres a 72 bytes UTF-8.
+
+- `GET /api/v1/me` no incluye las organizaciones del usuario: `identity` no puede depender de `organization` ([módulos](../architecture/modules.md)). Salen, con el rol del usuario en cada una, en `GET /api/v1/organizations`.
+- La contraseña actual incorrecta en `POST /api/v1/me/password` da `400` y no `401`: el access token es válido, y un `401` haría que el cliente intentara refrescarlo.
 
 ## Organizaciones (`organization`)
 

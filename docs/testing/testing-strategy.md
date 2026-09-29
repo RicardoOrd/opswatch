@@ -1,6 +1,6 @@
 # Estrategia de testing
 
-Estado: diseño inicial · Última revisión: 2026-09-28
+Estado: diseño inicial · Última revisión: 2026-09-29
 
 ## Objetivos
 
@@ -80,7 +80,7 @@ La lógica pura, sin Spring, sin base de datos y sin red:
 |---|---|
 | Matriz de autorización de endpoints | Tabla de datos: endpoint × {`OWNER`, `ADMIN`, `MEMBER`, `VIEWER`, no miembro, anónimo} → código esperado. Un test parametrizado la recorre entera. Añadir un endpoint sin añadir su fila hace fallar un test de completitud |
 | IDOR | Dos organizaciones con datos. Un usuario de B pide cada recurso de A por id → `404`, y ningún efecto en la base de datos |
-| JWT | Firma alterada, `alg: none`, HS256 con la clave pública como secreto, token caducado, `iss` o `aud` incorrectos, token de un usuario deshabilitado |
+| JWT | Firma alterada, `alg: none`, HS256 con la clave pública como secreto, token caducado, `iss` o `aud` incorrectos, `kid` desconocido. Un usuario deshabilitado no obtiene tokens nuevos (login y refresh → `401`); el access token que ya tenía vale hasta caducar ([ADR-004](../adr/ADR-004-security-strategy.md)) |
 | Refresh tokens | Rotación, reutilización (revoca la familia), cookie con los atributos correctos, `Origin` ajeno rechazado |
 | Rate limiting | Superar el límite de login da `429` con `Retry-After` |
 | Mass assignment | Propiedades no permitidas (`organizationId`, `role`, `id`) → `400` |

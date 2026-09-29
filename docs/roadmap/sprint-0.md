@@ -1,6 +1,6 @@
 # Sprint 0: Fundaciones
 
-Estado: **en curso, es el foco actual** · Última revisión: 2026-09-28 · Milestone: Sprint 0 — Fundaciones · Issues: OW-001 a OW-010 (#2 a #11) del [backlog](backlog.md)
+Estado: **cerrado el 2026-09-28** · Última revisión: 2026-09-29 · Milestone: Sprint 0 — Fundaciones · Issues: OW-001 a OW-010 (#2 a #11) del [backlog](backlog.md)
 
 ## Objetivo
 
@@ -82,7 +82,7 @@ Plugins de Maven: `spring-boot-maven-plugin` (con `finalName` `opswatch`), Suref
 Verificaciones del Sprint 0 que la documentación dejó abiertas:
 
 - [x] Nombres exactos de los starters en Spring Boot 4.1.1: `spring-boot-starter-webmvc` (no `-web`), `spring-boot-starter-flyway`, y un starter de test por módulo (`spring-boot-starter-webmvc-test`, `-security-test`, `-data-jpa-test`, `-flyway-test`).
-- [x] Generador de UUIDv7: Hibernate 7.4.5 incluye `@UuidGenerator(style = UuidGenerator.Style.VERSION_7)`. No hace falta un generador propio ([base de datos](../database/database-design.md#3-uuid-o-bigint)).
+- [x] Generador de UUIDv7: Hibernate 7.4.5 incluye `@UuidGenerator(style = UuidGenerator.Style.VERSION_7)`. No hace falta un generador propio ([base de datos](../database/database-design.md#3-uuid-o-bigint)). **Revisado el 2026-09-29:** sí hace falta, porque el id se asigna al construir la entidad y no al guardarla (OW-012).
 - [x] springdoc 3.1.0, compatible con Boot `[4.0.0, 4.2.0-M1)` según Spring Initializr.
 - [x] Testcontainers 2.0.5 (gestionado por Boot): la clase es `org.testcontainers.postgresql.PostgreSQLContainer`, sin genéricos, en el artefacto `testcontainers-postgresql`.
 - [x] Ruta del volumen de datos de la imagen `postgres:18` (OW-004): `VOLUME /var/lib/postgresql` y `PGDATA=/var/lib/postgresql/18/docker`. El volumen de Compose se monta en `/var/lib/postgresql`.
