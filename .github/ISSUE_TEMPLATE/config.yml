@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Backlog y convenciones
+    url: https://github.com/RicardoOrd/opswatch/blob/main/docs/roadmap/backlog.md
+    about: Las issues del backlog (OW-NNN) se generan desde docs/roadmap/backlog.md con scripts/sync-issues.mjs

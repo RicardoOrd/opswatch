@@ -71,7 +71,7 @@ Línea de metadatos: `tipos` · prioridad · milestone · estado. Después: Cont
 ## Sprint 0 — Fundaciones
 
 ### OW-001 · Completar la configuración del repositorio
-`devops` · P1 · Milestone: Sprint 0 — Fundaciones · **Ready**
+`devops` · P1 · Milestone: Sprint 0 — Fundaciones · **Hecha**
 
 - **Context:** el repositorio ya existe (2026-09-28) con `main` protegida, merge solo con squash y etiquetas. Faltan las convenciones que ayudan en cada PR.
 - **Objective:** repositorio con plantillas, Dependabot y protección de secretos.
@@ -80,13 +80,13 @@ Línea de metadatos: `tipos` · prioridad · milestone · estado. Después: Cont
   - [x] Protección de `main`: PR obligatorio (0 aprobaciones), aplicada también a admins, historial lineal, sin force-push ni borrado, conversaciones resueltas.
   - [x] Merge solo con squash y borrado automático de la rama.
   - [x] Etiquetas de tipo y prioridad.
-  - [ ] `.editorconfig`.
-  - [ ] Plantilla de PR con la checklist de la DoD. Plantillas de issue: feature, bug y release (con la checklist del [proceso de release](../development/versioning.md#proceso-de-release)).
-  - [ ] `dependabot.yml` para Maven, Docker y GitHub Actions.
-  - [ ] Verificar que secret scanning y push protection están activos.
-- **Acceptance Criteria:** un PR nuevo muestra la plantilla; la pestaña de issues ofrece las tres plantillas; Dependabot aparece configurado; un push de prueba con un token falso de GitHub es rechazado por push protection.
+  - [x] `.editorconfig`.
+  - [x] Plantilla de PR con la checklist de la DoD. Plantillas de issue: feature, bug y release (con la checklist del [proceso de release](../development/versioning.md#proceso-de-release)).
+  - [x] `dependabot.yml` para Maven y GitHub Actions. El ecosistema Docker se añade en OW-009, cuando exista el Dockerfile.
+  - [x] Secret scanning y push protection activos (comprobado con la API). Alertas y actualizaciones de seguridad de Dependabot activadas.
+- **Acceptance Criteria:** un PR nuevo muestra la plantilla; la pestaña de issues ofrece las tres plantillas; Dependabot aparece configurado; push protection está activo.
 - **Testing:**
-  - Manual: PR y push de prueba descritos en los criterios de aceptación.
+  - Manual: la configuración de seguridad del repositorio se comprueba con `gh api repos/RicardoOrd/opswatch --jq .security_and_analysis`. No se hace un push de prueba con un token falso: GitHub solo bloquea los tokens con formato reconocido, y ensuciaría el historial de alertas.
 - **Security considerations:** push protection es la primera barrera contra la exposición de secretos (riesgo R-07). Dependabot empieza a vigilar la cadena de suministro desde el primer `pom.xml`.
 - **Dependencies:** ninguna.
 - **Definition of Done:** estado real de la configuración anotado en [CI/CD](../devops/ci-cd.md).
@@ -226,6 +226,7 @@ Línea de metadatos: `tipos` · prioridad · milestone · estado. Después: Cont
   - [ ] `.dockerignore`.
   - [ ] Servicio `app` en Compose (`read_only`, `cap_drop`, `no-new-privileges`, límites de CPU y memoria).
   - [ ] Medir el tamaño de la imagen.
+  - [ ] Añadir el ecosistema `docker` a `.github/dependabot.yml`, para que vigile las imágenes base fijadas por digest.
 - **Acceptance Criteria:** `docker run --rm opswatch:local id` muestra el UID 10001; el contenedor llega a *healthy*; `docker history` no muestra secretos; la imagen pesa menos de 250 MB.
 - **Testing:**
   - Manual y en CI: build de la imagen y los tres criterios de aceptación.
