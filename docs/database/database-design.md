@@ -1,6 +1,6 @@
 # Diseño de base de datos
 
-Estado: diseño inicial · Última revisión: 2026-09-28 · Decisiones: [ADR-002](../adr/ADR-002-postgresql.md), [ADR-008](../adr/ADR-008-check-results-storage.md)
+Estado: diseño inicial · Última revisión: 2026-09-29 · Decisiones: [ADR-002](../adr/ADR-002-postgresql.md), [ADR-008](../adr/ADR-008-check-results-storage.md)
 
 El modelo conceptual está en [Modelo de dominio](../architecture/domain-model.md). Este documento baja a PostgreSQL: tipos, claves, índices, bloqueos y un DDL preliminar. **El DDL es un borrador de diseño.** La versión válida será la de `src/main/resources/db/migration` cuando exista.
 
@@ -52,7 +52,10 @@ Cassandra resolvería un volumen de escritura de checks que OpsWatch no tendrá 
 | Revela el volumen o permite enumerar | Sí | No | Revela el instante de creación, no el volumen |
 | Válido para ids distribuidos (Etapa 3) | Colisiones entre servicios | Sí | Sí |
 
-**Decisión:** UUIDv7 generado en la aplicación para todas las entidades, con el generador de Hibernate: `@UuidGenerator(style = UuidGenerator.Style.VERSION_7)`, disponible en Hibernate 7.4.5 (comprobado en OW-002). PostgreSQL 18 también tiene `uuidv7()` para defaults en SQL.
+**Decisión:** UUIDv7 generado en la aplicación para todas las entidades, **al construir la entidad**, con un `IdGenerator` propio en `shared` (RFC 9562, con el `Clock` inyectado y `SecureRandom`). PostgreSQL 18 también tiene `uuidv7()` para defaults en SQL.
+
+- **Por qué no `@UuidGenerator(style = VERSION_7)` de Hibernate** (disponible en Hibernate 7.4.5, comprobado en OW-002): asigna el id al hacer `persist`. Hasta entonces la entidad no tiene id, y `equals`/`hashCode` basados en el id ([estándares de código](../development/code-standards.md)) cambiarían al guardarla. Además, un id asignado antes permite publicar eventos y devolver `Location` sin esperar al flush. Revisado al refinar la v0.1.0 (2026-09-29).
+- **Consecuencia:** con el id ya asignado, Spring Data no puede usarlo para saber si la entidad es nueva. Se usa `version`: un `Long` nulo hasta el primer guardado, así que `save()` hace un `INSERT` directo, sin un `SELECT` previo.
 
 **Excepción:** `monitor_checks` no tiene id propio. Su PK es `(monitor_id, checked_at)`. Ver la sección 7.
 

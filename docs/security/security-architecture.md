@@ -1,6 +1,6 @@
 # Arquitectura de seguridad
 
-Estado: diseño inicial · Última revisión: 2026-09-28 · Decisión: [ADR-004](../adr/ADR-004-security-strategy.md)
+Estado: diseño inicial · Última revisión: 2026-09-29 · Decisión: [ADR-004](../adr/ADR-004-security-strategy.md)
 
 Documentos relacionados: [Modelo de autorización](authorization-model.md) · [Threat model](threat-model.md) · [Protección SSRF](ssrf-protection.md)
 
@@ -215,6 +215,7 @@ Las contraseñas no se cifran: se **hashean**. Los refresh tokens tampoco: se **
 | `POST /api/v1/auth/login` | 10/min y 5/min | IP y email |
 | `POST /api/v1/auth/register` | 5/hora | IP |
 | `POST /api/v1/auth/refresh` | 30/min | IP |
+| `POST /api/v1/me/password` | 5 cada 15 min | usuario |
 | Resto de la API autenticada | 300/min (Fase 5) | usuario |
 | `POST /api/v1/notification-channels/{id}/test` | 5/min | canal |
 

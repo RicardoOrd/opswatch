@@ -1,6 +1,6 @@
 # Entornos, configuración y secretos
 
-Estado: diseño inicial · Última revisión: 2026-09-28
+Estado: diseño inicial · Última revisión: 2026-09-29
 
 ## Perfiles
 
@@ -95,6 +95,7 @@ Los rangos de validación del dominio (intervalo de 30 a 3600 s, timeout de 1 a 
 | `opswatch.security.rate-limit.login-per-email` | `5/1m` | |
 | `opswatch.security.rate-limit.register-per-ip` | `5/1h` | |
 | `opswatch.security.rate-limit.refresh-per-ip` | `30/1m` | |
+| `opswatch.security.rate-limit.password-change-per-user` | `5/15m` | Contra adivinar la contraseña actual con un access token robado |
 
 ### Cuotas
 
