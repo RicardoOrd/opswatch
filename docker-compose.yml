@@ -1,5 +1,6 @@
 # Entorno local (docs/devops/docker.md). Las variables salen de .env: scripts/dev-keys.sh lo crea.
-# El servicio app (todo en contenedores) llega en OW-009.
+#   docker compose up -d --wait postgres         solo la base de datos; la aplicación desde el IDE
+#   docker compose --profile app up -d --build   todo en contenedores
 name: opswatch
 
 services:
@@ -23,6 +24,36 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  app:
+    # Solo con --profile app: en el día a día la aplicación corre desde el IDE
+    profiles: ["app"]
+    build: .
+    image: opswatch:local
+    # POSTGRES_* llegan como variables de entorno; el perfil local las usa igual que cuando lee .env
+    env_file: .env
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-opswatch}
+    ports:
+      - "127.0.0.1:8080:8080"
+      # Management, solo en local y solo en loopback: en los despliegues no se publica
+      - "127.0.0.1:8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # El apagado ordenado espera hasta 35 s (spring.lifecycle.timeout-per-shutdown-phase); los 10 s por defecto de
+    # Docker lo cortarían con un SIGKILL
+    stop_grace_period: 40s
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1g
+    cpus: 2
 
 volumes:
   postgres-data:

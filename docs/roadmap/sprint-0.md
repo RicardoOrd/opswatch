@@ -138,10 +138,10 @@ Versiones fijadas en OW-002 (2026-09-28): Java 25 (Temurin 25.0.4), Spring Boot 
 
 ### 9. Docker (OW-009)
 
-- [ ] `Dockerfile` multi-stage, no root, con capas y healthcheck ([docker.md](../devops/docker.md)).
-- [ ] `.dockerignore`.
-- [ ] Servicio `app` en Compose con el profile `app`, `read_only`, `cap_drop` y `no-new-privileges`.
-- [ ] Tamaño de la imagen medido y anotado.
+- [x] `Dockerfile` multi-stage, no root, con capas y healthcheck ([docker.md](../devops/docker.md)).
+- [x] `.dockerignore` (lista de permitidos).
+- [x] Servicio `app` en Compose con el profile `app`, `read_only`, `cap_drop`, `no-new-privileges` y `stop_grace_period`.
+- [x] Tamaño de la imagen medido y anotado: 138 MB comprimida ([docker.md](../devops/docker.md#tamaño)).
 
 ### 10. CI (OW-010)
 
@@ -153,19 +153,19 @@ Versiones fijadas en OW-002 (2026-09-28): Java 25 (Temurin 25.0.4), Spring Boot 
 ### 11. Documentación
 
 - [x] Esta documentación en `docs/`, publicada en el PR #1 (OW-011, cerrada).
-- [ ] README: la sección de cómo ejecutarlo pasa de objetivo a instrucciones reales y comprobadas (DoD de OW-004).
+- [x] README: la sección de cómo ejecutarlo pasa de objetivo a instrucciones reales y comprobadas (DoD de OW-004).
 - [ ] ADR 001 a 008 revisados con las versiones fijadas (DoD de OW-002).
 
 ## Definition of Done del Sprint 0
 
 - [ ] `./mvnw verify` en verde en local (Windows) y en CI (Linux).
-- [ ] `docker compose up -d postgres` más la aplicación desde el IDE con el perfil `local`: arranca sin errores.
-- [ ] `docker compose --profile app up --build`: los dos contenedores quedan *healthy*.
-- [ ] `curl localhost:8081/actuator/health/readiness` da `{"status":"UP"}`.
-- [ ] `curl -i localhost:8080/api/v1/anything` da `401` con `application/problem+json` y `X-Request-Id`.
+- [x] `docker compose up -d postgres` más la aplicación desde el IDE con el perfil `local`: arranca sin errores.
+- [x] `docker compose --profile app up --build`: los dos contenedores quedan *healthy*.
+- [x] `curl localhost:8081/actuator/health/readiness` da `{"status":"UP"}`.
+- [x] `curl -i localhost:8080/api/v1/anything` da `401` con `application/problem+json` y `X-Request-Id`.
 - [ ] Un PR de prueba con un fichero mal formateado falla en CI. Uno con una clave privada falsa falla en gitleaks.
 - [ ] `verify()` falla si se añade, en una rama de prueba, una dependencia de `monitoring` hacia `incident`. Se comprueba y se descarta la rama.
-- [ ] La imagen no corre como root (`docker run --rm opswatch:local id`).
+- [x] La imagen no corre como root (`docker run --rm --entrypoint id opswatch:local`).
 - [ ] Ningún secreto en Git, en la imagen (`docker history`) ni en los `application*.yml`.
 
 ## Demo de cierre
