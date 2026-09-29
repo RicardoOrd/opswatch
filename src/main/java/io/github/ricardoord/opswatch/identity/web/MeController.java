@@ -1,10 +1,13 @@
 package io.github.ricardoord.opswatch.identity.web;
 
 import io.github.ricardoord.opswatch.identity.application.ProfileService;
+import io.github.ricardoord.opswatch.identity.domain.User;
 import io.github.ricardoord.opswatch.identity.security.AuthRateLimiter;
 import io.github.ricardoord.opswatch.shared.security.CurrentUser;
+import io.github.ricardoord.opswatch.shared.web.ETags;
 import io.github.ricardoord.opswatch.shared.web.OpenApiConfiguration;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -14,6 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -22,6 +26,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -52,16 +57,16 @@ class MeController {
 
     @GetMapping
     @Operation(summary = "The account of the signed-in user")
-    @ApiResponse(responseCode = "200", description = "The account")
-    UserResponse me(CurrentUser user) {
-        return UserResponse.from(profiles.get(user.id()));
+    @ApiResponse(responseCode = "200", description = "The account, with its ETag")
+    ResponseEntity<UserResponse> me(CurrentUser user) {
+        return withETag(profiles.get(user.id()));
     }
 
     @PatchMapping
     @Operation(
             summary = "Change the display name",
             description = "Only the fields sent change. The email cannot be changed")
-    @ApiResponse(responseCode = "200", description = "The account after the change")
+    @ApiResponse(responseCode = "200", description = "The account after the change, with its new ETag")
     @ApiResponse(
             responseCode = "400",
             description = "Invalid or null displayName, malformed JSON or unknown properties, email included",
@@ -69,10 +74,28 @@ class MeController {
                     @Content(
                             mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
                             schema = @Schema(implementation = ProblemDetail.class)))
-    UserResponse update(CurrentUser user, @Valid @RequestBody UpdateProfileRequest request) {
-        String displayName = request.displayName();
-        return UserResponse.from(
-                displayName == null ? profiles.get(user.id()) : profiles.rename(user.id(), displayName));
+    @ApiResponse(
+            responseCode = "409",
+            description = "Another request changed the account at the same time",
+            content =
+                    @Content(
+                            mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                            schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(
+            responseCode = "412",
+            description = "If-Match does not match the current version",
+            content =
+                    @Content(
+                            mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                            schema = @Schema(implementation = ProblemDetail.class)))
+    ResponseEntity<UserResponse> update(
+            CurrentUser user,
+            @Parameter(description = "Optional: the ETag last read. A different version gives 412")
+                    @RequestHeader(name = HttpHeaders.IF_MATCH, required = false)
+                    @Nullable
+                    String ifMatch,
+            @Valid @RequestBody UpdateProfileRequest request) {
+        return withETag(profiles.update(user.id(), request.displayName(), ifMatch));
     }
 
     @PostMapping("/password")
@@ -111,5 +134,9 @@ class MeController {
                 Objects.requireNonNull(request.newPassword()),
                 httpRequest.getRemoteAddr());
         return ResponseEntity.noContent().build();
+    }
+
+    private static ResponseEntity<UserResponse> withETag(User user) {
+        return ResponseEntity.ok().eTag(ETags.of(user.savedVersion())).body(UserResponse.from(user));
     }
 }

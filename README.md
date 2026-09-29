@@ -24,6 +24,7 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | Refresh token en cookie con rotación, detección de reutilización y logout (OW-014) | **Implemented** |
 | Rate limiting de login, registro y refresh, con la IP real solo desde el proxy de confianza (OW-015) | **Implemented** |
 | Perfil: editar el nombre y cambiar la contraseña, que cierra todas las sesiones (OW-045) | **Implemented** |
+| Organizaciones con `AccessControl`, roles en código, cuota por usuario, `ETag` e `If-Match` (OW-016) | **Implemented** |
 | Resto de funcionalidades de producto | Planned |
 
 **Qué se hace ahora:** el milestone [v0.1.0 — Identity y organizaciones](https://github.com/RicardoOrd/opswatch/milestone/2). Orden sugerido y siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
@@ -52,7 +53,8 @@ Cada monitor hace algo como `GET https://api.example.com/health` cada 60 segundo
 |---|---|---|
 | Registro de usuarios, login y access token JWT | **Implemented** | 1 |
 | Refresh token con rotación y logout | **Implemented** | 1 |
-| Organizaciones, miembros y roles por organización (`OWNER`, `ADMIN`, `MEMBER`, `VIEWER`) | Planned | 1 |
+| Organizaciones con roles por organización (`OWNER`, `ADMIN`, `MEMBER`, `VIEWER`) y control de acceso | **Implemented** | 1 |
+| Gestión de miembros y roles | Planned | 1 |
 | Proyectos y monitores HTTP/HTTPS configurables | Planned | 2 |
 | Motor de health checks periódicos con protección contra SSRF | Planned | 3 |
 | Historial de checks, uptime y percentiles de latencia | Planned | 3 |

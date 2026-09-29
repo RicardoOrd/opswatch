@@ -5,9 +5,12 @@ import io.github.ricardoord.opswatch.identity.domain.RevocationReason;
 import io.github.ricardoord.opswatch.identity.domain.User;
 import io.github.ricardoord.opswatch.identity.domain.UserRepository;
 import io.github.ricardoord.opswatch.shared.error.InvalidFieldException;
+import io.github.ricardoord.opswatch.shared.error.PreconditionFailedException;
 import io.github.ricardoord.opswatch.shared.error.ResourceNotFoundException;
+import io.github.ricardoord.opswatch.shared.web.ETags;
 import java.time.Clock;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.spi.LoggingEventBuilder;
@@ -52,10 +55,20 @@ public class ProfileService {
         return users.findById(userId).orElseThrow(() -> new ResourceNotFoundException("user", userId));
     }
 
+    /**
+     * @param displayName null to keep it
+     * @param ifMatch the {@code If-Match} header, if the client sent one
+     * @throws PreconditionFailedException if {@code ifMatch} does not match the current version (412)
+     */
     @Transactional
-    public User rename(UUID userId, String displayName) {
+    public User update(UUID userId, @Nullable String displayName, @Nullable String ifMatch) {
         User user = get(userId);
-        user.rename(displayName, clock);
+        ETags.requireMatch(ifMatch, user.savedVersion());
+        if (displayName != null) {
+            user.rename(displayName, clock);
+            // Fails here on a concurrent change (@Version), and gives the response its new version
+            users.flush();
+        }
         return user;
     }
 

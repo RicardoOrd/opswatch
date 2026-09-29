@@ -23,5 +23,7 @@ public class OpenApiConfiguration {
     static {
         // Resolved from the token, not sent by the client: it must not appear as a request parameter
         SpringDocUtils.getConfig().addRequestWrapperToIgnore(CurrentUser.class);
+        // Read from page, size and sort by PageQueryArgumentResolver; each list documents those three itself
+        SpringDocUtils.getConfig().addRequestWrapperToIgnore(PageQuery.class);
     }
 }

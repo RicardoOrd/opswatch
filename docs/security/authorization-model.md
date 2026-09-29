@@ -82,12 +82,13 @@ public interface AccessControl {
 
     /**
      * Comprueba que el usuario tiene el permiso en la organización.
-     * @throws ResourceNotFoundException si no es miembro (se responde 404: no se revela que existe)
+     * @return su rol en ella, para las respuestas que lo muestran (myRole)
+     * @throws ResourceNotFoundException si no es miembro, o la organización no existe o está borrada (404: no se revela que existe)
      * @throws PermissionDeniedException si es miembro pero su rol no incluye el permiso (403)
      */
-    void require(UUID userId, UUID organizationId, Permission permission);
+    Role require(UUID userId, UUID organizationId, Permission permission);
 
-    /** Resuelve el proyecto (no borrado) y comprueba el permiso en su organización. */
+    /** Resuelve el proyecto (no borrado) y comprueba el permiso en su organización. Llega con OW-019. */
     ProjectRef requireForProject(UUID userId, UUID projectId, Permission permission);
 }
 ```
@@ -162,7 +163,7 @@ Las páginas de estado se leen **sin autenticación**. Reglas previstas:
 
 ## 8. Pruebas
 
-- **Matriz parametrizada:** la tabla de la sección 3 se expresa como datos de test (`rol × permiso → esperado`) y se comprueba contra el mapa de producción.
+- **Matriz parametrizada:** la tabla de la sección 3 se expresa como datos de test (`rol × permiso → esperado`) y se comprueba contra el mapa de producción (`RoleTest`, que también falla si aparece un permiso sin su fila).
 - **Matriz de endpoints:** para cada endpoint, peticiones como `OWNER`, `ADMIN`, `MEMBER`, `VIEWER`, un no miembro y un anónimo, comparando con los códigos esperados.
 - **Invariante del último `OWNER`:** dos `OWNER` que se degradan el uno al otro a la vez; al terminar queda al menos uno.
 - **IDOR:** cada endpoint con id se prueba con dos organizaciones.

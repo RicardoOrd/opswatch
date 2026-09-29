@@ -1,5 +1,6 @@
 package io.github.ricardoord.opswatch.identity.domain;
 
+import io.github.ricardoord.opswatch.shared.text.VisibleText;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -10,6 +11,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
@@ -29,12 +31,11 @@ public class User {
      * Display names are shown to other members of an organization, so they cannot carry control characters, line or
      * paragraph separators, or bidirectional overrides that would disguise them.
      */
-    public static final String DISPLAY_NAME_PATTERN = "[^\\p{Cc}\\p{Zl}\\p{Zp}\\u202A-\\u202E\\u2066-\\u2069]*";
+    public static final String DISPLAY_NAME_PATTERN = VisibleText.PATTERN;
 
     /** Visible US-ASCII only: lower-casing then means the same in Java and in PostgreSQL's {@code lower()}. */
     public static final String EMAIL_CHARACTERS_PATTERN = "[\\x21-\\x7E]+";
 
-    private static final Pattern DISPLAY_NAME = Pattern.compile(DISPLAY_NAME_PATTERN);
     private static final Pattern EMAIL_CHARACTERS = Pattern.compile(EMAIL_CHARACTERS_PATTERN);
 
     @Id
@@ -129,9 +130,7 @@ public class User {
 
     private static void requireValidDisplayName(String displayName) {
         int length = displayName.codePointCount(0, displayName.length());
-        if (length < 1
-                || length > DISPLAY_NAME_MAX_LENGTH
-                || !DISPLAY_NAME.matcher(displayName).matches()) {
+        if (length < 1 || length > DISPLAY_NAME_MAX_LENGTH || !VisibleText.isValid(displayName)) {
             throw new IllegalArgumentException("Invalid display name");
         }
     }
@@ -162,6 +161,14 @@ public class User {
 
     public Instant updatedAt() {
         return updatedAt;
+    }
+
+    /**
+     * The version of the saved row, for {@code ETag} and {@code If-Match}. Not called {@code version()}: Spring Data
+     * would read it to tell whether the entity is new, and it throws before the first save.
+     */
+    public long savedVersion() {
+        return Objects.requireNonNull(version, "The user has not been saved yet");
     }
 
     @Override

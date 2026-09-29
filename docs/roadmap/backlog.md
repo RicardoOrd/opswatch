@@ -357,24 +357,26 @@ Hecha el 2026-09-28: documentación publicada en el PR #1, issues creadas desde 
 - **Definition of Done:** la arquitectura de seguridad y el catálogo de propiedades describen la configuración de proxies que existe.
 
 ### OW-016 · Organizaciones y `AccessControl`
-`feature` `security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Ready**
+`feature` `security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Hecha**
 
 - **Context:** la organización es el tenant raíz y quien la crea queda como `OWNER`. Sus propios endpoints ya necesitan comprobar la membresía, así que `AccessControl` nace aquí. `requireForProject` espera a que existan los proyectos (OW-019). En la v0.1.0 nadie escucha `OrganizationDeleted`: sus listeners llegan en la v0.2.0, después del registro de publicaciones de eventos (OW-034).
 - **Objective:** endpoints de organizaciones del catálogo y la API pública `AccessControl` del módulo `organization`.
 - **Tasks:**
-  - [ ] Migración `organization_create_organizations_and_memberships`.
-  - [ ] Entidades `Organization` y `Membership`.
-  - [ ] `Role` → `Permission` como mapa inmutable, según la [matriz](../security/authorization-model.md#matriz-rbac).
-  - [ ] `AccessControl.require`: `404` a quien no es miembro, `403` al miembro sin permiso. Una organización borrada da `404` a todos, también a sus miembros.
-  - [ ] `OrganizationService`: creación con membresía `OWNER` en la misma transacción, borrado lógico y evento `OrganizationDeleted`.
-  - [ ] Cuota `opswatch.limits.organizations-per-user`: cuenta las organizaciones no borradas de las que el usuario es `OWNER`. Se serializa por usuario (`pg_advisory_xact_lock`), para que dos creaciones simultáneas no la superen.
-  - [ ] `ETag` e `If-Match` en `PATCH`, también en `GET` y `PATCH /api/v1/me`, que OW-045 dejó sin ellos para no diseñar el mecanismo dos veces.
+  - [x] Migración `V3__organization_create_organizations_and_memberships`, igual al DDL del [diseño de base de datos](../database/database-design.md#9-ddl-preliminar).
+  - [x] Entidades `Organization` y `Membership` (clave compuesta con `@IdClass`; la organización y el usuario se referencian por id).
+  - [x] `Role` → `Permission` como mapa inmutable, según la [matriz](../security/authorization-model.md#matriz-rbac).
+  - [x] `AccessControl.require`: `404` a quien no es miembro, `403` al miembro sin permiso (con el evento `authz.denied`). Una organización borrada da `404` a todos, también a sus miembros. Devuelve el rol, para el `myRole` de las respuestas.
+  - [x] `OrganizationService`: creación con membresía `OWNER` en la misma transacción, borrado lógico y evento `OrganizationDeleted`.
+  - [x] Cuota `opswatch.limits.organizations-per-user`: cuenta las organizaciones no borradas de las que el usuario es `OWNER`. Se serializa por usuario (`pg_advisory_xact_lock` de dos claves, con el espacio `1` para las cuotas), para que dos creaciones simultáneas no la superen.
+  - [x] `ETag` e `If-Match` en `PATCH`, también en `GET` y `PATCH /api/v1/me` (`ETags`, en `shared.web`).
+  - [x] Paginación por offset con lista blanca de `sort` (`PageQuery` y su resolver, en `shared.web`): es el primer listado. `size` > 100, `page` negativa o un `sort` no permitido dan `400 invalid-parameter`, sin corregirlos en silencio.
+  - [x] La regex de nombres visibles pasa de `User` a `shared.text.VisibleText`, para validar también el nombre de la organización.
 - **Acceptance Criteria:** una organización nueva aparece en `GET /api/v1/organizations` con `myRole: OWNER`; un no miembro recibe `404` en `GET /api/v1/organizations/{orgId}`; un `VIEWER` recibe `403` en `PATCH`; la sexta organización de un usuario → `422 quota-exceeded`, también con creaciones simultáneas; un `If-Match` obsoleto → `412`; después de borrarla, sus miembros reciben `404` y deja de aparecer en su listado.
 - **Testing:**
-  - Unitarios: mapa `Role` → `Permission` contra una tabla de datos.
-  - Integración (concurrencia): creaciones simultáneas en el límite de la cuota.
-  - API: endpoints por rol, `412` y organización borrada.
-  - Seguridad: IDOR (usuario de la organización B contra la A → `404` sin efectos).
+  - Unitarios: mapa `Role` → `Permission` contra una tabla de datos (`RoleTest`); `OrganizationTest`, `ETagsTest` y `PageQueryArgumentResolverTest`.
+  - Integración (concurrencia): creaciones simultáneas en el límite de la cuota (`OrganizationQuotaIT`, 6 hilos y 5 repeticiones). Sin el lock entran varias: comprobado quitándolo.
+  - API: endpoints por rol, `412` y organización borrada (`OrganizationApiIT`; los roles distintos de `OWNER` se insertan en la tabla hasta que OW-017 los gestione). `ETag` e `If-Match` de `/me` en `MeApiIT`.
+  - Seguridad: IDOR (usuario de la organización B contra la A → `404` sin efectos, igual que un id inexistente).
 - **Security considerations:** es el control del que dependen T-10 y T-11. La organización se obtiene del recurso, nunca de datos del cliente; los listados solo devuelven las organizaciones de las que el usuario es miembro. Una cuota que se comprueba sin serializar se supera con peticiones en paralelo.
 - **Dependencies:** OW-013.
 - **Definition of Done:** eventos documentados en `events.md`; la matriz del modelo de autorización coincide con el código.
