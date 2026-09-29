@@ -27,7 +27,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  * {@link JwtConfiguration}. A missing or invalid token gets {@code 401} in Problem Details format.
  */
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(CorsProperties.class)
+@EnableConfigurationProperties({CorsProperties.class, RefreshTokenProperties.class})
 public class SecurityConfiguration {
 
     static final String API_CSP = "default-src 'none'; frame-ancestors 'none'";
@@ -98,7 +98,7 @@ public class SecurityConfiguration {
                 List.of(HttpHeaders.AUTHORIZATION, HttpHeaders.CONTENT_TYPE, HttpHeaders.IF_MATCH, "X-Request-Id"));
         configuration.setExposedHeaders(
                 List.of(HttpHeaders.ETAG, HttpHeaders.LOCATION, HttpHeaders.RETRY_AFTER, "X-Request-Id"));
-        // Needed later for the refresh token cookie; only ever combined with an explicit origin list
+        // Lets a listed origin send the refresh token cookie; only ever combined with an explicit origin list
         configuration.setAllowCredentials(true);
         source.registerCorsConfiguration("/api/**", configuration);
         return source;

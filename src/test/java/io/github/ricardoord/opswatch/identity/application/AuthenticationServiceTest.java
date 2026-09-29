@@ -15,6 +15,7 @@ import io.github.ricardoord.opswatch.identity.domain.UserRepository;
 import io.github.ricardoord.opswatch.identity.security.AccessToken;
 import io.github.ricardoord.opswatch.identity.security.AccessTokenIssuer;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -37,19 +38,24 @@ class AuthenticationServiceTest {
     private final UserRepository users = mock(UserRepository.class);
     private final AccessTokenIssuer tokens = mock(AccessTokenIssuer.class);
     private final CountingPasswordEncoder passwordEncoder = new CountingPasswordEncoder();
-    private final AuthenticationService service = new AuthenticationService(users, passwordEncoder, tokens);
+    private final RefreshTokenService refreshTokens = mock(RefreshTokenService.class);
+    private final AuthenticationService service =
+            new AuthenticationService(users, passwordEncoder, tokens, refreshTokens);
 
     private final User user =
             aUser().withPasswordHash(passwordEncoder.encode(PASSWORD)).build();
     private final AccessToken token = new AccessToken("signed", Duration.ofMinutes(15));
+    private final IssuedRefreshToken refreshToken =
+            new IssuedRefreshToken("opaque", Instant.parse("2026-10-12T10:00:00Z"));
 
     @Test
-    void issuesATokenForTheRightPasswordWhateverTheCaseOfTheEmail() {
+    void opensASessionForTheRightPasswordWhateverTheCaseOfTheEmail() {
         given(users.findByEmail(user.email())).willReturn(Optional.of(user));
         given(tokens.issue(user.id())).willReturn(token);
+        given(refreshTokens.open(user.id())).willReturn(refreshToken);
 
         assertThat(service.login("  " + user.email().toUpperCase(Locale.ROOT) + " ", PASSWORD, "203.0.113.7"))
-                .isSameAs(token);
+                .isEqualTo(new SessionTokens(token, refreshToken));
     }
 
     @Test
@@ -89,6 +95,7 @@ class AuthenticationServiceTest {
 
         assertThat(passwordEncoder.checkedHashes).hasSize(1);
         verify(tokens, never()).issue(any());
+        verify(refreshTokens, never()).open(any());
     }
 
     @Test

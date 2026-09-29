@@ -3,7 +3,7 @@ package io.github.ricardoord.opswatch.identity.web;
 import io.github.ricardoord.opswatch.identity.security.AccessToken;
 
 /**
- * A successful login. The client keeps the token in memory, never in {@code localStorage}
+ * A successful login or refresh. The client keeps the token in memory, never in {@code localStorage}
  * (docs/security/security-architecture.md#dónde-guarda-el-cliente-cada-token).
  *
  * @param expiresIn seconds
