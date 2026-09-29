@@ -30,7 +30,7 @@ Los perfiles se activan con `SPRING_PROFILES_ACTIVE`. `staging` y `production` c
 | Datos del entorno sin secreto | Variables de entorno | URL de la base de datos, orígenes CORS, host SMTP |
 | **Secretos** | `.env` en local (fuera de Git). **Docker secrets** en staging y producción | Contraseña de la base de datos, claves JWT y de cifrado, credenciales SMTP |
 
-**Regla:** ni `application.yml` ni ningún fichero de Git contienen un secreto, **ni siquiera de desarrollo**. Las claves de desarrollo se generan en local con un script (`scripts/dev-keys.sh`, Sprint 0) y se guardan en `.env` y en `secrets/`, que están en `.gitignore`.
+**Regla:** ni `application.yml` ni ningún fichero de Git contienen un secreto, **ni siquiera de desarrollo**. Los secretos de desarrollo se generan en local con `scripts/dev-keys.sh` y se guardan en `.env` y en `secrets/`, que están en `.gitignore`.
 
 ### Lectura de secretos en producción
 
@@ -42,32 +42,27 @@ spring:
 
 Cada fichero en `/run/secrets/` se convierte en una propiedad con el nombre del fichero. Por ejemplo, `/run/secrets/opswatch.security.jwt.private-key` pasa a ser `opswatch.security.jwt.private-key`. Ventajas frente a las variables de entorno: no aparecen en `docker inspect`, en `/proc/<pid>/environ` ni en volcados de entorno, y pueden tener permisos de fichero (0400).
 
-### `.env.example`
+### `.env` y perfil `local`
 
-Se versiona y documenta **qué** hay que definir, sin valores reales:
+`.env.example` se versiona y documenta **qué** hay que definir, sin valores reales. `scripts/dev-keys.sh` crea `.env` a partir de él con una contraseña aleatoria:
 
 ```dotenv
-# PostgreSQL local (docker compose)
 POSTGRES_DB=opswatch
 POSTGRES_USER=opswatch
-POSTGRES_PASSWORD=change-me-local-only
-
-# Conexión de la aplicación
-SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/opswatch
-SPRING_DATASOURCE_USERNAME=opswatch
-SPRING_DATASOURCE_PASSWORD=change-me-local-only
-
-# Claves de desarrollo: generarlas con scripts/dev-keys.sh (nunca reutilizar en otro entorno)
-OPSWATCH_SECURITY_JWT_PRIVATEKEY=file:./secrets/jwt-dev-private.pem
-OPSWATCH_SECURITY_JWT_PUBLICKEY=file:./secrets/jwt-dev-public.pem
-OPSWATCH_SECURITY_ENCRYPTION_KEYS_1=<base64 de 32 bytes aleatorios>
-OPSWATCH_SECURITY_ENCRYPTION_ACTIVEKEYID=1
-
-# CORS (frontend futuro)
-OPSWATCH_SECURITY_CORS_ALLOWEDORIGINS=http://localhost:5173
+POSTGRES_PASSWORD=change-me
+POSTGRES_PORT=5432
 ```
 
-Los nombres exactos de las variables siguen el *relaxed binding* de Spring Boot y se confirman en el Sprint 0.
+Un solo juego de variables sirve a los dos lados:
+
+- **Docker Compose** lee `.env` por sí mismo y crea la base de datos con esas credenciales.
+- **La aplicación con el perfil `local`** lo importa como fuente de propiedades (`spring.config.import: optional:file:.env[.properties]`) y construye `spring.datasource.*` con `${POSTGRES_…}`. Así la contraseña no se duplica en variables `SPRING_DATASOURCE_*` que podrían desincronizarse.
+
+Decisiones de OW-004:
+
+- Las claves de un fichero importado **no** pasan por el *relaxed binding* de las variables de entorno: `SPRING_DATASOURCE_PASSWORD` en `.env` no se convierte en `spring.datasource.password`. Por eso `application-local.yml` mapea cada variable de forma explícita, y así lo harán las propiedades que lleguen después.
+- La importación es opcional porque las variables también pueden llegar del entorno (el servicio `app` de Compose, OW-009), que tiene prioridad sobre el fichero. La contrapartida: sin `.env`, el placeholder queda sin resolver y el arranque falla con `password authentication failed`, no con un mensaje sobre `.env`. El README lo explica.
+- Las claves JWT y de cifrado de desarrollo **no** van en `.env`: `dev-keys.sh` las deja en `secrets/` (`jwt-dev-private.pem`, `jwt-dev-public.pem` y `encryption-dev-key`). OW-013 y OW-022 las conectan a sus propiedades.
 
 ### Gestor de secretos (futuro)
 

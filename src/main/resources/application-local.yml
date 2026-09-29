@@ -1,4 +1,15 @@
 # Desarrollo en la máquina local: logs legibles y más detallados para el código propio.
+spring:
+  config:
+    # .env (fuera de Git) como fuente de propiedades: las mismas variables con las que docker compose crea la base de
+    # datos. Opcional porque las variables también pueden llegar del entorno (servicio app de Compose, OW-009), que
+    # tiene prioridad sobre el fichero
+    import: "optional:file:.env[.properties]"
+  datasource:
+    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:opswatch}
+    username: ${POSTGRES_USER:opswatch}
+    password: ${POSTGRES_PASSWORD}
+
 logging:
   level:
     io.github.ricardoord.opswatch: DEBUG

@@ -127,18 +127,18 @@ Línea de metadatos: `tipos` · prioridad · milestone · estado. Después: Cont
 - **Definition of Done:** la documentación generada por `Documenter` se publica como artefacto de CI (cuando exista OW-010).
 
 ### OW-004 · PostgreSQL, Flyway y Docker Compose para desarrollo local
-`devops` · P1 · Milestone: Sprint 0 — Fundaciones · **Ready**
+`devops` · P1 · Milestone: Sprint 0 — Fundaciones · **Hecha**
 
 - **Context:** la aplicación necesita PostgreSQL real desde el primer día. Hibernate nunca toca el esquema.
 - **Objective:** `docker compose up -d postgres` y la aplicación conectada con Flyway activo.
 - **Tasks:**
-  - [ ] `docker-compose.yml` con PostgreSQL 18 fijado por digest, healthcheck y puerto solo en `127.0.0.1`.
-  - [ ] `application.yml`: `ddl-auto=validate`, `open-in-view=false`, `clean-disabled=true`, UTC.
-  - [ ] Flyway con `db/migration` (sin migraciones todavía).
-  - [ ] `.env.example` y `scripts/dev-keys.sh`.
+  - [x] `docker-compose.yml` con PostgreSQL 18 fijado por digest, healthcheck por TCP y puerto solo en `127.0.0.1`. Dependabot vigila el digest.
+  - [x] `application.yml`: `ddl-auto=validate`, `open-in-view=false`, `clean-disabled=true`, UTC.
+  - [x] Flyway con `db/migration` (sin migraciones todavía).
+  - [x] `.env.example` y `scripts/dev-keys.sh`, que crea `.env` con una contraseña aleatoria y las claves de desarrollo en `secrets/`. El perfil `local` importa `.env`.
 - **Acceptance Criteria:** la aplicación arranca con el perfil `local` contra el Compose; borrar el volumen y volver a arrancar funciona; `clean` de Flyway está desactivado incluso en `local`.
 - **Testing:**
-  - Integración: `ApplicationStartupIT` con Testcontainers (Flyway y `ddl-auto=validate`).
+  - Integración: `ApplicationStartupIT` con Testcontainers: PostgreSQL 18, Flyway sin migraciones pendientes, `ddl-auto=validate` y `clean` rechazado. El contenedor compartido llega en OW-007.
 - **Security considerations:** PostgreSQL no se publica fuera de `127.0.0.1`. Ninguna contraseña en ficheros versionados; `.env` ignorado por Git. `clean-disabled` evita borrar una base de datos por un error de configuración.
 - **Dependencies:** OW-002.
 - **Definition of Done:** instrucciones de arranque del README comprobadas desde un clon limpio.
@@ -188,9 +188,9 @@ Línea de metadatos: `tipos` · prioridad · milestone · estado. Después: Cont
 - **Context:** sin H2. Los tests de integración usan PostgreSQL real y deben ser rápidos ([estrategia](../testing/testing-strategy.md#testcontainers)).
 - **Objective:** un contenedor compartido, Surefire y Failsafe separados y convenciones claras.
 - **Tasks:**
-  - [ ] `PostgresTestcontainer` con `@ServiceConnection`, con la misma imagen que producción.
+  - [ ] `PostgresTestcontainer` con `@ServiceConnection`, con la misma imagen que producción. La imagen se lee de `docker-compose.yml`, la única fuente: Dependabot actualiza el digest ahí y no en el código de los tests.
   - [ ] Surefire (`*Test`) y Failsafe (`*IT`) en el `pom.xml`.
-  - [ ] `ApplicationStartupIT`.
+  - [ ] `ApplicationStartupIT` (existe desde OW-004) pasa a usar `PostgresTestcontainer`.
   - [ ] Nota breve en `docs/testing/` sobre la reutilización del contenedor en local.
 - **Acceptance Criteria:** `./mvnw test` no arranca Docker; `./mvnw verify` sí; un solo contenedor de PostgreSQL por ejecución de la JVM. `ApplicationStartupIT` comprueba además, con la aplicación arrancada en puertos reales: `readiness` en `UP` en el puerto 8081, `/actuator/env` → `404` (heredado de OW-008) y una línea de log de una petición con su `requestId` (heredado de OW-006).
 - **Testing:**
