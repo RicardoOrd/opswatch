@@ -105,7 +105,7 @@ jobs:
         run: |
           uid=$(docker run --rm --entrypoint id opswatch:ci -u)
           size=$(docker save opswatch:ci | gzip | wc -c)
-          echo "Imagen: UID $uid, $((size / 1000000)) MB comprimida" >> "$GITHUB_STEP_SUMMARY"
+          echo "Imagen: UID $uid, $((size / 1000000)) MB comprimida" | tee -a "$GITHUB_STEP_SUMMARY"
           test "$uid" = 10001
           test "$size" -lt 200000000
       - name: Login en GHCR
