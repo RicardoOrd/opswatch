@@ -105,7 +105,7 @@ name: opswatch
 
 services:
   postgres:
-    image: postgres:18-alpine@sha256:…   # fijado por digest; el mismo en ApplicationStartupIT
+    image: postgres:18-alpine@sha256:…   # fijado por digest; PostgresTestcontainer lo lee de aquí
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-opswatch}
       POSTGRES_USER: ${POSTGRES_USER:-opswatch}

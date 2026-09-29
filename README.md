@@ -17,8 +17,8 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | Arquitectura, ADR, modelo de dominio, seguridad, estrategia de pruebas, roadmap | **Implemented** (documentación) |
 | Repositorio: `main` protegida, milestones, etiquetas, backlog en GitHub Issues | **Implemented** |
 | Esqueleto Spring Boot con Java 25 y Maven Wrapper (OW-002) | **Implemented** |
-| Módulos, errores, logging, seguridad base, PostgreSQL y Flyway (OW-003 a OW-006, OW-008) | **Implemented** |
-| Resto del Sprint 0: infraestructura de tests, Docker, CI (OW-007, OW-009, OW-010) | Planned: **foco actual** |
+| Módulos, errores, logging, seguridad base, PostgreSQL, Flyway e infraestructura de tests (OW-003 a OW-008) | **Implemented** |
+| Resto del Sprint 0: Docker y CI (OW-009, OW-010) | Planned: **foco actual** |
 | Funcionalidades de producto | Planned |
 
 **Qué se hace ahora:** el milestone [Sprint 0 — Fundaciones](https://github.com/RicardoOrd/opswatch/milestone/1), issues OW-001 a OW-010. Orden sugerido y siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).

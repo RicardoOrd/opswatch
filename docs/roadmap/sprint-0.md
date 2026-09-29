@@ -122,11 +122,12 @@ Versiones fijadas en OW-002 (2026-09-28): Java 25 (Temurin 25.0.4), Spring Boot 
 
 ### 7. Infraestructura de tests (OW-007)
 
-- [ ] `PostgresTestcontainer` con `@ServiceConnection`, compartido por toda la JVM.
-- [ ] Separación Surefire (`*Test`) y Failsafe (`*IT`).
-- [ ] `ApplicationStartupIT`: el contexto arranca con PostgreSQL real y Flyway.
-- [ ] Builders de test base y la convención de nombres documentada.
-- [ ] Instrucciones para reutilizar el contenedor en local.
+- [x] `PostgresTestcontainer` con `@ServiceConnection`, compartido por toda la JVM y con la imagen de `docker-compose.yml`.
+- [x] Separación Surefire (`*Test`) y Failsafe (`*IT`).
+- [x] `ApplicationStartupIT`: la aplicación arranca en puertos reales con PostgreSQL real y Flyway.
+- [x] Convención de nombres documentada ([estrategia de testing](../testing/testing-strategy.md#convenciones)).
+- [ ] Builders de test base: sin entidades no hay nada que construir. Llegan con la primera entidad (OW-012).
+- [x] Instrucciones para reutilizar el contenedor en local ([estrategia de testing](../testing/testing-strategy.md#rapidez)).
 
 ### 8. Seguridad base (OW-008)
 
