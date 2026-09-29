@@ -83,7 +83,7 @@ public interface AccessControl {
     /**
      * Comprueba que el usuario tiene el permiso en la organización.
      * @throws ResourceNotFoundException si no es miembro (se responde 404: no se revela que existe)
-     * @throws AccessDeniedException     si es miembro pero su rol no incluye el permiso (403)
+     * @throws PermissionDeniedException si es miembro pero su rol no incluye el permiso (403)
      */
     void require(UUID userId, UUID organizationId, Permission permission);
 

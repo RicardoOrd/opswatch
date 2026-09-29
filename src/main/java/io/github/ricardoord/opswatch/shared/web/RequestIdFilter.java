@@ -35,6 +35,8 @@ public class RequestIdFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String requestId = resolve(request.getHeader(HEADER));
         MDC.put(MDC_KEY, requestId);
+        // Also kept on the request: the error dispatch to /error runs after the MDC has been cleared
+        request.setAttribute(MDC_KEY, requestId);
         response.setHeader(HEADER, requestId);
         try {
             chain.doFilter(request, response);

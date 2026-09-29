@@ -60,16 +60,18 @@ Decisión: **sin Lombok**. El IDE genera los constructores y getters de las poca
 
 ```text
 RuntimeException
-└── DomainException (shared)          code estable → Problem Details
-    ├── ResourceNotFoundException     → 404
-    ├── AccessDeniedException         → 403 (propia, no la de Spring Security)
-    ├── ConflictException             → 409 (duplicados)
-    ├── BusinessRuleViolationException→ 409
-    ├── QuotaExceededException        → 422
-    └── TargetNotAllowedException     → 422
+└── DomainException (shared.error)     ProblemCode estable → Problem Details
+    ├── ResourceNotFoundException      → 404
+    ├── PermissionDeniedException      → 403
+    ├── ConflictException              → 409 (duplicados)
+    ├── BusinessRuleViolationException → 409
+    ├── PreconditionFailedException    → 412
+    ├── QuotaExceededException         → 422
+    └── TargetNotAllowedException      → 422
 ```
 
-- Todas unchecked. El `@RestControllerAdvice` de `shared` las traduce a Problem Details. Los controladores no capturan excepciones para devolver respuestas.
+- `PermissionDeniedException` y no `AccessDeniedException`: evita confundirla al importar con la de Spring Security, que también se traduce a `403`.
+- Todas unchecked. `ProblemDetailsHandler` (`@RestControllerAdvice` de `shared.error`) las traduce a Problem Details, y `ProblemDetailsErrorController` hace lo mismo con los errores que ocurren fuera de Spring MVC. Los controladores no capturan excepciones para devolver respuestas.
 - Mensajes para el cliente sin datos internos. El detalle técnico va a la causa (`cause`) y al log.
 - No se captura `Exception` de forma genérica salvo en los límites de tareas asíncronas (el motor y el worker de entregas), y ahí siempre se registra y se mide.
 - No se usan excepciones para el control de flujo normal. Un check fallido **no** es una excepción del dominio: es un `CheckOutcome` `DOWN`.
@@ -104,7 +106,7 @@ RuntimeException
 | **Spring Modulith `verify()`** | **Sí** | Límites de módulo ([ADR-003](../adr/ADR-003-spring-modulith.md)) |
 | **ArchUnit** (reglas propias) | **Sí, pocas** | Solo las que Modulith no cubre ([testing](../testing/testing-strategy.md#arquitectura)) |
 | **JaCoCo** | Sí, solo como informe | Visibilidad sin umbral global |
-| `-Xlint:all -Werror` | Sí | Warnings del compilador tratados como errores desde el principio |
+| `-Xlint:all,-serial -Werror` | Sí | Warnings del compilador tratados como errores desde el principio. Sin `serial`: las excepciones nunca se serializan con Java |
 | Checkstyle | **No** | Con un formateador automático, la mayoría de sus reglas son redundantes o subjetivas |
 | SpotBugs | **No, por ahora** | Solapa con CodeQL (Fase 5) y el compilador, y tiene falsos positivos. Se reconsidera si CodeQL deja huecos |
 | SonarCloud | **Opcional en la Fase 5** | Panel de calidad gratuito para repositorios públicos, vistoso para el portafolio. No aporta reglas críticas que no cubran las demás herramientas |

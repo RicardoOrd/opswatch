@@ -155,13 +155,14 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
 
-            <!-- Warnings del compilador tratados como errores desde el primer commit -->
+            <!-- Warnings del compilador tratados como errores desde el primer commit. Sin "serial": las excepciones
+                 nunca se serializan con Java, y un serialVersionUID en cada una sería ruido -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
                     <compilerArgs>
-                        <arg>-Xlint:all</arg>
+                        <arg>-Xlint:all,-serial</arg>
                         <arg>-Werror</arg>
                     </compilerArgs>
                 </configuration>

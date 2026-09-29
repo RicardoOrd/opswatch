@@ -49,8 +49,11 @@ No se usa `PUT`: ningún recurso de V1 necesita un reemplazo completo y `PATCH` 
 | `401 Unauthorized` | Sin credenciales o credenciales inválidas. Con `WWW-Authenticate` |
 | `403 Forbidden` | Miembro de la organización sin el permiso necesario |
 | `404 Not Found` | El recurso no existe, está borrado **o el usuario no es miembro de su organización** ([autorización](../security/authorization-model.md#por-qué-404-y-no-403-para-quien-no-es-miembro)) |
+| `405 Method Not Allowed` | La ruta existe, pero no admite ese método |
+| `406 Not Acceptable` | El cliente pide (`Accept`) un formato que la API no produce |
 | `409 Conflict` | Conflicto de estado: regla de negocio (último `OWNER`, acknowledge sobre un incidente resuelto), duplicado (nombre de proyecto), bloqueo optimista |
 | `412 Precondition Failed` | `If-Match` no coincide con la versión actual |
+| `415 Unsupported Media Type` | El cuerpo no es `application/json` |
 | `422 Unprocessable Content` | Petición bien formada pero semánticamente inaceptable: destino bloqueado por la política SSRF, cuota agotada |
 | `429 Too Many Requests` | Rate limit. Con `Retry-After` |
 | `500 Internal Server Error` | Error no previsto. Mensaje genérico y `requestId` |
@@ -127,10 +130,13 @@ Todos los errores usan `application/problem+json` con el soporte `ProblemDetail`
 | <a id="invalid-credentials"></a>`invalid-credentials` | 401 | Login fallido |
 | <a id="access-denied"></a>`access-denied` | 403 | Miembro sin permiso |
 | <a id="resource-not-found"></a>`resource-not-found` | 404 | No existe o no es visible para el usuario |
+| <a id="method-not-allowed"></a>`method-not-allowed` | 405 | Método no admitido en esa ruta |
+| <a id="not-acceptable"></a>`not-acceptable` | 406 | Formato de respuesta pedido no disponible |
 | <a id="conflict"></a>`conflict` | 409 | Duplicado (nombre de proyecto, email registrado, miembro ya existente) |
 | <a id="business-rule-violation"></a>`business-rule-violation` | 409 | Regla de negocio (último `OWNER`, transición de incidente inválida) |
 | <a id="concurrent-modification"></a>`concurrent-modification` | 409 | Bloqueo optimista |
 | <a id="precondition-failed"></a>`precondition-failed` | 412 | `If-Match` no coincide |
+| <a id="unsupported-media-type"></a>`unsupported-media-type` | 415 | El cuerpo no es JSON |
 | <a id="target-not-allowed"></a>`target-not-allowed` | 422 | La URL no pasa la política SSRF |
 | <a id="quota-exceeded"></a>`quota-exceeded` | 422 | Se superó una cuota de la organización o del usuario |
 | <a id="rate-limited"></a>`rate-limited` | 429 | Rate limit |
