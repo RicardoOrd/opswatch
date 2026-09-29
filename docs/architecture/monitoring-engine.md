@@ -280,7 +280,7 @@ Ventajas de esta frontera:
 
 - La resolución usa el resolver del sistema a través del `GuardedDnsResolver`. Es **bloqueante y no se puede interrumpir**: si un servidor DNS tarda, el deadline total no puede cortar esa fase.
 - Con virtual threads, el JDK compensa las llamadas nativas bloqueantes añadiendo hilos portadores, así que un DNS lento no congela el resto de los checks. Es un riesgo que hay que **medir**.
-- Cache de la JVM: `networkaddress.cache.ttl=30` y `networkaddress.cache.negative.ttl=10`.
+- Cache de la JVM: `networkaddress.cache.ttl=30` y `networkaddress.cache.negative.ttl=10`. Son los valores por defecto del JDK 25, así que la imagen no los fija (comprobado en OW-009). Si hubiera que cambiarlos: son *security properties*, y `-Dnetworkaddress.cache.ttl` no tiene efecto. Se cambian con un fichero pasado en `-Djava.security.properties=<fichero>` ([Docker](../devops/docker.md#dockerfile-multi-stage)).
 - Si los benchmarks muestran que el DNS es un problema, la alternativa es un resolver propio con timeout, a través del SPI `InetAddressResolverProvider` (JEP 418) o de una librería DNS. Queda como decisión futura.
 
 ### Medición de la latencia

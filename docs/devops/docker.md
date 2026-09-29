@@ -1,8 +1,8 @@
 # Docker
 
-Estado: diseño inicial · Última revisión: 2026-09-28
+Estado: implementado (OW-004 y OW-009) · Última revisión: 2026-09-28
 
-`docker-compose.yml` existe desde OW-004 con el servicio `postgres`. El Dockerfile, el `.dockerignore` y el servicio `app` son **bocetos de diseño** hasta OW-009.
+Ficheros: [`Dockerfile`](../../Dockerfile), [`.dockerignore`](../../.dockerignore) y [`docker-compose.yml`](../../docker-compose.yml). Este documento explica sus decisiones. Si difieren, manda el código.
 
 ## Objetivos
 
@@ -14,147 +14,91 @@ Estado: diseño inicial · Última revisión: 2026-09-28
 
 ## Dockerfile multi-stage
 
-```dockerfile
-# syntax=docker/dockerfile:1
-
-# ---------- build ----------
-FROM eclipse-temurin:25-jdk AS build
-WORKDIR /workspace
-
-# Primero las dependencias: esta capa se cachea mientras el pom no cambie
-COPY .mvn/ .mvn/
-COPY mvnw pom.xml ./
-RUN --mount=type=cache,target=/root/.m2 ./mvnw -B -q dependency:go-offline
-
-COPY src/ src/
-# Los tests ya corrieron en el job de CI anterior; aquí solo se empaqueta
-RUN --mount=type=cache,target=/root/.m2 ./mvnw -B -q package -DskipTests
-
-# Capas de Spring Boot: dependencias, loader, snapshots y aplicación
-RUN java -Djarmode=tools -jar target/opswatch.jar extract --layers --destination target/extracted
-
-# ---------- runtime ----------
-FROM eclipse-temurin:25-jre-alpine AS runtime
-
-RUN addgroup -S -g 10001 opswatch && adduser -S -u 10001 -G opswatch -H -s /sbin/nologin opswatch
-
-WORKDIR /app
-# Los ficheros pertenecen a root: el proceso (UID 10001) puede leerlos pero no modificarlos
-COPY --from=build /workspace/target/extracted/dependencies/ ./
-COPY --from=build /workspace/target/extracted/spring-boot-loader/ ./
-COPY --from=build /workspace/target/extracted/snapshot-dependencies/ ./
-COPY --from=build /workspace/target/extracted/application/ ./
-
-USER 10001:10001
-
-ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError -Duser.timezone=UTC -Dnetworkaddress.cache.ttl=30 -Dnetworkaddress.cache.negative.ttl=10"
-
-EXPOSE 8080 8081
-
-HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
-  CMD wget -q -O /dev/null http://127.0.0.1:8081/actuator/health/liveness || exit 1
-
-ENTRYPOINT ["java", "-jar", "opswatch.jar"]
-```
+1. **build** (`eclipse-temurin:25-jdk-alpine`): descarga las dependencias en una capa propia, que se cachea mientras no cambie el `pom.xml`. Después compila `src/main` sin tests y extrae las capas de Spring Boot.
+2. **runtime** (`eclipse-temurin:25-jre-alpine`): crea el usuario 10001 y copia las cuatro capas en `/app` (`opswatch.jar` más `lib/`). Declara el healthcheck y arranca con `java -jar opswatch.jar`.
 
 | Decisión | Motivo |
 |---|---|
 | JDK solo en la etapa de build y JRE en la de ejecución | Sin compilador ni Maven en producción: menos superficie y menos tamaño |
-| `eclipse-temurin:25-jre-alpine` | Imagen oficial y pequeña. Si Alpine (musl) diera algún problema con una dependencia nativa, se cambia a la variante Ubuntu (`25-jre`). **Se fija por digest** (`@sha256:…`) y Dependabot la actualiza |
-| Capas de Spring Boot | Un cambio de código solo invalida la capa `application` (unos KB), no las decenas de MB de dependencias |
-| Cache mount de `~/.m2` | Builds repetidos sin volver a descargar dependencias |
+| `eclipse-temurin:25-jre-alpine` | Imagen oficial y pequeña. Si Alpine (musl) diera algún problema con una dependencia nativa, se cambia a la variante Ubuntu (`25-jre`) |
+| Imágenes base fijadas por digest | El digest es el del índice multiplataforma (amd64 y arm64). Dependabot (ecosistema `docker`) lo actualiza |
+| Capas de Spring Boot | Un cambio de código solo invalida la capa `application` (57 KB), no los 70 MB de dependencias |
+| Cache mount de `~/.m2` | Builds repetidos sin volver a descargar dependencias ni Maven |
+| `-Dmaven.test.skip=true` | Los tests corren en el job `build` de CI. Aquí ni se compilan: `src/test` no entra en el contexto |
 | Usuario 10001 sin shell ni home | No root. UID alto para no coincidir con usuarios del host |
 | Ficheros propiedad de root | Un proceso comprometido no puede modificar el código de la aplicación |
 | `MaxRAMPercentage=75` | La JVM respeta el límite de memoria del contenedor y deja margen para el resto (virtual threads, buffers, metaspace) |
 | `ExitOnOutOfMemoryError` | Ante un OOM, el contenedor muere y Docker lo reinicia, en lugar de quedar zombi |
-| TTL de DNS de la JVM | Ver el [motor](../architecture/monitoring-engine.md#dns) |
+| Flags en `JAVA_TOOL_OPTIONS` | Se pueden cambiar sin reconstruir la imagen. La JVM escribe `Picked up JAVA_TOOL_OPTIONS: …` en stderr al arrancar, y es lo esperado |
+| Sin flags de DNS | La cache DNS del [motor](../architecture/monitoring-engine.md#dns) (30 s, y 10 s para los fallos) coincide con los valores por defecto del JDK 25. Además, `-Dnetworkaddress.cache.ttl` no tiene efecto: es una *security property*, no una system property (comprobado en OW-009) |
 | Healthcheck contra `liveness` en el puerto de management | `wget` viene en Alpine (busybox). No hace falta instalar `curl` |
 | Sin `ARG` ni `ENV` con secretos | Quedarían en las capas y en `docker history` |
 
-Tamaño objetivo: menos de 250 MB sin comprimir. El JRE de Alpine ronda los 100 a 150 MB y la aplicación con sus dependencias, unos 60 a 90 MB. Se medirá en el Sprint 0.
+Comprobaciones de OW-009:
 
-Optimizaciones evaluadas y aplazadas: un JRE a medida con `jlink` (imagen más pequeña, pero hay que mantener la lista de módulos del JDK) y la cache AOT del JDK para el arranque (JEP 483 y relacionados). Se valoran si el tamaño o el tiempo de arranque llegan a importar.
+```bash
+docker run --rm --entrypoint id opswatch:local   # uid=10001(opswatch) gid=10001(opswatch)
+docker history --no-trunc opswatch:local         # sin secretos: solo instrucciones y JAVA_TOOL_OPTIONS
+```
+
+`docker run --rm opswatch:local id` **no** sirve para comprobar el usuario: con un `ENTRYPOINT` en forma exec, `id` llega a la aplicación como argumento.
+
+### Tamaño
+
+Medido en OW-009 (2026-09-28):
+
+| Parte | Sin comprimir |
+|---|---|
+| Alpine y paquetes de la imagen de Temurin | 31 MB |
+| JRE Temurin 25 (`/opt/java/openjdk`) | 198 MB |
+| Dependencias (`lib/`) | 70 MB |
+| Aplicación (`opswatch.jar`) | 57 KB |
+| **Total** | **299 MB** (**138 MB comprimida**) |
+
+**Objetivo: menos de 200 MB comprimida.** Es lo que se descarga en cada despliegue y lo que ocupa en GHCR. El objetivo inicial, menos de 250 MB sin comprimir, contaba con un JRE de 100 a 150 MB. El de Temurin 25 ocupa 198 MB, y unos 60 de ellos son cuatro archivos CDS (uno por combinación de *compressed oops* y *compact object headers*) de los que solo se usa uno.
+
+**`jlink`, evaluado de nuevo en OW-009 y aplazado.** El experimento usó un JRE a medida con los módulos de `jdeps` más `jdk.management`, `jdk.crypto.ec`, `jdk.unsupported`, `jdk.zipfs`, `jdk.localedata` y `jdk.charsets`, sobre `alpine:3.24`. Arrancó bien:
+
+| | Sin comprimir | Comprimida |
+|---|---|---|
+| Temurin 25 | 299 MB | 138 MB |
+| `jlink` | 186 MB | 127 MB |
+
+Solo ahorra 11 MB en lo que se transfiere. No compensa mantener la lista de módulos, porque un módulo olvidado solo falla en ejecución, y quizá en un camino poco usado. Se reconsidera si la imagen comprimida se acerca al objetivo.
+
+La cache AOT del JDK (JEP 483 y relacionados) sigue aplazada: la aplicación arranca en unos 4 s.
 
 ## `.dockerignore`
 
-```text
-.git
-.github
-.idea
-.vscode
-*.iml
-target/
-docs/
-.env
-.env.*
-!.env.example
-secrets/
-*.pem
-*.key
-**/*.log
-docker-compose*.yml
-compose*.yaml
-```
-
-Así no entran en el contexto de build secretos locales, el historial de Git ni ficheros pesados innecesarios.
+Es una **lista de permitidos**: todo queda fuera salvo `.mvn/`, `mvnw`, `pom.xml` y `src/main/`. Una lista de excluidos obliga a acordarse de cada fichero sensible nuevo. Con una de permitidos, ni `.env`, ni `secrets/`, ni una clave suelta, ni el historial de Git pueden llegar al contexto de build, y por tanto tampoco a una capa.
 
 ## `docker-compose.yml` (entorno local, V1)
 
-```yaml
-name: opswatch
+| Servicio | Arranque | Qué hace |
+|---|---|---|
+| `postgres` | Siempre | `postgres:18-alpine` fijado por digest. Puerto 5432 solo en `127.0.0.1` y volumen `postgres-data` en `/var/lib/postgresql` (`PGDATA` es `/var/lib/postgresql/18/docker` desde la imagen 18). Healthcheck por TCP, porque el servidor temporal de la inicialización solo escucha en el socket Unix. `PostgresTestcontainer` lee la imagen de aquí |
+| `app` | Solo con `--profile app` | La imagen de este Dockerfile con el perfil `local`. Espera a que `postgres` esté *healthy* |
 
-services:
-  postgres:
-    image: postgres:18-alpine@sha256:…   # fijado por digest; PostgresTestcontainer lo lee de aquí
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-opswatch}
-      POSTGRES_USER: ${POSTGRES_USER:-opswatch}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en .env}
-    ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"   # solo loopback: accesible desde el IDE, no desde la red
-    volumes:
-      - postgres-data:/var/lib/postgresql   # PGDATA es /var/lib/postgresql/18/docker desde la imagen 18 (verificado en OW-004)
-    healthcheck:
-      # Por TCP: el servidor temporal de la inicialización solo escucha en el socket Unix
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
-      interval: 5s
-      timeout: 3s
-      retries: 10
+Endurecimiento del servicio `app`, comprobado en OW-009:
 
-  app:
-    profiles: ["app"]                  # solo con --profile app; en el día a día la app corre desde el IDE
-    build: .
-    image: opswatch:local
-    env_file: .env
-    environment:
-      SPRING_PROFILES_ACTIVE: local
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-opswatch}
-    ports:
-      - "127.0.0.1:8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    mem_limit: 1g
-    cpus: 2
+| Opción | Efecto |
+|---|---|
+| `read_only: true` más `tmpfs: /tmp` | El sistema de ficheros es de solo lectura. Tomcat y la JVM escriben solo en `/tmp` |
+| `cap_drop: [ALL]` | Sin capabilities (`CapEff` a 0): escuchar en 8080 no las necesita |
+| `no-new-privileges` | Ningún binario puede ganar privilegios (`NoNewPrivs: 1`) |
+| `mem_limit: 1g`, `cpus: 2` | Límites de recursos; la JVM calcula el heap sobre el límite de memoria |
+| `stop_grace_period: 40s` | El apagado ordenado espera hasta 35 s. Los 10 s por defecto de Docker lo cortarían con un `SIGKILL` |
+| Puertos 8080 y 8081 solo en `127.0.0.1` | Management se publica **solo en local**, para comprobar la readiness. En los despliegues no se publica |
 
-volumes:
-  postgres-data:
-```
+Las variables llegan con `env_file: .env`. El perfil `local` las usa igual que cuando lee `.env` desde el IDE, y `SPRING_DATASOURCE_URL` apunta al servicio `postgres`. En local las variables se ven en `docker inspect`: en staging y producción los secretos van como Docker secrets (ver más abajo).
 
 Uso:
 
 ```bash
-docker compose up -d --wait postgres     # desarrollo diario: la app desde el IDE con el perfil local
-docker compose --profile app up --build  # todo en contenedores (OW-009)
-docker compose down                      # parar (el volumen de datos se conserva)
-docker compose down -v                   # parar y BORRAR los datos locales
+docker compose up -d --wait postgres              # desarrollo diario: la app desde el IDE con el perfil local
+docker compose --profile app up -d --build --wait # todo en contenedores
+docker compose --profile app down                 # parar (el volumen de datos se conserva)
+docker compose --profile app down -v              # parar y BORRAR los datos locales
 ```
 
 Las credenciales salen de `.env`, que `scripts/dev-keys.sh` crea con una contraseña aleatoria. Compose lo lee solo, y la aplicación con el perfil `local` lo importa como fuente de propiedades ([entornos](environments.md#env-y-perfil-local)). PostgreSQL fija la contraseña al crear el volumen: cambiarla después en `.env` exige `docker compose down -v`.

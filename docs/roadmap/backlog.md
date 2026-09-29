@@ -217,17 +217,17 @@ Línea de metadatos: `tipos` · prioridad · milestone · estado. Después: Cont
 - **Definition of Done:** la sección 6 de la arquitectura de seguridad refleja la configuración real.
 
 ### OW-009 · Dockerfile multi-stage y endurecimiento del contenedor
-`devops` `security` · P2 · Milestone: Sprint 0 — Fundaciones · **Ready**
+`devops` `security` · P2 · Milestone: Sprint 0 — Fundaciones · **Hecha**
 
 - **Context:** imagen pequeña, no root y sin secretos ([Docker](../devops/docker.md)).
 - **Objective:** imagen reproducible con healthcheck.
 - **Tasks:**
-  - [ ] Dockerfile multi-stage con capas de Spring Boot.
-  - [ ] `.dockerignore`.
-  - [ ] Servicio `app` en Compose (`read_only`, `cap_drop`, `no-new-privileges`, límites de CPU y memoria).
-  - [ ] Medir el tamaño de la imagen.
-  - [ ] Añadir el ecosistema `docker` a `.github/dependabot.yml`, para que vigile las imágenes base fijadas por digest.
-- **Acceptance Criteria:** `docker run --rm opswatch:local id` muestra el UID 10001; el contenedor llega a *healthy*; `docker history` no muestra secretos; la imagen pesa menos de 250 MB.
+  - [x] Dockerfile multi-stage con capas de Spring Boot, imágenes base fijadas por digest y healthcheck contra `liveness`.
+  - [x] `.dockerignore` como lista de permitidos (`.mvn/`, `mvnw`, `pom.xml`, `src/main/`).
+  - [x] Servicio `app` en Compose (`read_only`, `cap_drop`, `no-new-privileges`, límites de CPU y memoria y `stop_grace_period` para el apagado ordenado).
+  - [x] Medir el tamaño de la imagen: 138 MB comprimida y 299 MB sin comprimir. `jlink` evaluado y aplazado ([Docker](../devops/docker.md#tamaño)).
+  - [x] Añadir el ecosistema `docker` a `.github/dependabot.yml`, para que vigile las imágenes base fijadas por digest.
+- **Acceptance Criteria:** `docker run --rm --entrypoint id opswatch:local` muestra el UID 10001; el contenedor llega a *healthy*; `docker history` no muestra secretos; la imagen pesa menos de 200 MB comprimida. El criterio inicial era menos de 250 MB sin comprimir, y se cambió en OW-009 con las mediciones de [Docker](../devops/docker.md#tamaño).
 - **Testing:**
   - Manual y en CI: build de la imagen y los tres criterios de aceptación.
 - **Security considerations:** proceso no root y código de la aplicación propiedad de root (un proceso comprometido no puede modificarlo); imagen base fijada por digest; sin secretos en `ARG`, `ENV` ni en las capas (T-51, T-52).

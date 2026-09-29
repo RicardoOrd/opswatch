@@ -17,8 +17,8 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | Arquitectura, ADR, modelo de dominio, seguridad, estrategia de pruebas, roadmap | **Implemented** (documentación) |
 | Repositorio: `main` protegida, milestones, etiquetas, backlog en GitHub Issues | **Implemented** |
 | Esqueleto Spring Boot con Java 25 y Maven Wrapper (OW-002) | **Implemented** |
-| Módulos, errores, logging, seguridad base, PostgreSQL, Flyway e infraestructura de tests (OW-003 a OW-008) | **Implemented** |
-| Resto del Sprint 0: Docker y CI (OW-009, OW-010) | Planned: **foco actual** |
+| Módulos, errores, logging, seguridad base, PostgreSQL, Flyway, infraestructura de tests y Docker (OW-003 a OW-009) | **Implemented** |
+| Resto del Sprint 0: CI (OW-010) | Planned: **foco actual** |
 | Funcionalidades de producto | Planned |
 
 **Qué se hace ahora:** el milestone [Sprint 0 — Fundaciones](https://github.com/RicardoOrd/opswatch/milestone/1), issues OW-001 a OW-010. Orden sugerido y siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
@@ -161,7 +161,12 @@ Si el arranque falla con `password authentication failed for user "opswatch"`, f
 
 Tests: `./mvnw test` ejecuta los unitarios, sin Docker. `./mvnw verify` añade los de integración con Testcontainers.
 
-Todo en contenedores (`docker compose --profile app up --build`) llega con OW-009.
+Todo en contenedores, sin JDK en la máquina (después de `bash scripts/dev-keys.sh`):
+
+```bash
+docker compose --profile app up -d --build --wait   # PostgreSQL y la aplicación, los dos healthy
+docker compose --profile app down                   # parar; down -v borra también los datos
+```
 
 ---
 

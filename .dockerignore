@@ -1,0 +1,7 @@
+# Lista de permitidos: al contexto de build solo llega lo que la imagen necesita. Un secreto local (.env, secrets/,
+# claves) o el historial de Git no pueden acabar en una capa aunque alguien añada un fichero nuevo.
+*
+!.mvn/
+!mvnw
+!pom.xml
+!src/main/
