@@ -1,3 +1,24 @@
+# Valores por defecto seguros para todos los entornos. Sin secretos: llegan por variables de entorno o Docker secrets.
+# Catálogo completo de propiedades: docs/devops/environments.md#catálogo-de-propiedades
 spring:
   application:
     name: opswatch
+  profiles:
+    group:
+      # staging y production comparten la configuración de application-deployed.yml
+      staging: deployed
+      production: deployed
+  threads:
+    virtual:
+      # Java 25 no fija virtual threads en synchronized (JEP 491): Tomcat, @Async y @Scheduled sin pools que dimensionar
+      enabled: true
+  lifecycle:
+    timeout-per-shutdown-phase: 35s
+
+server:
+  shutdown: graceful
+
+logging:
+  pattern:
+    # El requestId (RequestIdFilter) aparece en cada línea de log de una petición
+    correlation: "[%X{requestId:-}] "

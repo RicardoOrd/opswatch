@@ -86,7 +86,7 @@ Verificaciones del Sprint 0 que la documentación dejó abiertas:
 - [x] springdoc 3.1.0, compatible con Boot `[4.0.0, 4.2.0-M1)` según Spring Initializr.
 - [x] Testcontainers 2.0.5 (gestionado por Boot): la clase es `org.testcontainers.postgresql.PostgreSQLContainer`, sin genéricos, en el artefacto `testcontainers-postgresql`.
 - [ ] Ruta del volumen de datos de la imagen `postgres:18` (necesita Docker; se comprueba en OW-004).
-- [ ] `spring.threads.virtual.enabled`: activarlo o no para Tomcat (se decide en OW-006, con los perfiles).
+- [x] `spring.threads.virtual.enabled=true` (OW-006): Java 25 no fija virtual threads en `synchronized`, así que no hace falta dimensionar el pool de hilos de Tomcat. El límite real pasa a ser el pool de conexiones, que es observable ([entornos](../devops/environments.md#spring-y-librerías-valores-fijados)).
 - [x] Spring Framework 7.0.9 incluye versionado nativo de API (`ApiVersionConfigurer`). **Decisión:** no se activa mientras haya una sola versión; `/api/v1` es un prefijo fijo de las rutas ([guía de API](../api/api-guidelines.md#2-url-y-versionado)).
 
 Versiones fijadas en OW-002 (2026-09-28): Java 25 (Temurin 25.0.4), Spring Boot 4.1.1, Spring Modulith 2.1.1, springdoc 3.1.0. Gestionadas por Boot: Hibernate 7.4.5, Flyway 12.4.0, Testcontainers 2.0.5 y driver PostgreSQL 42.7.13. Herramientas: Maven 3.9.16 (wrapper), Spotless 3.10.3 con palantir-java-format 2.100.0 y JaCoCo 0.8.15.

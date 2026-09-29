@@ -1,0 +1,11 @@
+# Configuración común a staging y production (grupo "deployed"). DeploymentGuardrails impide arrancar con
+# configuración de desarrollo.
+logging:
+  structured:
+    format:
+      # JSON en formato ECS: incluye el MDC (requestId) sin dependencias adicionales
+      console: ecs
+
+server:
+  # Solo detrás de Caddy, el único proxy de confianza
+  forward-headers-strategy: framework

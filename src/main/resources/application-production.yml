@@ -1,0 +1,6 @@
+# Producción. Swagger UI desactivado: la especificación OpenAPI se publica con cada release.
+springdoc:
+  swagger-ui:
+    enabled: false
+  api-docs:
+    enabled: false
