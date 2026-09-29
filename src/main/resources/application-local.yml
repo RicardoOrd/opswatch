@@ -1,0 +1,4 @@
+# Desarrollo en la máquina local: logs legibles y más detallados para el código propio.
+logging:
+  level:
+    io.github.ricardoord.opswatch: DEBUG

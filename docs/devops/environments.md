@@ -183,7 +183,7 @@ Los rangos de validación del dominio (intervalo de 30 a 3600 s, timeout de 1 a 
 | `management.endpoints.web.exposure.include` | `health,info,prometheus` | Nada más |
 | `management.endpoint.health.probes.enabled` | `true` | `liveness` y `readiness` |
 | `spring.modulith.events.republish-outstanding-events-on-restart` | `true` | |
-| `spring.threads.virtual.enabled` | Se evalúa en el Sprint 0 | Virtual threads para Tomcat y `@Async` |
+| `spring.threads.virtual.enabled` | `true` | Virtual threads para Tomcat, `@Async` y `@Scheduled` (decidido en OW-006). Con Java 25 no hay pinning por `synchronized` y el modelo coincide con el del motor. Una petición bloqueada espera una conexión del pool de Hikari en lugar de agotar hilos, y esa espera se ve en `hikaricp_connections_pending` |
 
 ## Salvaguardas de arranque
 
