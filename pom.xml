@@ -91,6 +91,12 @@
             <artifactId>spring-modulith-starter-core</artifactId>
         </dependency>
 
+        <!-- Anotaciones de nulabilidad (@NullMarked, @Nullable), las mismas que usa Spring Framework 7 -->
+        <dependency>
+            <groupId>org.jspecify</groupId>
+            <artifactId>jspecify</artifactId>
+        </dependency>
+
         <!-- OpenAPI generado desde el código -->
         <dependency>
             <groupId>org.springdoc</groupId>
