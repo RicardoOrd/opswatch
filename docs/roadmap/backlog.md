@@ -382,24 +382,25 @@ Hecha el 2026-09-28: documentación publicada en el PR #1, issues creadas desde 
 - **Definition of Done:** eventos documentados en `events.md`; la matriz del modelo de autorización coincide con el código.
 
 ### OW-017 · Miembros y roles con la invariante del último `OWNER`
-`feature` `security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Ready**
+`feature` `security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Hecha**
 
 - **Context:** las reglas de gestión de roles del [modelo de autorización](../security/authorization-model.md#reglas-que-la-matriz-no-expresa).
 - **Objective:** endpoints de miembros con todas las reglas.
 - **Tasks:**
-  - [ ] `MembershipService` con `SELECT … FOR UPDATE` sobre la organización.
-  - [ ] Reglas `ADMIN` frente a `OWNER`, sin autopromoción, abandonar la organización.
-  - [ ] `UserDirectory` (API pública de `identity`) para buscar usuarios por email.
-  - [ ] Cuota de miembros.
+  - [x] `MembershipService` con `SELECT … FOR UPDATE` sobre la organización. Se autoriza con el bloqueo tomado, y la regla del último `OWNER` va antes que el permiso: el perdedor de la carrera recibe `409`.
+  - [x] Reglas `ADMIN` frente a `OWNER` (`MembershipPolicy.toManage`), sin autopromoción, abandonar la organización. Bajarse el propio rol no necesita permiso, igual que abandonar: se añadió al modelo de autorización.
+  - [x] `UserDirectory` (API pública de `identity`) para buscar usuarios por id y por email.
+  - [x] Cuota de miembros (`opswatch.limits.members-per-organization`, 50), comprobada con el bloqueo tomado.
+  - [x] `ETag` e `If-Match` en el `PATCH` de miembros, y `sort` por `joinedAt` en el listado (`PageQuery` admite ahora nombres de la API distintos de los de la entidad y otro desempate que `id`).
 - **Acceptance Criteria:**
   - Un `ADMIN` no puede asignar `ADMIN` → `403`.
   - Un `ADMIN` no puede subirse a sí mismo a `OWNER` → `403`.
   - El último `OWNER` no puede abandonar → `409`.
   - Dos `OWNER` que se degradan el uno al otro a la vez (50 repeticiones): siempre queda al menos un `OWNER` y una de las dos peticiones recibe `409`.
 - **Testing:**
-  - Unitarios: reglas de cambio de rol.
-  - Integración (concurrencia): la carrera de los dos `OWNER` contra PostgreSQL real.
-  - API y seguridad: endpoints por rol e IDOR.
+  - Unitarios: reglas de cambio de rol (`MembershipPolicyTest`).
+  - Integración (concurrencia): la carrera de los dos `OWNER` contra PostgreSQL real (`MembershipRaceIT`, 50 repeticiones). Sin el `FOR UPDATE`, los dos cambios entran y la organización se queda sin `OWNER`: comprobado quitándolo.
+  - API y seguridad: endpoints por rol e IDOR (`MemberApiIT`).
 - **Security considerations:** escalada de privilegios dentro de la organización (T-11) y carrera que deja una organización sin dueño (T-16). La enumeración de emails al añadir miembros es un riesgo aceptado hasta las invitaciones de OW-038 (T-06).
 - **Dependencies:** OW-016.
 - **Definition of Done:** las reglas de la sección 3 del modelo de autorización coinciden con el código.

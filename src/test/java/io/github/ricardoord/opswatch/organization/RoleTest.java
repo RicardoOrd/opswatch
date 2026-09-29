@@ -64,6 +64,17 @@ class RoleTest {
     }
 
     @Test
+    void rolesAreOrderedFromTheMostPowerful() {
+        assertThat(Role.OWNER.outranks(Role.ADMIN)).isTrue();
+        assertThat(Role.ADMIN.outranks(Role.MEMBER)).isTrue();
+        assertThat(Role.MEMBER.outranks(Role.VIEWER)).isTrue();
+        assertThat(Role.VIEWER.outranks(Role.OWNER)).isFalse();
+        assertThat(Role.ADMIN.outranks(Role.ADMIN)).isFalse();
+        assertThat(EnumSet.allOf(Role.class).stream().filter(Role::isPrivileged))
+                .containsExactly(Role.OWNER, Role.ADMIN);
+    }
+
+    @Test
     void eachRoleHasEverythingTheOneBelowHas() {
         assertThat(Role.OWNER.permissions()).isEqualTo(EnumSet.allOf(Permission.class));
         assertThat(Role.OWNER.permissions()).containsAll(Role.ADMIN.permissions());
