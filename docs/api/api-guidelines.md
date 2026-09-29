@@ -199,7 +199,7 @@ GET /api/v1/monitors/{monitorId}/checks?limit=50&cursor=eyJjIjoiMjAyNi0wOS0yOFQx
 
 ## 12. OpenAPI
 
-- Se genera desde el código con springdoc-openapi 3.1.0, compatible con Spring Boot 4.1.
+- Se genera desde el código con springdoc-openapi 3.1.1, compatible con Spring Boot 4.1.
 - Swagger UI en `local` y `staging`. En `production` se desactiva por defecto: la especificación se publica como fichero en cada release.
 - Todos los endpoints documentan sus respuestas de error con referencias a `ProblemDetail`.
 - Más adelante (Fase 5), CI compara la especificación con la de `main` y marca los cambios incompatibles.
