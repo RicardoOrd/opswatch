@@ -14,6 +14,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class UserTest {
 
+    private static final Clock LATER = Clock.fixed(Instant.parse("2026-09-29T12:00:00Z"), ZoneOffset.UTC);
+
     @Test
     void registersAnActiveUser() {
         User user = aUser().build();
@@ -75,6 +77,39 @@ class UserTest {
         User user = User.register(UUID.randomUUID(), "ana@example.com", "Ana", "{bcrypt}hash", clock);
 
         assertThat(user.createdAt()).isEqualTo(Instant.parse("2026-09-28T10:00:00.123456Z"));
+    }
+
+    @Test
+    void renamesWithTheRulesOfRegistration() {
+        User user = aUser().withDisplayName("Ana").build();
+
+        user.rename("  Ana García ", LATER);
+
+        assertThat(user.displayName()).isEqualTo("Ana García");
+        assertThat(user.updatedAt()).isEqualTo(LATER.instant());
+        assertThatIllegalArgumentException().isThrownBy(() -> user.rename("   ", LATER));
+        assertThatIllegalArgumentException().isThrownBy(() -> user.rename("Ana\nGarcía", LATER));
+        assertThat(user.displayName()).isEqualTo("Ana García");
+    }
+
+    @Test
+    void theSameNameIsNoChange() {
+        User user = aUser().withDisplayName("Ana").build();
+
+        user.rename(" Ana ", LATER);
+
+        assertThat(user.updatedAt()).isEqualTo(UserBuilder.REGISTERED_AT);
+    }
+
+    @Test
+    void changesThePasswordHash() {
+        User user = aUser().build();
+
+        user.changePassword("{bcrypt}new-hash", LATER);
+
+        assertThat(user.passwordHash()).isEqualTo("{bcrypt}new-hash");
+        assertThat(user.updatedAt()).isEqualTo(LATER.instant());
+        assertThatIllegalArgumentException().isThrownBy(() -> user.changePassword(" ", LATER));
     }
 
     @Test

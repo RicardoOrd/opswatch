@@ -38,6 +38,7 @@ class RateLimitTest {
         assertThat(properties.loginPerEmail()).isEqualTo(RateLimit.valueOf("5/1m"));
         assertThat(properties.registerPerIp()).isEqualTo(RateLimit.valueOf("5/1h"));
         assertThat(properties.refreshPerIp()).isEqualTo(RateLimit.valueOf("30/1m"));
+        assertThat(properties.passwordChangePerUser()).isEqualTo(RateLimit.valueOf("5/15m"));
     }
 
     @Test

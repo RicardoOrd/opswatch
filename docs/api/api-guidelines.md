@@ -38,6 +38,8 @@ No se usa `PUT`: ningún recurso de V1 necesita un reemplazo completo y `PATCH` 
 
 **Semántica de `PATCH`:** el DTO tiene todos los campos opcionales. Un campo **ausente** no cambia. Un campo presente con `null` solo es válido si el campo admite nulo (por ejemplo, `degradedThresholdMs: null` desactiva el estado degradado). Las listas (`headers`) se reemplazan enteras si vienen en el cuerpo.
 
+En el código, un campo que no admite nulo lleva `@JsonDeserialize(using = NotNullIfPresent.class)`: ausente queda `null` y no cambia, y un `null` explícito da `400 malformed-request`. `@JsonSetter(nulls = Nulls.FAIL)` no sirve en un record, porque Jackson también lo aplica al campo ausente. Distinguir un `null` que borra de un campo ausente, en los campos que admiten nulo, queda para el primer `PATCH` que lo necesite.
+
 ## 4. Códigos de estado
 
 | Código | Cuándo |

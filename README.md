@@ -23,6 +23,7 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | Login con access token JWT RS256 y `GET /api/v1/me` (OW-013) | **Implemented** |
 | Refresh token en cookie con rotación, detección de reutilización y logout (OW-014) | **Implemented** |
 | Rate limiting de login, registro y refresh, con la IP real solo desde el proxy de confianza (OW-015) | **Implemented** |
+| Perfil: editar el nombre y cambiar la contraseña, que cierra todas las sesiones (OW-045) | **Implemented** |
 | Resto de funcionalidades de producto | Planned |
 
 **Qué se hace ahora:** el milestone [v0.1.0 — Identity y organizaciones](https://github.com/RicardoOrd/opswatch/milestone/2). Orden sugerido y siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
