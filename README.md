@@ -10,7 +10,7 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 
 ## Estado actual
 
-**v0.1.0 en curso** (Identity y organizaciones). Sprint 0 cerrado: documentación de arquitectura, decisiones (ADR), plan de trabajo y el esqueleto del proyecto Spring Boot con CI. Ya hay registro de usuarios y login con access token JWT.
+**v0.1.0 publicada** (Identity y organizaciones): registro, login con JWT y refresh token rotatorio, rate limiting, perfil, organizaciones y miembros con roles, con el aislamiento entre organizaciones probado endpoint a endpoint. Todavía no vigila nada: los monitores llegan con la v0.2.0 y los checks con la v0.3.0.
 
 | Qué | Estado |
 |---|---|
@@ -29,7 +29,7 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | Matriz de autorización endpoint × rol probada en cada build, con test de completitud (OW-018) | **Implemented** |
 | Resto de funcionalidades de producto | Planned |
 
-**Qué se hace ahora:** el milestone [v0.1.0 — Identity y organizaciones](https://github.com/RicardoOrd/opswatch/milestone/2). Orden sugerido y siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
+**Qué se hace ahora:** refinar el milestone [v0.2.0 — Proyectos y monitores](https://github.com/RicardoOrd/opswatch/milestone/3) contra lo que dejó construido la v0.1.0. Siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
 
 ---
 
