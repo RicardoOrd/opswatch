@@ -14,6 +14,25 @@ spring:
       enabled: true
   lifecycle:
     timeout-per-shutdown-phase: 35s
+  # La URL y las credenciales de la base de datos dependen del entorno: application-local.yml, variables de entorno
+  # o Docker secrets
+  jpa:
+    # Ninguna conexión retenida fuera de las transacciones
+    open-in-view: false
+    hibernate:
+      # Solo Flyway cambia el esquema: Hibernate comprueba que las entidades coinciden con él
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    locations: classpath:db/migration
+    # clean borra el esquema entero: desactivado en todos los perfiles, también en local
+    clean-disabled: true
+    # Detecta una migración aplicada que se editó
+    validate-on-migrate: true
+    out-of-order: false
   jackson:
     deserialization:
       # Una propiedad desconocida en un request es un error (400), no algo que se ignora en silencio (mass assignment)

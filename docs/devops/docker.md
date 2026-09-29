@@ -2,7 +2,7 @@
 
 Estado: diseño inicial · Última revisión: 2026-09-28
 
-Los ficheros de este documento son **bocetos de diseño** para el Sprint 0. No existen todavía en el repositorio.
+`docker-compose.yml` existe desde OW-004 con el servicio `postgres`. El Dockerfile, el `.dockerignore` y el servicio `app` son **bocetos de diseño** hasta OW-009.
 
 ## Objetivos
 
@@ -105,17 +105,18 @@ name: opswatch
 
 services:
   postgres:
-    image: postgres:18-alpine          # fijado por digest en el fichero real
+    image: postgres:18-alpine@sha256:…   # fijado por digest; el mismo en ApplicationStartupIT
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-opswatch}
       POSTGRES_USER: ${POSTGRES_USER:-opswatch}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en .env}
     ports:
-      - "127.0.0.1:5432:5432"          # solo loopback: accesible desde el IDE, no desde la red
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"   # solo loopback: accesible desde el IDE, no desde la red
     volumes:
-      - postgres-data:/var/lib/postgresql   # la imagen 18 cambió la ruta de datos: se verifica en el Sprint 0
+      - postgres-data:/var/lib/postgresql   # PGDATA es /var/lib/postgresql/18/docker desde la imagen 18 (verificado en OW-004)
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      # Por TCP: el servidor temporal de la inicialización solo escucha en el socket Unix
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -147,16 +148,18 @@ volumes:
   postgres-data:
 ```
 
-Uso previsto:
+Uso:
 
 ```bash
-docker compose up -d postgres            # desarrollo diario: la app desde el IDE con el perfil local
-docker compose --profile app up --build  # todo en contenedores
+docker compose up -d --wait postgres     # desarrollo diario: la app desde el IDE con el perfil local
+docker compose --profile app up --build  # todo en contenedores (OW-009)
 docker compose down                      # parar (el volumen de datos se conserva)
 docker compose down -v                   # parar y BORRAR los datos locales
 ```
 
-Alternativa de comodidad: el soporte de Docker Compose de Spring Boot (`spring-boot-docker-compose`, solo en desarrollo) arranca `postgres` automáticamente al lanzar la aplicación desde el IDE. Se evalúa en el Sprint 0. No es imprescindible.
+Las credenciales salen de `.env`, que `scripts/dev-keys.sh` crea con una contraseña aleatoria. Compose lo lee solo, y la aplicación con el perfil `local` lo importa como fuente de propiedades ([entornos](environments.md#env-y-perfil-local)). PostgreSQL fija la contraseña al crear el volumen: cambiarla después en `.env` exige `docker compose down -v`.
+
+Alternativa de comodidad evaluada en OW-004 y **no adoptada**: el soporte de Docker Compose de Spring Boot (`spring-boot-docker-compose`) arranca `postgres` al lanzar la aplicación. Ahorra un comando, pero añade una dependencia que arranca contenedores desde la aplicación y esconde de dónde salen las credenciales. `docker compose up` explícito más `.env` es suficiente.
 
 ## Servicios que llegan después
 

@@ -1,0 +1,28 @@
+# Entorno local (docs/devops/docker.md). Las variables salen de .env: scripts/dev-keys.sh lo crea.
+# El servicio app (todo en contenedores) llega en OW-009.
+name: opswatch
+
+services:
+  postgres:
+    # La misma imagen que en producción y en los tests, fijada por digest. Dependabot la actualiza
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-opswatch}
+      POSTGRES_USER: ${POSTGRES_USER:-opswatch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en .env (scripts/dev-keys.sh lo genera)}
+    ports:
+      # Solo loopback: accesible desde el IDE, no desde la red
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Desde la imagen 18, PGDATA es /var/lib/postgresql/18/docker: el volumen va en el directorio padre
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      # Por TCP: durante la inicialización, el servidor temporal solo escucha en el socket Unix
+      # y un pg_isready sin -h daría healthy antes de tiempo
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:

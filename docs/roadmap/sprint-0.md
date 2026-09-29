@@ -85,7 +85,7 @@ Verificaciones del Sprint 0 que la documentación dejó abiertas:
 - [x] Generador de UUIDv7: Hibernate 7.4.5 incluye `@UuidGenerator(style = UuidGenerator.Style.VERSION_7)`. No hace falta un generador propio ([base de datos](../database/database-design.md#3-uuid-o-bigint)).
 - [x] springdoc 3.1.0, compatible con Boot `[4.0.0, 4.2.0-M1)` según Spring Initializr.
 - [x] Testcontainers 2.0.5 (gestionado por Boot): la clase es `org.testcontainers.postgresql.PostgreSQLContainer`, sin genéricos, en el artefacto `testcontainers-postgresql`.
-- [ ] Ruta del volumen de datos de la imagen `postgres:18` (necesita Docker; se comprueba en OW-004).
+- [x] Ruta del volumen de datos de la imagen `postgres:18` (OW-004): `VOLUME /var/lib/postgresql` y `PGDATA=/var/lib/postgresql/18/docker`. El volumen de Compose se monta en `/var/lib/postgresql`.
 - [x] `spring.threads.virtual.enabled=true` (OW-006): Java 25 no fija virtual threads en `synchronized`, así que no hace falta dimensionar el pool de hilos de Tomcat. El límite real pasa a ser el pool de conexiones, que es observable ([entornos](../devops/environments.md#spring-y-librerías-valores-fijados)).
 - [x] Spring Framework 7.0.9 incluye versionado nativo de API (`ApiVersionConfigurer`). **Decisión:** no se activa mientras haya una sola versión; `/api/v1` es un prefijo fijo de las rutas ([guía de API](../api/api-guidelines.md#2-url-y-versionado)).
 
@@ -100,10 +100,10 @@ Versiones fijadas en OW-002 (2026-09-28): Java 25 (Temurin 25.0.4), Spring Boot 
 
 ### 4. PostgreSQL, Flyway y Docker Compose (OW-004)
 
-- [ ] `docker-compose.yml` con `postgres:18-alpine` (fijado por digest), healthcheck y puerto solo en loopback ([docker.md](../devops/docker.md)).
-- [ ] `application.yml` con `ddl-auto=validate`, `open-in-view=false`, `clean-disabled=true` y zona UTC.
-- [ ] Flyway configurado con `db/migration` vacía.
-- [ ] `.env.example` y `scripts/dev-keys.sh`, que genera las claves JWT y de cifrado de desarrollo en `secrets/`.
+- [x] `docker-compose.yml` con `postgres:18-alpine` (fijado por digest), healthcheck y puerto solo en loopback ([docker.md](../devops/docker.md)).
+- [x] `application.yml` con `ddl-auto=validate`, `open-in-view=false`, `clean-disabled=true` y zona UTC.
+- [x] Flyway configurado con `db/migration` vacía.
+- [x] `.env.example` y `scripts/dev-keys.sh`, que genera las claves JWT y de cifrado de desarrollo en `secrets/` y crea `.env` ([entornos](../devops/environments.md#env-y-perfil-local)).
 
 ### 5. Manejo de errores (OW-005)
 

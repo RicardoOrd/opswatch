@@ -17,7 +17,8 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | Arquitectura, ADR, modelo de dominio, seguridad, estrategia de pruebas, roadmap | **Implemented** (documentación) |
 | Repositorio: `main` protegida, milestones, etiquetas, backlog en GitHub Issues | **Implemented** |
 | Esqueleto Spring Boot con Java 25 y Maven Wrapper (OW-002) | **Implemented** |
-| Resto del Sprint 0: módulos, PostgreSQL, Flyway, Docker, CI | Planned: **foco actual** |
+| Módulos, errores, logging, seguridad base, PostgreSQL y Flyway (OW-003 a OW-006, OW-008) | **Implemented** |
+| Resto del Sprint 0: infraestructura de tests, Docker, CI (OW-007, OW-009, OW-010) | Planned: **foco actual** |
 | Funcionalidades de producto | Planned |
 
 **Qué se hace ahora:** el milestone [Sprint 0 — Fundaciones](https://github.com/RicardoOrd/opswatch/milestone/1), issues OW-001 a OW-010. Orden sugerido y siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
@@ -101,7 +102,7 @@ Más detalle en [Visión general](docs/architecture/overview.md) y [Módulos](do
 
 ## Stack
 
-**Stack actual:** el esqueleto compila y pasa `./mvnw verify` con Java 25 (Temurin 25.0.4), Spring Boot 4.1.1 y Spring Modulith 2.1.1. Todavía no arranca: la conexión a PostgreSQL llega en OW-004. Lo demás de la tabla está planificado.
+**Stack actual:** el esqueleto compila y pasa `./mvnw verify` con Java 25 (Temurin 25.0.4), Spring Boot 4.1.1 y Spring Modulith 2.1.1. Arranca contra PostgreSQL 18 con Flyway, todavía sin migraciones. Lo demás de la tabla está planificado.
 
 ### V1 (planificado, fases 0 a 6)
 
@@ -139,21 +140,28 @@ Fuera de V1 a propósito. Ninguna de estas piezas entra sin que se cumpla su dis
 
 ## Cómo ejecutarlo
 
-Todavía no hay nada que ejecutar. Cuando termine el [Sprint 0](docs/roadmap/sprint-0.md), el flujo previsto será este:
+Requisitos: JDK 25, Docker con Compose v2 y Bash (en Windows, Git Bash).
 
 ```bash
-# Objetivo del Sprint 0: esto NO funciona todavía
-cp .env.example .env
-docker compose up -d postgres
+bash scripts/dev-keys.sh                  # crea .env y las claves de desarrollo en secrets/; no sobrescribe nada
+docker compose up -d --wait postgres      # PostgreSQL 18 en 127.0.0.1:5432
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-Con Docker completo:
+Comprobación:
 
 ```bash
-# Objetivo del Sprint 0: esto NO funciona todavía
-docker compose --profile app up --build
+curl localhost:8081/actuator/health/readiness   # {"status":"UP"}
+curl -i localhost:8080/api/v1/anything           # 401 en application/problem+json, con X-Request-Id
 ```
+
+Desde el IDE: `OpsWatchApplication` con el perfil `local` y la raíz del repositorio como directorio de trabajo, que es de donde se lee `.env`.
+
+Si el arranque falla con `password authentication failed for user "opswatch"`, falta `.env` o su contraseña no es la del volumen, que PostgreSQL fija al crearlo. Para empezar de cero: `docker compose down -v` (**borra los datos locales**).
+
+Tests: `./mvnw test` ejecuta los unitarios, sin Docker. `./mvnw verify` añade los de integración con Testcontainers.
+
+Todo en contenedores (`docker compose --profile app up --build`) llega con OW-009.
 
 ---
 
