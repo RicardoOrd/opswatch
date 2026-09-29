@@ -81,13 +81,15 @@ Plugins de Maven: `spring-boot-maven-plugin` (con `finalName` `opswatch`), Suref
 
 Verificaciones del Sprint 0 que la documentación dejó abiertas:
 
-- [ ] Nombres exactos de los starters en la versión de Spring Boot fijada.
-- [ ] Generador de UUIDv7: soporte de Hibernate o generador propio ([base de datos](../database/database-design.md#3-uuid-o-bigint)).
-- [ ] Versión de springdoc compatible.
-- [ ] Clase y paquete del contenedor de PostgreSQL en la versión de Testcontainers fijada.
-- [ ] Ruta del volumen de datos de la imagen `postgres:18`.
-- [ ] `spring.threads.virtual.enabled`: activarlo o no para Tomcat.
-- [ ] Soporte de versionado de API de Spring Framework 7 para el prefijo `/api/v1`.
+- [x] Nombres exactos de los starters en Spring Boot 4.1.1: `spring-boot-starter-webmvc` (no `-web`), `spring-boot-starter-flyway`, y un starter de test por módulo (`spring-boot-starter-webmvc-test`, `-security-test`, `-data-jpa-test`, `-flyway-test`).
+- [x] Generador de UUIDv7: Hibernate 7.4.5 incluye `@UuidGenerator(style = UuidGenerator.Style.VERSION_7)`. No hace falta un generador propio ([base de datos](../database/database-design.md#3-uuid-o-bigint)).
+- [x] springdoc 3.1.0, compatible con Boot `[4.0.0, 4.2.0-M1)` según Spring Initializr.
+- [x] Testcontainers 2.0.5 (gestionado por Boot): la clase es `org.testcontainers.postgresql.PostgreSQLContainer`, sin genéricos, en el artefacto `testcontainers-postgresql`.
+- [ ] Ruta del volumen de datos de la imagen `postgres:18` (necesita Docker; se comprueba en OW-004).
+- [ ] `spring.threads.virtual.enabled`: activarlo o no para Tomcat (se decide en OW-006, con los perfiles).
+- [x] Spring Framework 7.0.9 incluye versionado nativo de API (`ApiVersionConfigurer`). **Decisión:** no se activa mientras haya una sola versión; `/api/v1` es un prefijo fijo de las rutas ([guía de API](../api/api-guidelines.md#2-url-y-versionado)).
+
+Versiones fijadas en OW-002 (2026-09-28): Java 25 (Temurin 25.0.4), Spring Boot 4.1.1, Spring Modulith 2.1.1, springdoc 3.1.0. Gestionadas por Boot: Hibernate 7.4.5, Flyway 12.4.0, Testcontainers 2.0.5 y driver PostgreSQL 42.7.13. Herramientas: Maven 3.9.16 (wrapper), Spotless 3.10.3 con palantir-java-format 2.100.0 y JaCoCo 0.8.15.
 
 ### 3. Estructura de paquetes y Modulith (OW-003)
 

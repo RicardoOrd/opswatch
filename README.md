@@ -10,13 +10,14 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 
 ## Estado actual
 
-**Fase de diseño terminada; Sprint 0 pendiente.** El repositorio contiene la documentación de arquitectura, las decisiones (ADR) y el plan de trabajo. **Todavía no hay código.** Todas las funcionalidades descritas abajo están planificadas; ninguna está implementada.
+**Sprint 0 en curso.** El repositorio contiene la documentación de arquitectura, las decisiones (ADR), el plan de trabajo y el esqueleto del proyecto Spring Boot. **Todavía no hay funcionalidades de producto.**
 
 | Qué | Estado |
 |---|---|
 | Arquitectura, ADR, modelo de dominio, seguridad, estrategia de pruebas, roadmap | **Implemented** (documentación) |
 | Repositorio: `main` protegida, milestones, etiquetas, backlog en GitHub Issues | **Implemented** |
-| Sprint 0: esqueleto del proyecto, PostgreSQL, Flyway, Docker, CI | Planned: **foco actual** |
+| Esqueleto Spring Boot con Java 25 y Maven Wrapper (OW-002) | **Implemented** |
+| Resto del Sprint 0: módulos, PostgreSQL, Flyway, Docker, CI | Planned: **foco actual** |
 | Funcionalidades de producto | Planned |
 
 **Qué se hace ahora:** el milestone [Sprint 0 — Fundaciones](https://github.com/RicardoOrd/opswatch/milestone/1), issues OW-001 a OW-010. Orden sugerido y siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
@@ -100,14 +101,14 @@ Más detalle en [Visión general](docs/architecture/overview.md) y [Módulos](do
 
 ## Stack
 
-**Stack actual:** ninguno. Solo hay documentación. Nada de lo que sigue está implementado.
+**Stack actual:** el esqueleto compila y pasa `./mvnw verify` con Java 25 (Temurin 25.0.4), Spring Boot 4.1.1 y Spring Modulith 2.1.1. Todavía no arranca: la conexión a PostgreSQL llega en OW-004. Lo demás de la tabla está planificado.
 
 ### V1 (planificado, fases 0 a 6)
 
 | Tecnología | Por qué está | Decisión |
 |---|---|---|
 | Java 25 (LTS) | Records, sealed types y virtual threads. Desde el JDK 24, un `synchronized` ya no fija el virtual thread a su hilo portador (JEP 491) | [ADR-007](docs/adr/ADR-007-http-client-and-concurrency.md) |
-| Spring Boot 4.x | Base de la aplicación. La versión exacta se fija en el Sprint 0 | — |
+| Spring Boot 4.1.x (4.1.1) | Base de la aplicación. Línea estable con soporte gratuito hasta el 31-07-2027; la 4.0 lo pierde el 31-12-2026 | — |
 | Spring Modulith | Límites de módulo verificados y eventos internos con registro de publicación | [ADR-003](docs/adr/ADR-003-spring-modulith.md) |
 | Spring Security + OAuth2 Resource Server | Validación estándar de JWT sin filtros escritos a mano | [ADR-004](docs/adr/ADR-004-security-strategy.md) |
 | Spring Data JPA / Hibernate | Persistencia del modelo de dominio | — |

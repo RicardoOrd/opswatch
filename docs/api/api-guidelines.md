@@ -13,7 +13,7 @@ Estado: diseño inicial · Última revisión: 2026-09-28 · Catálogo: [endpoint
 
 - Prefijo: `/api/v1`.
 - **En la documentación, las issues y el código de ejemplo, las rutas se escriben siempre completas** (`POST /api/v1/auth/login`, nunca `POST /auth/login`), para que no haya dos nombres para el mismo endpoint.
-- La versión va en la ruta: es visible, fácil de enrutar en un proxy y fácil de documentar. Spring Framework 7 incluye soporte nativo de versionado de API (por ruta, header o parámetro) que puede usarse para la ruta si aporta. Se evalúa en el Sprint 0.
+- La versión va en la ruta: es visible, fácil de enrutar en un proxy y fácil de documentar. Spring Framework 7 incluye soporte nativo de versionado de API (`ApiVersionConfigurer`: por ruta, header o parámetro). No se activa mientras exista una sola versión: `/api/v1` es un prefijo fijo. Se reconsidera si llega una `v2`.
 - Una versión nueva (`/api/v2`) **solo** para cambios incompatibles. Los cambios compatibles se añaden a `v1` ([versionado](../development/versioning.md#api)).
 - Recursos en plural y en kebab-case: `/api/v1/notification-channels`.
 - **Colecciones anidadas bajo su padre y elementos por id plano:**
@@ -193,7 +193,7 @@ GET /api/v1/monitors/{monitorId}/checks?limit=50&cursor=eyJjIjoiMjAyNi0wOS0yOFQx
 
 ## 12. OpenAPI
 
-- Se genera desde el código con springdoc-openapi (versión compatible con Spring Boot 4; se verifica en el Sprint 0).
+- Se genera desde el código con springdoc-openapi 3.1.0, compatible con Spring Boot 4.1.
 - Swagger UI en `local` y `staging`. En `production` se desactiva por defecto: la especificación se publica como fichero en cada release.
 - Todos los endpoints documentan sus respuestas de error con referencias a `ProblemDetail`.
 - Más adelante (Fase 5), CI compara la especificación con la de `main` y marca los cambios incompatibles.
