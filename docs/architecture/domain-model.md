@@ -151,8 +151,8 @@ erDiagram
 | Campo | Tipo Java | Tipo SQL | Restricciones |
 |---|---|---|---|
 | `id` | `UUID` | `uuid` | PK, UUIDv7 |
-| `email` | `String` | `text` | Obligatorio, único, normalizado a minúsculas, máximo 254 caracteres |
-| `displayName` | `String` | `text` | Obligatorio, de 1 a 100 caracteres |
+| `email` | `String` | `text` | Obligatorio, único, normalizado a minúsculas, solo ASCII imprimible, máximo 254 caracteres |
+| `displayName` | `String` | `text` | Obligatorio, de 1 a 100 caracteres, sin caracteres de control ni de formato bidireccional |
 | `passwordHash` | `String` | `text` | Obligatorio. Formato `{bcrypt}$2a$12$…` (`DelegatingPasswordEncoder`) |
 | `status` | `UserStatus` | `text` | `ACTIVE` o `DISABLED` |
 | `emailVerifiedAt` | `Instant` | `timestamptz` | Nulo hasta que llegue la verificación de email (Fase 5) |

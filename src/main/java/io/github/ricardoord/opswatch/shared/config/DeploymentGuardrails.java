@@ -21,6 +21,7 @@ public class DeploymentGuardrails implements SmartInitializingSingleton {
 
     static final String DEPLOYED = "deployed";
     static final String PRODUCTION = "production";
+    static final int MIN_BCRYPT_STRENGTH = 12;
 
     private final Environment environment;
 
@@ -62,6 +63,13 @@ public class DeploymentGuardrails implements SmartInitializingSingleton {
             if (!StringUtils.hasText(environment.getProperty(required))) {
                 violations.add(required + " must be set");
             }
+        }
+
+        // The tests hash with cost 4 for speed: that value must never reach a real environment
+        int bcryptStrength = environment.getProperty(
+                "opswatch.security.password.bcrypt-strength", Integer.class, MIN_BCRYPT_STRENGTH);
+        if (bcryptStrength < MIN_BCRYPT_STRENGTH) {
+            violations.add("opswatch.security.password.bcrypt-strength must be at least " + MIN_BCRYPT_STRENGTH);
         }
 
         if (production) {

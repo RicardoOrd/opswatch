@@ -270,7 +270,10 @@ Con el perfil `production`, la aplicación **se niega a arrancar** si detecta:
 - CORS con `*`;
 - claves de desarrollo o ausentes (JWT o cifrado);
 - `spring.jpa.hibernate.ddl-auto` distinto de `validate` o `none`;
+- un coste de bcrypt menor que 12 (el de los tests es 4);
 - Swagger UI activado sin autenticación, salvo que se haya permitido de forma explícita.
+
+La lista completa y exacta, que incluye `staging`, está en [Entornos](../devops/environments.md#salvaguardas-de-arranque).
 
 Es un `ApplicationListener<ApplicationReadyEvent>`, o un validador de `@ConfigurationProperties`, con tests.
 

@@ -10,7 +10,7 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 
 ## Estado actual
 
-**Sprint 0 en curso.** El repositorio contiene la documentación de arquitectura, las decisiones (ADR), el plan de trabajo y el esqueleto del proyecto Spring Boot. **Todavía no hay funcionalidades de producto.**
+**v0.1.0 en curso** (Identity y organizaciones). Sprint 0 cerrado: documentación de arquitectura, decisiones (ADR), plan de trabajo y el esqueleto del proyecto Spring Boot con CI. La primera funcionalidad de producto es el registro de usuarios.
 
 | Qué | Estado |
 |---|---|
@@ -19,9 +19,10 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | Esqueleto Spring Boot con Java 25 y Maven Wrapper (OW-002) | **Implemented** |
 | Módulos, errores, logging, seguridad base, PostgreSQL, Flyway, infraestructura de tests y Docker (OW-003 a OW-009) | **Implemented** |
 | CI: build, secretos, imagen y Trivy, con checks obligatorios en `main` (OW-010) | **Implemented** |
-| Funcionalidades de producto | Planned |
+| Registro de usuarios (OW-012) | **Implemented** |
+| Resto de funcionalidades de producto | Planned |
 
-**Qué se hace ahora:** el milestone [Sprint 0 — Fundaciones](https://github.com/RicardoOrd/opswatch/milestone/1), issues OW-001 a OW-010. Orden sugerido y siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
+**Qué se hace ahora:** el milestone [v0.1.0 — Identity y organizaciones](https://github.com/RicardoOrd/opswatch/milestone/2). Orden sugerido y siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
 
 ---
 
@@ -45,7 +46,8 @@ Cada monitor hace algo como `GET https://api.example.com/health` cada 60 segundo
 
 | Característica | Estado | Fase |
 |---|---|---|
-| Registro, login, access token JWT y refresh token con rotación | Planned | 1 |
+| Registro de usuarios | **Implemented** | 1 |
+| Login, access token JWT y refresh token con rotación | Planned | 1 |
 | Organizaciones, miembros y roles por organización (`OWNER`, `ADMIN`, `MEMBER`, `VIEWER`) | Planned | 1 |
 | Proyectos y monitores HTTP/HTTPS configurables | Planned | 2 |
 | Motor de health checks periódicos con protección contra SSRF | Planned | 3 |
@@ -153,6 +155,8 @@ Comprobación:
 ```bash
 curl localhost:8081/actuator/health/readiness   # {"status":"UP"}
 curl -i localhost:8080/api/v1/anything           # 401 en application/problem+json, con X-Request-Id
+curl -i localhost:8080/api/v1/auth/register -H 'Content-Type: application/json' \
+  -d '{"email":"ana@example.com","displayName":"Ana","password":"correct horse battery"}'   # 201; repetido, 409
 ```
 
 Desde el IDE: `OpsWatchApplication` con el perfil `local` y la raíz del repositorio como directorio de trabajo, que es de donde se lee `.env`.

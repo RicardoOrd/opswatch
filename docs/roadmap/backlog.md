@@ -262,25 +262,26 @@ Hecha el 2026-09-28: documentación publicada en el PR #1, issues creadas desde 
 ## v0.1.0 — Identity y organizaciones
 
 ### OW-012 · Registro de usuarios
-`feature` `security` · P2 · Milestone: v0.1.0 — Identity y organizaciones · **Ready**
+`feature` `security` · P2 · Milestone: v0.1.0 — Identity y organizaciones · **Hecha**
 
 - **Context:** primer caso de uso real. Fija el patrón que seguirán los demás: DTO, servicio, dominio, migración y tests de API. Del Sprint 0 ya existen la cadena de seguridad que deja pasar `/api/v1/auth/**` sin autenticación, el rechazo de propiedades desconocidas en Jackson y los errores en Problem Details.
 - **Objective:** `POST /api/v1/auth/register` según el [catálogo](../api/endpoints-v1.md#autenticación-identity).
 - **Tasks:**
-  - [ ] Migración `identity_create_users` con el [DDL](../database/database-design.md#9-ddl-preliminar) (el número de versión se asigna al implementarla).
-  - [ ] `IdGenerator` en `shared`: UUIDv7 (RFC 9562) con el `Clock` inyectado y `SecureRandom`. El id se asigna al construir la entidad, no al guardarla ([decisión](../database/database-design.md#3-uuid-o-bigint)).
-  - [ ] Entidad `User` con sus invariantes: email normalizado a minúsculas y de hasta 254 caracteres; nombre de 1 a 100 caracteres sin caracteres de control. `version` es un `Long` nulo hasta el primer guardado, para que Spring Data inserte sin un `SELECT` previo.
-  - [ ] `RegistrationService` con `DelegatingPasswordEncoder`: bcrypt con el coste de `opswatch.security.password.bcrypt-strength` (12, y 4 en los tests).
-  - [ ] Validación de la contraseña: de 12 caracteres a 72 bytes UTF-8.
-  - [ ] Email duplicado → `409 conflict`, también cuando dos registros con el mismo email llegan a la vez: la violación de `ux_users_email` se traduce al mismo error.
-  - [ ] `RegisterRequest.toString()` oculta la contraseña ([logs y datos sensibles](../security/security-architecture.md#9-logs-y-datos-sensibles)).
-  - [ ] Primer builder de test (`aUser()`), según la [convención](../testing/testing-strategy.md#convenciones); aplazado desde OW-007, que no tenía entidades.
-- **Acceptance Criteria:** `201` con el usuario sin hash; un email duplicado, sin distinguir mayúsculas, da `409`; una contraseña de 73 bytes da `400`; el hash guardado empieza por `{bcrypt}`; `RegisterRequest.toString()` no contiene la contraseña.
+  - [x] Migración `V1__identity_create_users` con el [DDL](../database/database-design.md#9-ddl-preliminar).
+  - [x] `IdGenerator` en `shared`: UUIDv7 (RFC 9562) con el `Clock` inyectado y `SecureRandom`. El id se asigna al construir la entidad, no al guardarla ([decisión](../database/database-design.md#3-uuid-o-bigint)).
+  - [x] Entidad `User` con sus invariantes: email normalizado a minúsculas, solo ASCII imprimible y de hasta 254 caracteres; nombre de 1 a 100 caracteres sin caracteres de control ni de formato bidireccional. `version` es un `Long` nulo hasta el primer guardado, para que Spring Data inserte sin un `SELECT` previo.
+  - [x] `RegistrationService` con `DelegatingPasswordEncoder`: bcrypt con el coste de `opswatch.security.password.bcrypt-strength` (12, y 4 en el perfil `test`). Hashea fuera de una transacción, para no retener una conexión durante los 250 ms de bcrypt.
+  - [x] Validación de la contraseña: de 12 caracteres a 72 bytes UTF-8 (`PasswordRules` y la restricción `@PasswordPolicy`).
+  - [x] Email duplicado → `409 conflict`, también cuando dos registros con el mismo email llegan a la vez: la violación de `ux_users_email` se traduce al mismo error.
+  - [x] `RegisterUserRequest.toString()` oculta la contraseña ([logs y datos sensibles](../security/security-architecture.md#9-logs-y-datos-sensibles)). El nombre sigue la [convención de DTOs](../api/api-guidelines.md#6-dtos).
+  - [x] Primer builder de test (`aUser()`), según la [convención](../testing/testing-strategy.md#convenciones); aplazado desde OW-007, que no tenía entidades.
+  - [x] `DeploymentGuardrails`: `staging` y `production` no arrancan con un coste de bcrypt menor que 12, para que el 4 de los tests nunca llegue a un despliegue. Añadido durante la implementación.
+- **Acceptance Criteria:** `201` con el usuario sin hash y `Location: /api/v1/me`; un email duplicado, sin distinguir mayúsculas, da `409`; una contraseña de 73 bytes da `400`; el hash guardado empieza por `{bcrypt}`; `RegisterUserRequest.toString()` no contiene la contraseña.
 - **Testing:**
-  - Unitarios: invariantes de `User`, validación de la contraseña (límites de 12 caracteres y 72 bytes con caracteres multibyte), `IdGenerator` (versión 7, variante RFC y orden por instante con un `Clock` fijo) y `toString()` de `RegisterRequest`.
-  - Integración: `UserRepositoryIT` (índice único de email).
-  - API: `RegistrationApiIT` (`201`, `400` con `errors[]`, `409`, propiedad desconocida → `400`).
-- **Security considerations:** el hash nunca sale en respuestas ni en logs; las propiedades desconocidas se rechazan (mass assignment). La contraseña se mide en bytes antes de hashear, porque bcrypt ignora lo que pasa de 72. Enumeración de emails aceptada hasta la Fase 5 (T-06), mitigada por el rate limit de OW-015.
+  - Unitarios: invariantes de `User`, validación de la contraseña (límites de 12 caracteres y 72 bytes con caracteres multibyte), `IdGenerator` (versión 7, variante RFC y orden por instante con un `Clock` fijo) y `toString()` de `RegisterUserRequest`.
+  - Integración: `UserRepositoryIT` (índice único de email, inserción sin `merge`) y `RegistrationServiceIT` (dos registros simultáneos con el mismo email, 20 repeticiones: siempre una cuenta y un `409`).
+  - API: `RegistrationApiIT` (`201`, `400` con `errors[]`, `409`, propiedad desconocida → `400`, log sin la contraseña ni el hash, documentación OpenAPI).
+- **Security considerations:** el hash nunca sale en respuestas ni en logs; las propiedades desconocidas se rechazan (mass assignment). La contraseña se mide en bytes antes de hashear, porque bcrypt ignora lo que pasa de 72. El email solo admite ASCII imprimible: así pasarlo a minúsculas da lo mismo en Java y en PostgreSQL, y no caben caracteres parecidos a otros. El nombre rechaza los caracteres de formato bidireccional, que permitirían disfrazarlo ante otros miembros. Enumeración de emails aceptada hasta la Fase 5 (T-06), mitigada por el rate limit de OW-015.
 - **Dependencies:** Sprint 0 (cerrado).
 - **Definition of Done:** endpoint documentado en OpenAPI con sus errores; el [diseño de base de datos](../database/database-design.md#3-uuid-o-bigint), el [modelo de dominio](../architecture/domain-model.md) y los [estándares de código](../development/code-standards.md) describen igual la generación de ids.
 

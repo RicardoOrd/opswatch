@@ -2,13 +2,13 @@
 
 Estado: diseño inicial · Última revisión: 2026-09-29 · Convenciones: [api-guidelines.md](api-guidelines.md) · Permisos: [authorization-model.md](../security/authorization-model.md)
 
-**Todos los endpoints están planificados. Ninguno existe todavía.** La columna "Fase" indica cuándo se implementa. Los errores comunes a todos los endpoints autenticados (`401`, `404` a quien no es miembro, `429` y `500`) no se repiten en cada tabla.
+**Solo existe `POST /api/v1/auth/register` (OW-012). El resto está planificado.** La columna "Fase" indica cuándo se implementa cada uno. Los errores comunes a todos los endpoints autenticados (`401`, `404` a quien no es miembro, `429` y `500`) no se repiten en cada tabla.
 
 ## Autenticación (`identity`)
 
 | Método | Ruta | Autenticación | Éxito | Errores específicos | Fase |
 |---|---|---|---|---|---|
-| `POST` | `/api/v1/auth/register` | Pública | `201` | `400`, `409 conflict` (email registrado), `429` | 1 |
+| `POST` | `/api/v1/auth/register` | Pública | `201` (no inicia sesión) | `400`, `409 conflict` (email registrado), `429` (desde OW-015) | 1 |
 | `POST` | `/api/v1/auth/login` | Pública | `200` y cookie | `400`, `401 invalid-credentials`, `429` | 1 |
 | `POST` | `/api/v1/auth/refresh` | Cookie | `200` y cookie nueva | `401` (token inválido, caducado o reutilizado), `403` (`Origin` no permitido) | 1 |
 | `POST` | `/api/v1/auth/logout` | Cookie | `204` | — | 1 |
@@ -19,7 +19,7 @@ Estado: diseño inicial · Última revisión: 2026-09-29 · Convenciones: [api-g
 ```jsonc
 // POST /api/v1/auth/register
 { "email": "ana@example.com", "displayName": "Ana", "password": "correct horse battery" }
-// 201
+// 201, Location: /api/v1/me
 { "id": "0192…", "email": "ana@example.com", "displayName": "Ana", "createdAt": "2026-09-28T10:00:00Z" }
 
 // POST /api/v1/auth/login
@@ -35,7 +35,7 @@ Estado: diseño inicial · Última revisión: 2026-09-29 · Convenciones: [api-g
 // 204
 ```
 
-Validaciones: `email` con formato válido y hasta 254 caracteres, normalizado a minúsculas. `displayName` de 1 a 100 caracteres, sin caracteres de control. `password` y `newPassword` de 12 caracteres a 72 bytes UTF-8.
+Validaciones: `email` con formato válido, solo ASCII imprimible y hasta 254 caracteres, normalizado a minúsculas. `displayName` de 1 a 100 caracteres, sin caracteres de control, separadores de línea ni de formato bidireccional. `password` y `newPassword` de 12 caracteres a 72 bytes UTF-8, con el código de error `password-policy`. Los espacios alrededor del email y del nombre se quitan; los de la contraseña, no.
 
 - `GET /api/v1/me` no incluye las organizaciones del usuario: `identity` no puede depender de `organization` ([módulos](../architecture/modules.md)). Salen, con el rol del usuario en cada una, en `GET /api/v1/organizations`.
 - La contraseña actual incorrecta en `POST /api/v1/me/password` da `400` y no `401`: el access token es válido, y un `401` haría que el cliente intentara refrescarlo.

@@ -192,6 +192,7 @@ Con el perfil `staging` o `production`, la aplicación falla al arrancar si:
 - la clave JWT o la de cifrado coinciden con una clave de desarrollo conocida (huella comprobada);
 - `spring.jpa.hibernate.ddl-auto` no es `validate` ni `none`;
 - `spring.flyway.clean-disabled` es `false`;
+- `opswatch.security.password.bcrypt-strength` es menor que 12 (el coste 4 del perfil `test` nunca llega a un despliegue);
 - Swagger UI está activado en `production` sin la propiedad explícita que lo permite (`opswatch.api.docs-public=true`).
 
 Cada regla tiene su test ([testing](../testing/testing-strategy.md#pruebas-de-seguridad)).
