@@ -192,7 +192,7 @@ Las contraseñas no se cifran: se **hashean**. Los refresh tokens tampoco: se **
 
 | Cabecera | Valor |
 |---|---|
-| `Content-Security-Policy` | `default-src 'none'; frame-ancestors 'none'` (relajada solo para Swagger UI en `local` y `staging`) |
+| `Content-Security-Policy` | `default-src 'none'; frame-ancestors 'none'`. Swagger UI y `/v3/api-docs` van por una cadena de seguridad propia sin esta CSP; en producción springdoc está desactivado |
 | `X-Content-Type-Options` | `nosniff` |
 | `X-Frame-Options` | `DENY` |
 | `Referrer-Policy` | `no-referrer` |
@@ -241,7 +241,7 @@ Detalle en [Docker](../devops/docker.md):
 - Usuario no root (UID 10001). Los ficheros de la aplicación son de root y de solo lectura para ese usuario.
 - `read_only: true`, `tmpfs` para `/tmp`, `cap_drop: [ALL]` y `no-new-privileges`.
 - Imágenes base fijadas por digest y actualizadas con Dependabot.
-- PostgreSQL y el puerto de management (8081) no se publican fuera del host.
+- PostgreSQL y el puerto de management (8081) no se publican fuera del host. Por eso `/actuator/**` está permitido en Spring Security: el control está en la red y en la exposición mínima (`health` e `info`, más `prometheus` en la Fase 3), y un endpoint no expuesto responde `404` en lugar de `401`.
 - Escaneo de la imagen con Trivy en CI.
 
 ## 11. Cadena de suministro y secretos en Git

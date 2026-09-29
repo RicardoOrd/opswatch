@@ -192,7 +192,7 @@ Línea de metadatos: `tipos` · prioridad · milestone · estado. Después: Cont
   - [ ] Surefire (`*Test`) y Failsafe (`*IT`) en el `pom.xml`.
   - [ ] `ApplicationStartupIT`.
   - [ ] Nota breve en `docs/testing/` sobre la reutilización del contenedor en local.
-- **Acceptance Criteria:** `./mvnw test` no arranca Docker; `./mvnw verify` sí; un solo contenedor de PostgreSQL por ejecución de la JVM.
+- **Acceptance Criteria:** `./mvnw test` no arranca Docker; `./mvnw verify` sí; un solo contenedor de PostgreSQL por ejecución de la JVM. `ApplicationStartupIT` comprueba además, con la aplicación arrancada en puertos reales: `readiness` en `UP` en el puerto 8081, `/actuator/env` → `404` (heredado de OW-008) y una línea de log de una petición con su `requestId` (heredado de OW-006).
 - **Testing:**
   - Integración: la propia suite y `ApplicationStartupIT`.
 - **Security considerations:** la configuración solo para tests (`allowed-private-cidrs`, controladores de prueba, dobles de `EmailSender`) vive en `src/test` y en el perfil `test`, nunca en el código de producción; las salvaguardas de OW-006 impiden activarla en `production`. Probar contra la misma imagen de PostgreSQL que producción evita falsos verdes.
@@ -200,18 +200,18 @@ Línea de metadatos: `tipos` · prioridad · milestone · estado. Después: Cont
 - **Definition of Done:** tiempo de `./mvnw verify` anotado como baseline.
 
 ### OW-008 · Seguridad base: denegar por defecto, cabeceras y CORS
-`security` · P1 · Milestone: Sprint 0 — Fundaciones · **Ready**
+`security` · P1 · Milestone: Sprint 0 — Fundaciones · **Hecha**
 
 - **Context:** la seguridad es la base, no un añadido ([arquitectura de seguridad](../security/security-architecture.md)).
 - **Objective:** todo cerrado salvo `health` y la documentación de la API en `local` y `staging`.
 - **Tasks:**
-  - [ ] `SecurityFilterChain` sin estado: CSRF desactivado para la API con Bearer (justificado en un comentario), sin formulario de login ni HTTP Basic.
-  - [ ] Cabeceras de seguridad de la [arquitectura de seguridad](../security/security-architecture.md#cabeceras-de-seguridad-respuestas-de-la-api).
-  - [ ] CORS desde `opswatch.security.cors.allowed-origins`.
-  - [ ] Actuator en el puerto 8081 con solo `health` e `info`.
-- **Acceptance Criteria:** `GET /api/v1/cualquier-ruta` sin token → `401` con Problem Details; las cabeceras de seguridad están presentes; un origen no permitido no recibe cabeceras CORS; `GET :8081/actuator/env` → `404`.
+  - [x] `SecurityFilterChain` sin estado: CSRF desactivado para la API con Bearer (justificado en un comentario), sin formulario de login ni HTTP Basic, y sin el usuario en memoria de Spring Boot.
+  - [x] Cabeceras de seguridad de la [arquitectura de seguridad](../security/security-architecture.md#cabeceras-de-seguridad-respuestas-de-la-api). Swagger UI tiene su propia cadena, sin la CSP estricta.
+  - [x] CORS desde `opswatch.security.cors.allowed-origins`.
+  - [x] Actuator en el puerto 8081 con solo `health` e `info`.
+- **Acceptance Criteria:** `GET /api/v1/cualquier-ruta` sin token → `401` con Problem Details; las cabeceras de seguridad están presentes; un origen no permitido no recibe cabeceras CORS. `GET :8081/actuator/env` → `404` necesita la aplicación arrancada y se comprueba en OW-007.
 - **Testing:**
-  - Seguridad: test de `401`, de cabeceras, de CORS con origen permitido y no permitido, y de endpoints de Actuator no expuestos.
+  - Seguridad (slice `@WebMvcTest`): `SecurityConfigurationTest`, con `401` en Problem Details, denegación por defecto, cabeceras, CORS con origen permitido y rechazado, sin form login ni HTTP Basic, y la documentación de la API fuera de la CSP estricta.
 - **Security considerations:** denegar por defecto hace que un endpoint nuevo olvidado quede cerrado, no abierto. Exponer Actuator de más filtra configuración (T-53).
 - **Dependencies:** OW-005.
 - **Definition of Done:** la sección 6 de la arquitectura de seguridad refleja la configuración real.
