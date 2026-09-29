@@ -2,69 +2,64 @@
 
 Estado: diseño inicial · Última revisión: 2026-09-28
 
-Una funcionalidad **no** está terminada porque compile, ni porque funcione en local. Está terminada cuando cumple todo lo que le aplica de esta lista, verificado en el PR.
+Una funcionalidad **no** está terminada porque compile, ni porque funcione en local. Tampoco hay que pedirle a cada issue lo que no le aplica: una issue de CI no necesita OpenAPI, y un cambio de documentación no necesita tests de integración.
 
-## Global (todo cambio de código)
+La DoD tiene dos partes: lo que se exige **siempre** y lo que se exige **según lo que toque el cambio**. El PR indica qué partes aplican.
 
-### Implementación
-- [ ] Hace lo que pide la issue y sus criterios de aceptación.
-- [ ] Respeta los límites de módulo (`verify()` en verde) o viene acompañada de un ADR que los cambie.
-- [ ] Sigue los [estándares de código](../development/code-standards.md) (Spotless en verde, sin warnings).
+**Crear tags y releases no forma parte de la DoD de ninguna issue:** es un proceso aparte que cierra cada milestone ([proceso de release](../development/versioning.md#proceso-de-release)).
+
+## Siempre (todo PR)
+
+- [ ] Hace lo que pide la issue y cumple sus criterios de aceptación.
+- [ ] CI en verde: compilación sin warnings, formato, tests, `verify()` de Modulith, gitleaks y Trivy.
 - [ ] Sin código muerto, sin `TODO` sin issue asociada, sin logs de depuración olvidados.
+- [ ] Nada sensible (secretos, tokens, valores de headers, contraseñas) en el código, los logs, las respuestas ni los mensajes de error.
+- [ ] Los documentos de `docs/` afectados se actualizan **en el mismo PR**.
+- [ ] PR con la plantilla completa (qué, por qué, cómo se probó, impacto en seguridad) y la [checklist de revisión](../development/code-standards.md#revisión-de-código) repasada.
+- [ ] Merge con squash y título en formato Conventional Commits.
 
-### Tests
-- [ ] **Unitarios** para la lógica de dominio nueva o cambiada.
-- [ ] **Integración** con PostgreSQL real para lo que toque persistencia, consultas o bloqueos.
-- [ ] **API** para los endpoints nuevos o cambiados: caso feliz, validación, `401`, `403`, `404` de otra organización y conflictos.
-- [ ] Sin `Thread.sleep` ni dependencias del orden de los tests.
-- [ ] `./mvnw verify` en verde en CI.
+## Según lo que toque el cambio
 
-### Seguridad
-- [ ] **Autorización:** todo recurso cargado por id pasa por `AccessControl`, y los endpoints nuevos están en la matriz de autorización.
-- [ ] **Validación:** las entradas nuevas se validan en el DTO (forma) y en el dominio (reglas). Las propiedades desconocidas se rechazan.
-- [ ] **Datos sensibles:** nada sensible en los logs, las respuestas ni los mensajes de error. Los secretos nuevos se cifran o se hashean.
-- [ ] **Salida:** cualquier petición a una URL de usuario pasa por `egress`.
-- [ ] El threat model se revisó si el cambio añade una interacción externa, un endpoint público o un activo nuevo.
-
-### Errores y observabilidad
-- [ ] Los errores nuevos usan Problem Details con un `code` del catálogo, o se añade el código al catálogo.
-- [ ] Logs en el nivel adecuado, con el contexto (`requestId`, `monitorId`…) y sin ruido por operación.
-- [ ] Métricas nuevas si el cambio introduce un proceso en segundo plano, una cola o una dependencia externa, sin etiquetas de alta cardinalidad.
-
-### Datos
-- [ ] Migración Flyway nueva (nunca se edita una aplicada) que cumple la [checklist de migraciones](../database/migrations.md#checklist-de-revisión-de-una-migración).
-- [ ] Compatible con la versión desplegada anterior (expand / contract).
-- [ ] `ddl-auto=validate` en verde.
-
-### Documentación
-- [ ] OpenAPI: los endpoints nuevos tienen descripción, ejemplos y respuestas de error.
-- [ ] Los documentos de `docs/` afectados se actualizan **en el mismo PR** (catálogo de endpoints, modelo de dominio, catálogo de propiedades…).
-- [ ] Lo implementado pasa de "Planned" a "Implemented" en el README si corresponde.
-- [ ] ADR nuevo o actualizado si se tomó una decisión de arquitectura.
-
-### Revisión y entrega
-- [ ] PR con la plantilla completa (qué, por qué, cómo se probó, impacto en seguridad).
-- [ ] Checklist de [revisión de código](../development/code-standards.md#revisión-de-código) repasada.
-- [ ] CI en verde (build, tests, formato, gitleaks, Trivy).
-- [ ] Merge con squash y un título en formato Conventional Commits.
-
-## Añadidos por tipo de trabajo
-
-| Tipo | Además de lo global |
+| Si el cambio… | Además hace falta |
 |---|---|
-| **Endpoint nuevo** | Fila en la matriz de autorización y test de IDOR |
-| **Cambio de esquema** | `EXPLAIN` de las consultas afectadas con datos suficientes; plan expand / contract si no es compatible |
-| **Evento nuevo** | Documentado en `events.md` (publicador, listeners, modo transaccional). Listener idempotente si es asíncrono |
-| **Integración externa** (SMTP, webhook, servicio) | Timeouts explícitos, sin I/O dentro de transacciones, reintentos con backoff si procede y fallo simulado en los tests |
-| **Corrección de seguridad** | Test que reproduce la vulnerabilidad antes de la corrección. Threat model actualizado |
-| **Rendimiento** | Benchmark antes y después con el mismo procedimiento, y el resultado en `docs/performance/results/` |
-| **Decisión de arquitectura** | ADR con las 10 preguntas y las decisiones abiertas actualizadas |
-| **Release** | Tag SemVer, notas de release y, desde la Fase 6, despliegue en staging con los smoke tests en verde |
+| **Añade o cambia lógica de dominio** | Tests unitarios de las reglas, sin Spring ni base de datos |
+| **Toca persistencia** (consultas, bloqueos, restricciones) | Tests de integración con PostgreSQL real (Testcontainers) y `ddl-auto=validate` en verde |
+| **Añade o cambia un endpoint** | Tests de API (caso feliz, validación, `401`, `403`, conflictos); **fila en la matriz de autorización y test de IDOR** con otra organización; errores con Problem Details y un `code` del catálogo; OpenAPI con descripción, ejemplos y errores; catálogo de endpoints actualizado |
+| **Carga un recurso por id** | Pasa por `AccessControl`; la organización sale del recurso, nunca del cliente |
+| **Acepta datos del usuario** | Validación de forma en el DTO y de reglas en el dominio; propiedades desconocidas rechazadas |
+| **Cambia el esquema** | Migración nueva (nunca se edita una aplicada) que cumple la [checklist de migraciones](../database/migrations.md#checklist-de-revisión-de-una-migración); compatible con la versión anterior (expand / contract); `EXPLAIN` de las consultas afectadas |
+| **Introduce concurrencia** (scheduler, colas, carreras entre usuarios) | Test de concurrencia contra PostgreSQL real con un criterio numérico (por ejemplo, N ejecuciones en paralelo y 0 duplicados); sin `Thread.sleep` |
+| **Publica o escucha un evento** | Documentado en `events.md`; listener idempotente si es asíncrono; sin secretos en el payload |
+| **Hace I/O externo** (HTTP, SMTP) | Pasa por `egress` si el destino lo pone un usuario; timeouts explícitos; ningún I/O dentro de transacciones; fallo simulado en los tests |
+| **Añade un proceso en segundo plano, una cola o una dependencia externa** | Métricas sin etiquetas de alta cardinalidad y logs con contexto (`requestId`, `monitorId`) |
+| **Añade una interacción externa, un endpoint público o un activo nuevo** | Threat model revisado |
+| **Corrige un fallo de seguridad** | Test que reproduce la vulnerabilidad antes de la corrección; threat model actualizado |
+| **Afecta al rendimiento** | Benchmark antes y después con el mismo procedimiento, y el resultado en `docs/performance/results/` |
+| **Toma una decisión de arquitectura** | ADR nuevo o actualizado y las decisiones abiertas al día |
+| **Cambia configuración** | Catálogo de propiedades actualizado; los secretos nuevos solo desde variables de entorno o Docker secrets |
+
+## Tests proporcionales al riesgo
+
+No se exigen tests sin valor (getters, mapeos triviales, configuración declarativa). Sí se exige cobertura fuerte en:
+
+| Área | Tipo de test esperado |
+|---|---|
+| Autorización y aislamiento entre organizaciones | Seguridad (matriz de endpoints, IDOR) |
+| SSRF | Unitarios (tabla de casos) y seguridad (resolver falso, redirects) |
+| Scheduler y concurrencia | Integración con PostgreSQL real, con criterios numéricos |
+| Ciclo de vida de incidentes | Unitarios (transiciones) y de módulo (`Scenario`) |
+| Flyway y repositorios | Integración |
+| Validación de la API | API |
+| Límites de módulo | Arquitectura (`verify()` y ArchUnit) |
+| Capacidad del motor | Rendimiento (fuera del pipeline de PR) |
+
+Detalle en la [estrategia de testing](../testing/testing-strategy.md).
 
 ## Definition of Ready (antes de empezar una issue)
 
+- [ ] Está en el milestone actual y marcada como **Ready** ([estados](backlog.md#estado-de-una-issue)).
 - [ ] Criterios de aceptación verificables.
 - [ ] Dependencias terminadas o sin bloqueo.
-- [ ] Consideraciones de seguridad identificadas.
+- [ ] Consideraciones de seguridad analizadas (no basta con "ninguna": si no hay implicaciones, se dice por qué).
 - [ ] Si toca la arquitectura, existe un ADR o se sabe que hay que escribirlo.
 - [ ] Cabe en una rama corta (días, no semanas). Si no, se parte.

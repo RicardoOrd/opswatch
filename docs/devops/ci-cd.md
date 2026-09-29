@@ -24,6 +24,8 @@ main  ●───●───●───●───●───●──  (si
 
 Configuración de GitHub (Sprint 0): protección de `main` con los checks obligatorios `build` y `image`, sin force-push, historial lineal, squash merge como única opción y borrado automático de la rama tras el merge.
 
+**Estado real (2026-09-28):** todo lo anterior está activo **salvo los checks obligatorios**, que se añaden en OW-010 cuando exista el workflow. Exigirlos antes bloquearía todos los PR, porque ningún check llegaría a ejecutarse. La protección se aplica también a los administradores y exige resolver las conversaciones del PR antes del merge.
+
 ## Pipeline de integración (Sprint 0)
 
 Se dispara con cada `pull_request` y cada `push` a `main`.

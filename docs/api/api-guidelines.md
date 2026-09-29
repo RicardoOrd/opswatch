@@ -4,7 +4,7 @@ Estado: diseño inicial · Última revisión: 2026-09-28 · Catálogo: [endpoint
 
 ## 1. Principios
 
-- **REST sobre recursos** con JSON. Las acciones que no encajan en CRUD son subrecursos de acción (`POST /monitors/{id}/pause`).
+- **REST sobre recursos** con JSON. Las acciones que no encajan en CRUD son subrecursos de acción (`POST /api/v1/monitors/{id}/pause`).
 - **Nunca se exponen entidades JPA.** Cada endpoint tiene sus DTOs de request y de response.
 - **Consistencia antes que ingenio:** los mismos nombres, errores, paginación y fechas en todos los endpoints.
 - **Seguro por defecto:** autenticación obligatoria salvo la lista pública y autorización por organización en cada recurso.
@@ -12,15 +12,16 @@ Estado: diseño inicial · Última revisión: 2026-09-28 · Catálogo: [endpoint
 ## 2. URL y versionado
 
 - Prefijo: `/api/v1`.
+- **En la documentación, las issues y el código de ejemplo, las rutas se escriben siempre completas** (`POST /api/v1/auth/login`, nunca `POST /auth/login`), para que no haya dos nombres para el mismo endpoint.
 - La versión va en la ruta: es visible, fácil de enrutar en un proxy y fácil de documentar. Spring Framework 7 incluye soporte nativo de versionado de API (por ruta, header o parámetro) que puede usarse para la ruta si aporta. Se evalúa en el Sprint 0.
 - Una versión nueva (`/api/v2`) **solo** para cambios incompatibles. Los cambios compatibles se añaden a `v1` ([versionado](../development/versioning.md#api)).
-- Recursos en plural y en kebab-case: `/notification-channels`.
+- Recursos en plural y en kebab-case: `/api/v1/notification-channels`.
 - **Colecciones anidadas bajo su padre y elementos por id plano:**
 
 | Operación | Ruta | Por qué |
 |---|---|---|
-| Listar o crear dentro de un padre | `GET` o `POST /projects/{projectId}/monitors` | El padre define el ámbito y es lo que se autoriza |
-| Leer, modificar o borrar un elemento | `GET`, `PATCH` o `DELETE /monitors/{monitorId}` | El elemento ya sabe a qué organización pertenece. Anidar (`/organizations/{o}/projects/{p}/monitors/{m}`) invitaría a confiar en ids de la ruta que podrían no ser coherentes entre sí |
+| Listar o crear dentro de un padre | `GET` o `POST /api/v1/projects/{projectId}/monitors` | El padre define el ámbito y es lo que se autoriza |
+| Leer, modificar o borrar un elemento | `GET`, `PATCH` o `DELETE /api/v1/monitors/{monitorId}` | El elemento ya sabe a qué organización pertenece. Anidar (`/api/v1/organizations/{o}/projects/{p}/monitors/{m}`) invitaría a confiar en ids de la ruta que podrían no ser coherentes entre sí |
 
 - Ids: UUID en formato canónico en minúsculas.
 

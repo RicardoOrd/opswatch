@@ -1,6 +1,6 @@
 # Sprint 0: Fundaciones
 
-Estado: planificado · Última revisión: 2026-09-28 · Issues: OW-001 a OW-011 del [backlog](backlog.md)
+Estado: **en curso, es el foco actual** · Última revisión: 2026-09-28 · Milestone: Sprint 0 — Fundaciones · Issues: OW-001 a OW-010 (#2 a #11) del [backlog](backlog.md)
 
 ## Objetivo
 
@@ -22,7 +22,7 @@ opswatch/
 ├── scripts/dev-keys.sh
 ├── src/main/java/io/github/ricardoord/opswatch/
 │   ├── OpsWatchApplication.java
-│   ├── shared/        error/, web/, security/, crypto/, time/   ← con contenido
+│   ├── shared/        error/, web/, security/, time/   ← con contenido (crypto/ llega en OW-022)
 │   ├── egress/        package-info.java                         ← vacío, declarado
 │   ├── identity/      package-info.java, security/SecurityConfiguration.java (baseline)
 │   ├── organization/  package-info.java
@@ -46,13 +46,15 @@ opswatch/
 
 ### 1. Repositorio (OW-001)
 
-- [ ] `git init`, rama `main` y repositorio en GitHub `RicardoOrd/opswatch` (o el nombre que se decida).
+- [x] `git init`, rama `main` y repositorio público `RicardoOrd/opswatch` (2026-09-28).
 - [ ] `.gitignore` (Java, Maven, IDE, `.env`, `secrets/`, `*.pem`), `.editorconfig`.
-- [ ] Protección de `main`: PR obligatorio, checks obligatorios, historial lineal, solo squash.
-- [ ] Plantilla de PR con la checklist de la [Definition of Done](definition-of-done.md) y plantillas de issue.
+- [x] Protección de `main`: PR obligatorio, historial lineal, sin force-push, también para admins. Solo squash y borrado automático de ramas.
+- [ ] Checks de CI obligatorios en la protección de `main` (se añaden en OW-010, cuando exista el workflow).
+- [ ] Plantilla de PR con la checklist de la [Definition of Done](definition-of-done.md) y plantillas de issue (feature, bug, release).
 - [ ] `dependabot.yml` para Maven, Docker y GitHub Actions.
-- [ ] Etiquetas del backlog creadas (`feature`, `architecture`, `security`, `testing`, `devops`, `documentation`, `performance`, `refactor`, `phase-0` … `phase-4`).
-- [ ] Secret scanning y push protection activados.
+- [x] Etiquetas de tipo (`feature`, `architecture`, `security`, `testing`, `devops`, `documentation`, `performance`, `refactor`, `bug`) y de prioridad (`P0` a `P3`). Las fases van en milestones, no en etiquetas.
+- [x] Milestones de V1 (Sprint 0 a v1.0.0) según el [roadmap](roadmap.md#milestones).
+- [ ] Verificar que secret scanning y push protection están activos.
 
 ### 2. Proyecto Spring Boot (OW-002)
 
@@ -73,7 +75,7 @@ Generado con Spring Initializr y **versiones fijadas** en el `pom.xml`:
 | springdoc-openapi | OpenAPI y Swagger UI | Documentar desde el primer endpoint |
 | Test: starter de test de Spring Boot, soporte de Testcontainers, Testcontainers PostgreSQL | Tests de integración | La infraestructura de tests es parte de la base |
 
-**No se añaden todavía** (cada una entra en la fase que la necesita): OAuth2 Resource Server (Fase 1), Bucket4j (Fase 1), Apache HttpClient 5 (Fase 3), WireMock (Fase 3), el registro de Prometheus de Micrometer (Fase 3), el registro de eventos JPA/JDBC de Modulith (Fase 4), Spring Mail (Fase 4).
+**No se añaden todavía** (cada una entra en la fase que la necesita): OAuth2 Resource Server (Fase 1), Bucket4j (Fase 1), Apache HttpClient 5 (Fase 3), WireMock (Fase 3), el registro de Prometheus de Micrometer (Fase 3), el registro de eventos JPA/JDBC de Modulith (Fase 2, OW-034), Spring Mail (Fase 4).
 
 Plugins de Maven: `spring-boot-maven-plugin` (con `finalName` `opswatch`), Surefire (`*Test`), Failsafe (`*IT`), Spotless con palantir-java-format, JaCoCo (solo informe), Maven Enforcer (versión de Java y de Maven, convergencia de dependencias), compilador con `-Xlint:all -Werror` y `-parameters`.
 
@@ -130,7 +132,6 @@ Verificaciones del Sprint 0 que la documentación dejó abiertas:
 - [ ] Cabeceras de seguridad de [arquitectura de seguridad](../security/security-architecture.md#cabeceras-de-seguridad-respuestas-de-la-api).
 - [ ] CORS desde `opswatch.security.cors.allowed-origins`.
 - [ ] Actuator en el puerto 8081 con solo `health` e `info` (y `prometheus` preparado para la Fase 3).
-- [ ] `SecretCipher` (AES-256-GCM con `keyId`) y sus tests. Se hace ahora porque es infraestructura sin dependencias de negocio y bloquea la Fase 2.
 
 ### 9. Docker (OW-009)
 
@@ -146,12 +147,11 @@ Verificaciones del Sprint 0 que la documentación dejó abiertas:
 - [ ] Publicación en GHCR en los push a `main`.
 - [ ] Checks `build` e `image` obligatorios en la protección de `main`.
 
-### 11. Documentación (OW-011)
+### 11. Documentación
 
-- [ ] Esta documentación en `docs/` (ya redactada).
-- [ ] README: la sección de cómo ejecutarlo pasa de objetivo a instrucciones reales y comprobadas.
-- [ ] ADR 001 a 008 revisados con las versiones fijadas.
-- [ ] Nota del proyecto en el vault actualizada con la ruta, el repositorio y cómo correrlo.
+- [x] Esta documentación en `docs/`, publicada en el PR #1 (OW-011, cerrada).
+- [ ] README: la sección de cómo ejecutarlo pasa de objetivo a instrucciones reales y comprobadas (DoD de OW-004).
+- [ ] ADR 001 a 008 revisados con las versiones fijadas (DoD de OW-002).
 
 ## Definition of Done del Sprint 0
 

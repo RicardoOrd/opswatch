@@ -6,18 +6,18 @@ Estado: diseño inicial · Última revisión: 2026-09-28
 
 ```text
 src/main/resources/db/migration/
-├── V1__identity_create_users.sql
-├── V2__identity_create_refresh_tokens.sql
-├── V3__organization_create_organizations_and_memberships.sql
-├── V4__organization_create_projects.sql
-├── V5__monitoring_create_monitors.sql
-├── V6__monitoring_create_monitor_state_and_checks.sql
-├── V7__incident_create_incidents_and_timeline.sql
-├── V8__modulith_create_event_publication.sql
-└── V9__notification_create_channels_and_deliveries.sql
+├── V1__identity_create_users.sql                                   (OW-012)
+├── V2__identity_create_refresh_tokens.sql                          (OW-014)
+├── V3__organization_create_organizations_and_memberships.sql       (OW-016)
+├── V4__organization_create_projects.sql                            (OW-019)
+├── V5__modulith_create_event_publication.sql                       (OW-034)
+├── V6__monitoring_create_monitors_and_state.sql                    (OW-021)
+├── V7__monitoring_create_monitor_checks.sql                        (OW-027)
+├── V8__incident_create_incidents_and_timeline.sql                  (OW-032)
+└── V9__notification_create_channels_and_deliveries.sql             (OW-035)
 ```
 
-Es la secuencia prevista para las Fases 1 a 4. Los números reales se asignan al implementar cada una.
+Es la secuencia prevista para las Fases 1 a 4. **Los números reales se asignan al implementar cada una**: por eso las issues nombran la migración sin número.
 
 - Formato: `V<n>__<módulo>_<descripción_en_snake_case>.sql`.
 - `<n>` es un entero secuencial global. El módulo en el nombre indica quién es el dueño de la migración sin necesidad de abrirla.

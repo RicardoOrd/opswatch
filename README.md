@@ -10,13 +10,16 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 
 ## Estado actual
 
-**Fase de diseño.** Este repositorio contiene la documentación de arquitectura, las decisiones (ADR) y el plan de trabajo. **Todavía no hay código.** Todas las funcionalidades descritas abajo están planificadas; ninguna está implementada.
+**Fase de diseño terminada; Sprint 0 pendiente.** El repositorio contiene la documentación de arquitectura, las decisiones (ADR) y el plan de trabajo. **Todavía no hay código.** Todas las funcionalidades descritas abajo están planificadas; ninguna está implementada.
 
 | Qué | Estado |
 |---|---|
-| Arquitectura, ADR, modelo de dominio, seguridad, estrategia de pruebas, roadmap | Documentado |
-| Sprint 0: esqueleto del proyecto, Docker, CI | Planificado |
-| Funcionalidades | Planificadas |
+| Arquitectura, ADR, modelo de dominio, seguridad, estrategia de pruebas, roadmap | **Implemented** (documentación) |
+| Repositorio: `main` protegida, milestones, etiquetas, backlog en GitHub Issues | **Implemented** |
+| Sprint 0: esqueleto del proyecto, PostgreSQL, Flyway, Docker, CI | Planned: **foco actual** |
+| Funcionalidades de producto | Planned |
+
+**Qué se hace ahora:** el milestone [Sprint 0 — Fundaciones](https://github.com/RicardoOrd/opswatch/milestone/1), issues OW-001 a OW-010. Orden sugerido y siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
 
 ---
 
@@ -95,7 +98,11 @@ Más detalle en [Visión general](docs/architecture/overview.md) y [Módulos](do
 
 ---
 
-## Stack previsto para V1
+## Stack
+
+**Stack actual:** ninguno. Solo hay documentación. Nada de lo que sigue está implementado.
+
+### V1 (planificado, fases 0 a 6)
 
 | Tecnología | Por qué está | Decisión |
 |---|---|---|
@@ -112,7 +119,20 @@ Más detalle en [Visión general](docs/architecture/overview.md) y [Módulos](do
 | GitHub Actions | CI/CD | [CI/CD](docs/devops/ci-cd.md) |
 | springdoc-openapi | Documentación OpenAPI generada desde el código | [Guía de API](docs/api/api-guidelines.md) |
 
-**Fuera de V1 a propósito:** Redis, Kafka/RabbitMQ, Kubernetes, microservicios y WebFlux. Cada uno tiene un ADR en estado *propuesto* que dice qué evidencia haría falta para introducirlo.
+### Futuro, condicionado a evidencia (V2 a V5)
+
+Fuera de V1 a propósito. Ninguna de estas piezas entra sin que se cumpla su disparador medible:
+
+| Tecnología | Dónde se decide |
+|---|---|
+| Prometheus, Grafana, OpenTelemetry | Fase 7 ([observabilidad](docs/devops/observability.md)): entran para medir, sin disparador |
+| Redis | [ADR-009](docs/adr/ADR-009-redis.md), propuesto |
+| SSE o WebSocket | [ADR-013](docs/adr/ADR-013-realtime-transport.md), propuesto |
+| Monitoring como microservicio | [ADR-011](docs/adr/ADR-011-monitoring-extraction.md), propuesto |
+| Kafka o RabbitMQ | [ADR-010](docs/adr/ADR-010-event-broker.md), propuesto |
+| Servicios de Notifications y Analytics | [ADR-012](docs/adr/ADR-012-notifications-analytics-extraction.md), propuesto |
+| Kubernetes, API gateway, TSDB, OpenSearch, service mesh | [Decisiones abiertas](docs/architecture/open-decisions.md) |
+| WebFlux | Descartado para V1 en [ADR-007](docs/adr/ADR-007-http-client-and-concurrency.md); se reconsidera solo con benchmarks |
 
 ---
 
@@ -163,7 +183,7 @@ Tres riesgos guían el diseño:
 | 2 | Proyectos y monitores | 0.2.0 |
 | 3 | Motor de monitoreo | 0.3.0 |
 | 4 | Incidentes y notificaciones | 0.4.0 |
-| 5 | Endurecimiento de seguridad y pruebas | 0.5.0 |
+| 5 | Endurecimiento de seguridad | 0.5.0 |
 | 6 | Despliegue y CD | **1.0.0 (V1)** |
 | 7 | Observabilidad y benchmarks base | V2 |
 | 8 | Tiempo real y páginas de estado | V2 |

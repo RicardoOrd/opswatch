@@ -87,7 +87,7 @@ Se registran con `event.category=security` para poder filtrarlos:
 | `opswatch_incidents_active` | gauge | — | 4 |
 | `opswatch_incidents_opened_total` | counter | — | 4 |
 | `opswatch_notification_deliveries_total` | counter | `channel_type`, `result` | 4 |
-| `opswatch_event_publications_incomplete` | gauge | — | 4 |
+| `opswatch_event_publications_incomplete` | gauge | — | 2 |
 | `opswatch_auth_login_total` | counter | `result` | 1 |
 
 Correspondencia con los ejemplos de la especificación inicial:

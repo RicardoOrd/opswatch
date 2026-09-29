@@ -12,19 +12,36 @@ Estado: diseño inicial · Última revisión: 2026-09-28
 | Funcionalidad nueva compatible | MINOR |
 | Corrección compatible | PATCH |
 
-**Antes de 1.0.0** (Fases 1 a 5) la API no es estable y los cambios incompatibles suben la versión MINOR. Cada fase cerrada publica una versión:
+**Antes de 1.0.0** (Fases 1 a 5) la API no es estable y los cambios incompatibles suben la versión MINOR. Cada fase cerrada publica una versión, y el número de la minor coincide con el de la fase:
 
-| Versión | Hito |
-|---|---|
-| 0.1.0 | Fase 1: identity y organizaciones |
-| 0.2.0 | Fase 2: proyectos y monitores |
-| 0.3.0 | Fase 3: motor de monitoreo |
-| 0.4.0 | Fase 4: incidentes y notificaciones |
-| 0.5.0 | Fase 5: endurecimiento |
-| **1.0.0** | Fase 6: V1 desplegada. A partir de aquí, la API `v1` es estable |
+| Versión | Hito | Milestone de GitHub |
+|---|---|---|
+| — | Fase 0: fundaciones. Sin release: no hay funcionalidad que versionar | Sprint 0 — Fundaciones |
+| 0.1.0 | Fase 1: identity y organizaciones | v0.1.0 — Identity y organizaciones |
+| 0.2.0 | Fase 2: proyectos y monitores | v0.2.0 — Proyectos y monitores |
+| 0.3.0 | Fase 3: motor de monitoreo | v0.3.0 — Motor de monitoreo |
+| 0.4.0 | Fase 4: incidentes y notificaciones | v0.4.0 — Incidentes y notificaciones |
+| 0.5.0 | Fase 5: endurecimiento de seguridad | v0.5.0 — Endurecimiento de seguridad |
+| **1.0.0** | Fase 6: V1 desplegada. A partir de aquí, la API `v1` es estable | v1.0.0 — V1 desplegada |
 
-- Notas de release generadas a partir de los Conventional Commits (las que genera GitHub al crear la release), revisadas a mano.
 - La versión se expone en `/actuator/info` y en el User-Agent del motor.
+- Correcciones sobre una versión publicada, si hacen falta: `0.N.1`, `0.N.2`… sin milestone propio.
+
+### Proceso de release
+
+Una release **no** forma parte de ninguna issue funcional. Las issues se cierran cuando su trabajo está hecho, y la release es un paso aparte que cierra el milestone:
+
+1. Todas las issues del milestone están cerradas (o movidas a otro milestone con un motivo escrito).
+2. Se abre una issue con la plantilla **Release** (`Release vX.Y.Z`) en el mismo milestone, con esta checklist:
+   - [ ] Criterios de aceptación de la fase comprobados sobre `main` ([roadmap](../roadmap/roadmap.md)).
+   - [ ] CI en verde en el último commit de `main`.
+   - [ ] README: lo publicado pasa de *Planned* a *Implemented*.
+   - [ ] Documentación de la fase coherente con el código (catálogos de endpoints y de propiedades, modelo de dominio).
+   - [ ] Tag `vX.Y.Z` sobre `main` y release de GitHub con notas generadas a partir de los Conventional Commits, revisadas a mano.
+   - [ ] Desde la Fase 6: despliegue en staging, smoke tests y promoción a producción.
+3. Se cierra la issue de release y, con ella, el milestone.
+
+Crear el tag es responsabilidad de esa issue de release y de nadie más.
 
 ### Imágenes Docker
 

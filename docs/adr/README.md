@@ -62,3 +62,20 @@ Las decisiones que todavía no justifican ni un ADR propuesto están en [decisio
 ```
 
 Las secciones 4 y 5 pueden ir juntas en una tabla cuando se lee mejor.
+
+### Equivalencia con el formato clásico de ADR
+
+Las 10 preguntas cubren el formato habitual (Context, Decision, Alternatives, Consequences) y sus ampliaciones. No hace falta repetir secciones:
+
+| Sección clásica | Dónde está en la plantilla |
+|---|---|
+| Status, Date | Cabecera |
+| Context | 1. ¿Qué problema existe? |
+| Decision Drivers | 2. ¿Cuáles son los requisitos? |
+| Alternatives | 3, 4 y 5 |
+| Decision | 6. ¿Qué elegimos? y 7. ¿Por qué? |
+| Consequences y Risks | 8. ¿Qué costo o complejidad introduce? |
+| Validation | 9. ¿Cómo comprobaremos que funciona? |
+| Revisit Conditions | 10. ¿Qué tendría que pasar para reconsiderarla? |
+
+La sección 10 es obligatoria en todos los ADR, también en los aceptados: una decisión sin condición de revisión se convierte en dogma. En los ADR propuestos (009 a 013) incluye los disparadores medibles que convertirían la propuesta en decisión.

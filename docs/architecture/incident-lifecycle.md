@@ -44,7 +44,7 @@ stateDiagram-v2
 | Transición | Disparador | Actor en el timeline | Evento publicado |
 |---|---|---|---|
 | — → `OPEN` | `MonitorWentDown` | sistema | `IncidentOpened` |
-| `OPEN` → `ACKNOWLEDGED` | `POST /incidents/{id}/acknowledge` | usuario | `IncidentAcknowledged` |
+| `OPEN` → `ACKNOWLEDGED` | `POST /api/v1/incidents/{id}/acknowledge` | usuario | `IncidentAcknowledged` |
 | `OPEN` o `ACKNOWLEDGED` → `RESOLVED` | `MonitorRecovered` | sistema | `IncidentResolved` (`AUTO_RECOVERED`) |
 | `OPEN` o `ACKNOWLEDGED` → `RESOLVED` | `MonitorPaused` | usuario que pausó | `IncidentResolved` (`MONITOR_PAUSED`) |
 | `OPEN` o `ACKNOWLEDGED` → `RESOLVED` | `MonitorDeleted` | usuario que borró | `IncidentResolved` (`MONITOR_DELETED`) |

@@ -385,7 +385,7 @@ CREATE INDEX ix_notification_deliveries_due ON notification_deliveries (next_att
 | Últimos N checks de un monitor | `pk_monitor_checks` (escaneo hacia atrás) | Paginación por cursor |
 | Uptime y percentiles de un monitor en una ventana | `pk_monitor_checks`, rango sobre `checked_at` | 30 d a 30 s son unas 86 400 filas: se mide en la Fase 7 |
 | Retención: borrar anteriores a una fecha | `ix_monitor_checks_checked_at_brin` | En lotes |
-| Organizaciones del usuario | `ix_memberships_user` | En cada `GET /organizations` |
+| Organizaciones del usuario | `ix_memberships_user` | En cada `GET /api/v1/organizations` |
 | Membresía (autorización) | `pk_memberships` | **En cada petición autorizada** |
 | Incidentes de una organización | `ix_incidents_org_opened` | Filtros adicionales sobre el resultado |
 | Incidente activo de un monitor | `ux_incidents_one_active_per_monitor` | Apertura y resolución |

@@ -4,6 +4,31 @@ Estado: diseño inicial · Última revisión: 2026-09-28
 
 Sin fechas: es un proyecto personal y el ritmo es variable. El orden y los criterios de salida sí son firmes. Cada fase cumple la [Definition of Done global](definition-of-done.md) además de la suya.
 
+## Foco actual
+
+| | |
+|---|---|
+| **Ahora** | **Sprint 0 — Fundaciones**: issues OW-001 a OW-010 (#2 a #11). Nada más está listo para empezar |
+| **Siguiente** | v0.1.0 — Identity y organizaciones (OW-012 a OW-018) |
+| **Orden sugerido** | OW-002 → OW-003 → OW-004 → OW-007 → OW-005 → OW-008 → OW-006 → OW-009 → OW-010, con OW-001 en paralelo |
+| **Fuera de foco** | Todo lo de V2 a V5 (Redis, broker, microservicios, tiempo real). Vive en este roadmap y en los ADR propuestos, no en issues |
+
+## Milestones
+
+Cada fase de V1 es un milestone de GitHub. Los milestones `vX.Y.Z` terminan en una release, que se publica con el [proceso de release](../development/versioning.md#proceso-de-release). Las issues funcionales **no** exigen crear tags: una issue se cierra cuando su trabajo está hecho, y la release es un paso aparte al cerrar el milestone.
+
+| Milestone | Fase | Objetivo | Se cierra cuando | Resultado demostrable |
+|---|---|---|---|---|
+| Sprint 0 — Fundaciones | 0 | Base estable sin funcionalidad de negocio | DoD de la Fase 0 y las issues OW-001 a OW-010 cerradas. Sin release: no hay nada que versionar | `docker compose up`, `401` con Problem Details, CI en verde |
+| v0.1.0 — Identity y organizaciones | 1 | Autenticación y aislamiento entre organizaciones | Issues cerradas, criterios de aceptación de la Fase 1 comprobados, release publicada | Ana crea CharityLink, añade a Luis como `VIEWER` y un tercero recibe `404` |
+| v0.2.0 — Proyectos y monitores | 2 | Configurar qué vigilar, con SSRF aplicado al guardar | Ídem, Fase 2 | El ejemplo de CharityLink creado por la API y las URL internas rechazadas |
+| v0.3.0 — Motor de monitoreo | 3 | Checks reales, correctos y medibles | Ídem, Fase 3 | Un destino que cae pasa a `DOWN` tras 3 checks, con métricas en `/actuator/prometheus` |
+| v0.4.0 — Incidentes y notificaciones | 4 | Incidentes y avisos fiables | Ídem, Fase 4 | Una caída de 10 min = un incidente, un email de apertura y uno de resolución |
+| v0.5.0 — Endurecimiento de seguridad | 5 | Cerrar los riesgos aceptados de forma temporal | Ídem, Fase 5 | Registro sin enumeración, invitaciones y audit log |
+| v1.0.0 — V1 desplegada | 6 | V1 pública y recuperable | Ídem, Fase 6 | URL pública con TLS, despliegue por tag y restauración probada |
+
+Las fases 7 a 12 no tienen milestones todavía: se crean cuando la fase anterior se cierra y, en las condicionadas, solo si su disparador se cumple.
+
 ## Vista general
 
 ```mermaid
@@ -54,7 +79,7 @@ flowchart LR
 ## Fase 1: Identity y organizaciones → 0.1.0
 
 - **Objetivo:** usuarios que se autentican y organizaciones con roles, con el aislamiento multi-tenant probado desde el primer endpoint.
-- **Funcionalidades:** registro, login, refresh con rotación, logout, `GET/PATCH /me`, cambio de contraseña, CRUD de organizaciones, gestión de miembros y roles.
+- **Funcionalidades:** registro, login, refresh con rotación, logout, `GET/PATCH /api/v1/me`, cambio de contraseña, CRUD de organizaciones, gestión de miembros y roles.
 - **Tareas:** OW-012 a OW-018 del [backlog](backlog.md).
 - **Dependencias:** Fase 0.
 - **Definition of Done:** todos los endpoints de autenticación, organizaciones y miembros del [catálogo](../api/endpoints-v1.md) implementados y documentados en OpenAPI; matriz RBAC en código y en tests; rate limiting de autenticación activo.
@@ -71,8 +96,8 @@ flowchart LR
 ## Fase 2: Proyectos y monitores → 0.2.0
 
 - **Objetivo:** configurar qué vigilar, con la política SSRF aplicada desde el alta.
-- **Funcionalidades:** CRUD de proyectos; CRUD de monitores con pausa y reanudación; cuotas; headers cifrados; `TargetPolicy` (capa 1 de SSRF).
-- **Tareas:** OW-019 a OW-023.
+- **Funcionalidades:** CRUD de proyectos; CRUD de monitores con pausa y reanudación; cuotas; headers cifrados con `SecretCipher`; `TargetPolicy` (capa 1 de SSRF); Event Publication Registry, que necesita el primer listener asíncrono (`ProjectDeleted` → `monitoring`).
+- **Tareas:** OW-019 a OW-022, OW-034 y OW-044.
 - **Dependencias:** Fase 1 (`AccessControl`).
 - **Definition of Done:** endpoints de proyectos y monitores del catálogo; `monitor_state` creado con cada monitor (todavía sin motor); borrar un proyecto borra sus monitores por evento.
 - **Criterios de aceptación:**
@@ -88,7 +113,7 @@ flowchart LR
 
 - **Objetivo:** ejecutar los checks de forma correcta, segura y medible.
 - **Funcionalidades:** scheduler con `SKIP LOCKED`; dispatcher con virtual threads y semáforo; `ApacheHttpMonitorClient` con `GuardedDnsResolver`; evaluación; máquina de estados; historial de checks con cursor; estadísticas (uptime y percentiles); retención; métricas del motor.
-- **Tareas:** OW-024 a OW-031.
+- **Tareas:** OW-024 a OW-030.
 - **Dependencias:** Fase 2.
 - **Definition of Done:** el motor funciona con varias instancias sin duplicados; todas las métricas de la Fase 3 de [observabilidad](../devops/observability.md#métricas-propias) están expuestas; el job de retención está activo.
 - **Criterios de aceptación:**
@@ -97,7 +122,7 @@ flowchart LR
   - Un redirect hacia `169.254.169.254` produce `DOWN/TARGET_BLOCKED`.
   - Tras 3 fallos consecutivos, el monitor pasa a `DOWN`. Tras 2 éxitos, a `UP`.
   - Dos instancias contra la misma base de datos no ejecutan dos veces el mismo check en un intervalo.
-  - `GET /monitors/{id}/stats?window=24h` devuelve el uptime y los percentiles correctos sobre datos conocidos.
+  - `GET /api/v1/monitors/{id}/stats?window=24h` devuelve el uptime y los percentiles correctos sobre datos conocidos.
 - **Tests:** unitarios de `StateTransition` y `CheckEvaluator`; WireMock (timeouts, redirects, TLS, límites); rebinding con resolver falso; concurrencia del claim; retención; pausa con check en vuelo.
 - **Riesgos:** agotamiento de conexiones, pinning, DNS lento. Mitigación: sin transacciones durante el HTTP, JFR en las pruebas y métricas.
 - **Documentación:** documento del motor actualizado con los valores reales; primer resultado informal de carga (100 y 1 000 monitores) en `docs/performance/results/`.
@@ -105,8 +130,8 @@ flowchart LR
 ## Fase 4: Incidentes y notificaciones → 0.4.0
 
 - **Objetivo:** convertir las transiciones del monitor en incidentes y avisos fiables.
-- **Funcionalidades:** apertura y resolución automática; acknowledge con nota; timeline; listados; Event Publication Registry; canales email y webhook; entregas con reintentos; firma HMAC; endpoint de prueba de canales; Mailpit en local.
-- **Tareas:** OW-032 a OW-036.
+- **Funcionalidades:** apertura y resolución automática; acknowledge con nota; timeline; listados; canales email y webhook; entregas con reintentos; firma HMAC; endpoint de prueba de canales; Mailpit en local.
+- **Tareas:** OW-032, OW-033, OW-035, OW-036 y OW-043.
 - **Dependencias:** Fase 3.
 - **Definition of Done:** la invariante "un incidente activo por monitor" está garantizada y probada; las notificaciones sobreviven a un reinicio entre el commit y el envío.
 - **Criterios de aceptación:**
