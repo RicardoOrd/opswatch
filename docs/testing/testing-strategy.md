@@ -90,6 +90,21 @@ La lógica pura, sin Spring, sin base de datos y sin red:
 | Salvaguardas de producción | El contexto con el perfil `production` y configuración insegura **no arranca** |
 | Errores | Un `500` provocado no devuelve stack trace ni mensajes internos |
 
+#### Cómo añadir un endpoint a la matriz de autorización
+
+La matriz vive en `EndpointAuthorizationMatrixIT` (paquete raíz de los tests) y tiene dos partes:
+
+1. **`MATRIX`**: una fila por endpoint con el método, la ruta tal como la registra Spring MVC (`/api/v1/organizations/{orgId}`) y el código que recibe cada llamante, en este orden: `OWNER`, `ADMIN`, `MEMBER` y `VIEWER` de la organización de la ruta, un usuario autenticado que no es miembro y un anónimo. Un endpoint sin organización en la ruta responde igual a cualquier usuario autenticado.
+2. **`requests()`**: una petición **válida** al endpoint, construida con el `Fixture` del caso. Así el código solo depende de quién llama. Un endpoint que cambia o borra un miembro actúa sobre `fixture.subject()`, un `MEMBER`; uno que añade usa `fixture.newcomerEmail()`.
+
+Cada caso crea su propia organización con un miembro de cada rol, por SQL y con los tokens emitidos directamente. Así ningún caso depende de otro, aunque borre la organización. Los recursos de fases siguientes (proyectos, monitores) necesitarán ampliar el `Fixture` con uno de cada.
+
+Dos tests lo mantienen al día:
+- `everyEndpointOfTheApiHasItsRow` compara las filas y las peticiones con todos los endpoints registrados bajo `/api/`. Un endpoint nuevo sin fila, una fila de un endpoint que ya no existe o una ruta que no declara su método HTTP rompen el build;
+- `answersEachCallerAsTheMatrixSays` recorre cada fila con cada llamante. Un cambio de permisos que la tabla no refleje rompe el build.
+
+La matriz prueba **quién** puede llamar. Las reglas que dependen del estado (el último `OWNER`, la cuota, `If-Match`) y el IDOR con datos de dos organizaciones siguen en los tests de API de cada recurso.
+
 ### Arquitectura
 
 ```java

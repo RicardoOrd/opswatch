@@ -174,6 +174,6 @@ Las páginas de estado se leen **sin autenticación**. Reglas previstas:
 ## 8. Pruebas
 
 - **Matriz parametrizada:** la tabla de la sección 3 se expresa como datos de test (`rol × permiso → esperado`) y se comprueba contra el mapa de producción (`RoleTest`, que también falla si aparece un permiso sin su fila).
-- **Matriz de endpoints:** para cada endpoint, peticiones como `OWNER`, `ADMIN`, `MEMBER`, `VIEWER`, un no miembro y un anónimo, comparando con los códigos esperados.
+- **Matriz de endpoints:** para cada endpoint, peticiones como `OWNER`, `ADMIN`, `MEMBER`, `VIEWER`, un no miembro y un anónimo, comparando con los códigos esperados (`EndpointAuthorizationMatrixIT`, con un test de completitud sobre los endpoints registrados; [cómo añadir filas](../testing/testing-strategy.md#cómo-añadir-un-endpoint-a-la-matriz-de-autorización)).
 - **Invariante del último `OWNER`:** dos `OWNER` que se degradan el uno al otro a la vez; al terminar queda al menos uno.
 - **IDOR:** cada endpoint con id se prueba con dos organizaciones.

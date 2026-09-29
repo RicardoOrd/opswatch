@@ -406,17 +406,17 @@ Hecha el 2026-09-28: documentación publicada en el PR #1, issues creadas desde 
 - **Definition of Done:** las reglas de la sección 3 del modelo de autorización coinciden con el código.
 
 ### OW-018 · Matriz de autorización probada
-`security` `testing` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Ready**
+`security` `testing` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Hecha**
 
 - **Context:** la autorización por recurso es la defensa principal contra el IDOR. Tiene que ser imposible añadir un endpoint sin probar su autorización.
 - **Objective:** la tabla endpoint × rol como test, con un test de completitud que la mantiene al día.
 - **Tasks:**
-  - [ ] Tabla de datos endpoint × {`OWNER`, `ADMIN`, `MEMBER`, `VIEWER`, no miembro, anónimo} → código esperado.
-  - [ ] Test parametrizado que recorre la tabla contra la aplicación real.
-  - [ ] Test de completitud: todo endpoint registrado en Spring MVC bajo `/api/v1` tiene fila en la tabla.
+  - [x] Tabla de datos endpoint × {`OWNER`, `ADMIN`, `MEMBER`, `VIEWER`, no miembro, anónimo} → código esperado: los 16 endpoints de la v0.1.0, como texto legible en `EndpointAuthorizationMatrixIT`.
+  - [x] Test parametrizado que recorre la tabla contra la aplicación real: 96 casos, cada uno con su organización nueva (SQL y tokens emitidos directamente) y una petición válida por endpoint.
+  - [x] Test de completitud: todo endpoint registrado en Spring MVC bajo `/api/` tiene fila y petición, toda fila corresponde a un endpoint y todo endpoint declara su método HTTP.
 - **Acceptance Criteria:** los endpoints de la v0.1.0 están en la tabla; añadir un endpoint sin fila hace fallar el build; cambiar un permiso sin actualizar la tabla hace fallar el build.
 - **Testing:**
-  - Seguridad: `EndpointAuthorizationMatrixIT` y el test de completitud.
+  - Seguridad: `EndpointAuthorizationMatrixIT` y el test de completitud. Comprobado que fallan al quitar `ORGANIZATION_UPDATE` a `ADMIN` y al borrar una fila.
 - **Security considerations:** convierte T-10 y T-11 en una comprobación automática en cada PR, en lugar de depender de la revisión.
 - **Dependencies:** OW-016, OW-017.
 - **Definition of Done:** la [estrategia de testing](../testing/testing-strategy.md#pruebas-de-seguridad) describe cómo añadir filas.
