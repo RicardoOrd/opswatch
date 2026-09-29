@@ -145,10 +145,10 @@ Versiones fijadas en OW-002 (2026-09-28): Java 25 (Temurin 25.0.4), Spring Boot 
 
 ### 10. CI (OW-010)
 
-- [ ] `ci.yml` con los jobs `build`, `secrets-scan` e `image` ([CI/CD](../devops/ci-cd.md)), acciones fijadas por SHA y permisos mínimos.
-- [ ] Trivy sobre la imagen.
-- [ ] Publicación en GHCR en los push a `main`.
-- [ ] Checks `build` e `image` obligatorios en la protección de `main`.
+- [x] `ci.yml` con los jobs `build`, `secrets-scan` e `image` ([CI/CD](../devops/ci-cd.md)), acciones fijadas por SHA y permisos mínimos.
+- [x] Trivy sobre la imagen.
+- [x] Publicación en GHCR en los push a `main`.
+- [x] Checks `build`, `secrets-scan` e `image` obligatorios en la protección de `main`.
 
 ### 11. Documentación
 
@@ -158,15 +158,15 @@ Versiones fijadas en OW-002 (2026-09-28): Java 25 (Temurin 25.0.4), Spring Boot 
 
 ## Definition of Done del Sprint 0
 
-- [ ] `./mvnw verify` en verde en local (Windows) y en CI (Linux).
+- [x] `./mvnw verify` en verde en local (Windows) y en CI (Linux).
 - [x] `docker compose up -d postgres` más la aplicación desde el IDE con el perfil `local`: arranca sin errores.
 - [x] `docker compose --profile app up --build`: los dos contenedores quedan *healthy*.
 - [x] `curl localhost:8081/actuator/health/readiness` da `{"status":"UP"}`.
 - [x] `curl -i localhost:8080/api/v1/anything` da `401` con `application/problem+json` y `X-Request-Id`.
-- [ ] Un PR de prueba con un fichero mal formateado falla en CI. Uno con una clave privada falsa falla en gitleaks.
-- [ ] `verify()` falla si se añade, en una rama de prueba, una dependencia de `monitoring` hacia `incident`. Se comprueba y se descarta la rama.
+- [x] Un PR de prueba con un fichero mal formateado falla en CI. Uno con una clave privada falsa falla en gitleaks. (PR #58)
+- [x] `verify()` falla si se añade, en una rama de prueba, una dependencia de `monitoring` hacia `incident`. Se comprueba y se descarta la rama.
 - [x] La imagen no corre como root (`docker run --rm --entrypoint id opswatch:local`).
-- [ ] Ningún secreto en Git, en la imagen (`docker history`) ni en los `application*.yml`.
+- [x] Ningún secreto en Git, en la imagen (`docker history`) ni en los `application*.yml`. gitleaks sobre todo el historial y Trivy, que también busca secretos en las capas.
 
 ## Demo de cierre
 

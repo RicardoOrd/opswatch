@@ -1,6 +1,6 @@
 # CI/CD
 
-Estado: diseño inicial · Última revisión: 2026-09-28
+Estado: integración implementada (OW-010); despliegue en diseño (Fase 6) · Última revisión: 2026-09-28
 
 ## Estrategia de ramas
 
@@ -22,9 +22,13 @@ main  ●───●───●───●───●───●──  (si
 | Releases | Tag `vX.Y.Z` sobre `main` ([versionado](../development/versioning.md)) |
 | Funcionalidad a medias | Si una fase no cabe en una rama corta, se integra en partes detrás de un feature flag de configuración (por ejemplo, `opswatch.monitoring.engine.enabled`) en lugar de mantener una rama larga |
 
-Configuración de GitHub (Sprint 0): protección de `main` con los checks obligatorios `build` y `image`, sin force-push, historial lineal, squash merge como única opción y borrado automático de la rama tras el merge.
+Configuración de GitHub, activa desde OW-010 (2026-09-28):
 
-**Estado real (2026-09-28):** todo lo anterior está activo **salvo los checks obligatorios**, que se añaden en OW-010 cuando exista el workflow. Exigirlos antes bloquearía todos los PR, porque ningún check llegaría a ejecutarse. La protección se aplica también a los administradores y exige resolver las conversaciones del PR antes del merge. Están activos secret scanning, push protection, las alertas de Dependabot y sus actualizaciones de seguridad, y `dependabot.yml` vigila Maven y GitHub Actions (OW-001).
+- Protección de `main` con los checks obligatorios `build`, `secrets-scan` e `image`. Los tres están ligados a la app GitHub Actions y exigen la rama al día con `main` antes del merge.
+- Sin force-push ni borrado, historial lineal y conversaciones del PR resueltas antes del merge. Todo se aplica también a los administradores.
+- Squash merge como única opción y borrado automático de la rama tras el merge.
+- Secret scanning, push protection, alertas de Dependabot y sus actualizaciones de seguridad.
+- `dependabot.yml` vigila Maven, las imágenes del Dockerfile y de Compose, y GitHub Actions.
 
 ## Pipeline de integración (Sprint 0)
 
@@ -32,15 +36,15 @@ Se dispara con cada `pull_request` y cada `push` a `main`.
 
 ```mermaid
 flowchart LR
-    A["checkout"] --> B["compile<br/>javac -Xlint:all -Werror"]
-    B --> C["static analysis<br/>spotless:check"]
-    C --> D["unit tests<br/>surefire"]
-    D --> E["integration + architecture tests<br/>failsafe, Testcontainers,<br/>Modulith verify"]
-    E --> F["package"]
-    F --> G["docker build"]
+    A["checkout"] --> C["formato<br/>spotless:check"]
+    C --> B["compile<br/>javac -Xlint:all -Werror"]
+    B --> D["unit + architecture tests<br/>surefire, Modulith verify"]
+    D --> E["integration tests<br/>failsafe, Testcontainers"]
+    E --> G["docker build"]
     G --> H["Trivy<br/>imagen y dependencias"]
+    H --> U["UID 10001 y<br/>tamaño < 200 MB"]
     A --> S["gitleaks<br/>secretos"]
-    H --> P{"¿push a main?"}
+    U --> P{"¿push a main?"}
     P -->|sí| R["push a GHCR<br/>:sha-abc1234 y :main"]
     P -->|no| X["fin"]
 ```
@@ -49,99 +53,53 @@ flowchart LR
 |---|---|---|
 | Compilación | `./mvnw -B compile` con `-Xlint:all -Werror` | Hay errores o warnings. Empezar sin warnings es barato, y mantenerlo también |
 | Formato | Spotless (`spotless:check`) | El código no sigue el formato |
-| Tests unitarios | Surefire (`*Test`) | Falla un test |
-| Integración y arquitectura | Failsafe (`*IT`, `ModularityTests`) con Testcontainers | Falla un test o se viola un límite de módulo |
-| Empaquetado | `spring-boot-maven-plugin` | — |
+| Tests unitarios y de arquitectura | Surefire (`*Test`, y `*Tests`: `ModularityTests` y `ArchitectureRulesTests`) | Falla un test o se viola un límite de módulo |
+| Integración | Failsafe (`*IT`) con Testcontainers | Falla un test |
 | Imagen | `docker/build-push-action` con cache de GitHub Actions | Falla el build |
-| Vulnerabilidades | Trivy (imagen, que incluye las dependencias Java) | `CRITICAL` o `HIGH` con corrección disponible |
+| Vulnerabilidades | Trivy (imagen, que incluye las dependencias Java y los secretos en las capas) | `CRITICAL` o `HIGH` con corrección disponible |
+| Usuario y tamaño | `docker run --entrypoint id` y `docker save \| gzip` | El UID no es 10001 o la imagen comprimida pesa 200 MB o más |
 | Secretos | gitleaks | Aparece un secreto en el diff o el historial |
 
-Boceto del workflow:
+El workflow es [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) (OW-010). Tiene tres jobs, y cada uno es un check obligatorio de `main`:
 
-```yaml
-# .github/workflows/ci.yml (boceto)
-name: ci
-on:
-  pull_request:
-  push:
-    branches: [main]
+| Job | Qué hace | Permisos |
+|---|---|---|
+| `build` | `spotless:check` primero, porque un fallo de formato no debe esperar a los tests. Después `./mvnw verify`: compilación sin warnings, unitarios, integración con Testcontainers y `verify()` de Modulith. Sube los informes de tests si falla, y la cobertura y la documentación de módulos siempre | `contents: read` |
+| `secrets-scan` | gitleaks sobre los commits del PR o del push | `contents: read`, `pull-requests: read` (la acción lista los commits del PR) |
+| `image` | Solo si `build` pasa. Construye la imagen con la cache de GitHub Actions y la pasa por Trivy. Comprueba el UID 10001 y el tamaño (menos de 200 MB comprimida). En los push a `main`, publica `ghcr.io/ricardoord/opswatch:sha-<7>` y `:main` | `contents: read`, `packages: write` (el único que puede publicar) |
 
-permissions:
-  contents: read
+Decisiones:
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+| Decisión | Motivo |
+|---|---|
+| Acciones fijadas por SHA, con la versión en un comentario | Una etiqueta se puede mover a otro commit, un SHA no (T-61). Dependabot actualiza SHA y comentario |
+| `persist-credentials: false` en los checkouts | El token no queda en `.git/config`, al alcance de los pasos siguientes |
+| Permisos por job, `contents: read` por defecto | Cada job tiene solo lo que usa |
+| `cancel-in-progress` solo en los PR | En un PR, un push nuevo cancela la ejecución anterior. En `main` no se cancela: cada merge publica su imagen |
+| Comentarios de gitleaks desactivados | Pedirían `pull-requests: write`. El resultado se ve en el check |
+| Etiquetas OCI `source` y `revision` | Enlazan el paquete de GHCR con el repositorio y con el commit |
+| Los jobs no tienen `name:` | El id del job es el nombre del check obligatorio. Cambiarlo rompería la protección de `main` |
+| Checks ligados a la app GitHub Actions (`app_id` 15368) | Otra app o un token con permiso de estados no puede marcar un check como correcto |
+| Rama al día antes del merge (`strict`) | Lo que se mergea es lo que se probó contra el `main` actual |
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@<sha>          # todas las acciones fijadas por SHA
-      - uses: actions/setup-java@<sha>
-        with:
-          distribution: temurin
-          java-version: '25'
-          cache: maven
-      - run: ./mvnw -B spotless:check
-      - run: ./mvnw -B verify
-      - if: failure()
-        uses: actions/upload-artifact@<sha>
-        with:
-          name: test-reports
-          path: |
-            target/surefire-reports
-            target/failsafe-reports
-      - uses: actions/upload-artifact@<sha>
-        with:
-          name: modulith-docs
-          path: target/spring-modulith-docs
+Validado con actionlint y con zizmor en modo pedantic. zizmor solo deja avisos informativos: jobs sin `name:`, a propósito, y permisos sin comentario.
 
-  secrets-scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@<sha>
-        with:
-          fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@<sha>
+**Tiempos** (OW-010, 2026-09-28, runners `ubuntu-latest`):
 
-  image:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write                 # solo este job puede publicar en GHCR
-    steps:
-      - uses: actions/checkout@<sha>
-      - uses: docker/setup-buildx-action@<sha>
-      - if: github.event_name == 'push'
-        uses: docker/login-action@<sha>
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@<sha>
-        with:
-          context: .
-          load: true
-          tags: opswatch:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      - uses: aquasecurity/trivy-action@<sha>
-        with:
-          image-ref: opswatch:ci
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          exit-code: '1'
-      - if: github.event_name == 'push'
-        run: |
-          docker tag opswatch:ci ghcr.io/ricardoord/opswatch:sha-${GITHUB_SHA::7}
-          docker tag opswatch:ci ghcr.io/ricardoord/opswatch:main
-          docker push --all-tags ghcr.io/ricardoord/opswatch
-```
+| | `build` | `secrets-scan` | `image` | Total (reloj) |
+|---|---|---|---|---|
+| Primera ejecución, sin caches | 1 min 36 s | 10 s | 3 min 19 s | ~5 min |
+| Con las caches de Maven y de Docker | 39 s | 10 s | 57 s | 1 min 39 s |
 
-Nota: el job `image` compila de nuevo dentro de Docker. Es aceptable para empezar. Si el tiempo total molesta, el jar del job `build` puede pasarse como artefacto y el Dockerfile tendría una variante que solo copia.
+**Casos de fallo comprobados** en el PR de prueba #58, cerrado sin mergear:
+
+- `build` falla con un fichero mal formateado (`spotless:check`).
+- `secrets-scan` falla con una clave privada falsa (regla `private-key`).
+- El PR queda `BLOCKED`: no se puede mergear.
+
+Push protection de GitHub **no** bloqueó el push de esa clave genérica: gitleaks es la barrera para los secretos sin un patrón de proveedor.
+
+El job `image` compila de nuevo dentro de Docker. Con la cache tarda menos de un minuto, así que de momento no compensa pasar el jar del job `build` como artefacto.
 
 ### Otros workflows
 
