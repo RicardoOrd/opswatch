@@ -52,7 +52,7 @@ Cassandra resolvería un volumen de escritura de checks que OpsWatch no tendrá 
 | Revela el volumen o permite enumerar | Sí | No | Revela el instante de creación, no el volumen |
 | Válido para ids distribuidos (Etapa 3) | Colisiones entre servicios | Sí | Sí |
 
-**Decisión:** UUIDv7 generado en la aplicación para todas las entidades. Opciones que se verifican en el Sprint 0: el generador de Hibernate para UUID versión 7, si la versión fijada lo ofrece, o un generador propio de unas 20 líneas. PostgreSQL 18 también tiene `uuidv7()` para defaults en SQL.
+**Decisión:** UUIDv7 generado en la aplicación para todas las entidades, con el generador de Hibernate: `@UuidGenerator(style = UuidGenerator.Style.VERSION_7)`, disponible en Hibernate 7.4.5 (comprobado en OW-002). PostgreSQL 18 también tiene `uuidv7()` para defaults en SQL.
 
 **Excepción:** `monitor_checks` no tiene id propio. Su PK es `(monitor_id, checked_at)`. Ver la sección 7.
 

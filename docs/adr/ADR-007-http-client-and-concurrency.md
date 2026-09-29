@@ -40,7 +40,7 @@ El motor tiene que hacer cientos de peticiones HTTP concurrentes a destinos no c
 
 - **Apache HttpClient 5 con la API clásica (bloqueante)**, construido **solo** por el módulo `egress`, con `GuardedDnsResolver`, sin proxy, sin reintentos, sin redirects automáticos, sin cookies, sin compresión, con límites de headers y sin reutilizar conexiones en los checks.
 - **Virtual threads** (`Executors.newVirtualThreadPerTaskExecutor()`) con un **`Semaphore`** de `max-concurrent-checks` (200 por defecto).
-- **Java 25** (LTS).
+- **Java 25** (LTS), con la distribución **Temurin** (fijada en OW-002: 25.0.4). Se descartaron 26 y 27 por no ser LTS, y 21 porque no incluye JEP 491. La comparación completa está en la sección de actualizaciones al final.
 - `HttpMonitorClient` como interfaz del motor, con `ApacheHttpMonitorClient` como implementación.
 
 ## 7. ¿Por qué?
@@ -71,3 +71,18 @@ El motor tiene que hacer cientos de peticiones HTTP concurrentes a destinos no c
 - Pinning o bloqueo de hilos portadores medido que afecte al lag.
 - DNS lento que degrade el lag: resolver con timeout (SPI `InetAddressResolverProvider` o una librería DNS).
 - Una versión futura de Apache HttpClient que deje de pasar por el `DnsResolver` en algún camino (el test lo detectaría).
+
+## Actualizaciones
+
+### 2026-09-28: versión de Java fijada en OW-002
+
+| Opción | Motivo |
+|---|---|
+| 27 | No es LTS: 6 meses de parches. Descartada |
+| 26 | No es LTS y sus parches ya terminaron. Descartada |
+| **25 LTS (Temurin 25.0.4)** | **Elegida.** Un año en GA y cuatro rondas trimestrales de parches de seguridad. Es la primera LTS con JEP 491, del que depende este diseño. Soporte más largo que 21 |
+| 21 LTS | La más madura, pero sin JEP 491: con 2 vCPU, unos pocos checks fijados a sus hilos congelarían el motor. Obligaría a usar un pool de hilos de plataforma |
+
+Distribución: Temurin (OpenJDK de la Eclipse Foundation, gratuita). Se descarta Oracle JDK porque sus actualizaciones gratuitas para la 21 terminan en septiembre de 2026.
+
+Si alguna herramienta del build no soportara Java 25, la alternativa es 21 con un pool de hilos de plataforma. OW-002 compiló y verificó sin problemas con 25.
