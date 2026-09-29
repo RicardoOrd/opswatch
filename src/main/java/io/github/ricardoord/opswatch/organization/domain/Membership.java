@@ -12,6 +12,7 @@ import java.io.Serializable;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Objects;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
@@ -66,6 +67,26 @@ public class Membership {
 
     public Role role() {
         return role;
+    }
+
+    public Instant createdAt() {
+        return createdAt;
+    }
+
+    /** Whether it is allowed is up to the caller: the rules need the rest of the organization. */
+    public void changeRole(Role role, Clock clock) {
+        if (role != this.role) {
+            this.role = role;
+            this.updatedAt = clock.instant().truncatedTo(ChronoUnit.MICROS);
+        }
+    }
+
+    /**
+     * The version of the saved row, for {@code ETag} and {@code If-Match}. Not called {@code version()}: Spring Data
+     * would read it to tell whether the entity is new, and it throws before the first save.
+     */
+    public long savedVersion() {
+        return Objects.requireNonNull(version, "The membership has not been saved yet");
     }
 
     @Override

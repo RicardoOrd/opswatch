@@ -1,11 +1,13 @@
 package io.github.ricardoord.opswatch.organization.domain;
 
 import io.github.ricardoord.opswatch.organization.Role;
+import jakarta.persistence.LockModeType;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
 public interface OrganizationRepository extends JpaRepository<Organization, UUID> {
@@ -14,6 +16,14 @@ public interface OrganizationRepository extends JpaRepository<Organization, UUID
     int QUOTA_LOCK_NAMESPACE = 1;
 
     Optional<Organization> findByIdAndDeletedAtIsNull(UUID id);
+
+    /**
+     * Locks the row until the transaction ends (docs/architecture/domain-model.md#membership): changes to the members
+     * of one organization take turns, so two {@code OWNER}s demoting each other cannot both see another one left.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM Organization o WHERE o.id = :id AND o.deletedAt IS NULL")
+    Optional<Organization> findActiveByIdForUpdate(UUID id);
 
     /** Only the organizations the user is a member of: the listing can never show another tenant. */
     @Query(value = """

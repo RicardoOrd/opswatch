@@ -228,7 +228,7 @@ erDiagram
 - **Siempre hay al menos un `OWNER`.** Cualquier cambio que pueda dejar la organización sin dueño (degradar, expulsar o abandonar) toma antes un bloqueo `SELECT … FOR UPDATE` sobre la fila de `organizations`. Así, dos `OWNER` que se degradan el uno al otro a la vez no pueden dejarla huérfana.
 - Solo un `OWNER` asigna o retira los roles `OWNER` y `ADMIN`.
 - Un `ADMIN` gestiona `MEMBER` y `VIEWER`: los añade, les cambia el rol entre esos dos y los expulsa.
-- Cualquier miembro puede abandonar la organización, salvo el último `OWNER`.
+- Cualquier miembro puede abandonar la organización, salvo el último `OWNER`. Por lo mismo, puede bajarse su propio rol sin permiso de gestión; subírselo, nunca.
 - Máximo `opswatch.limits.members-per-organization` miembros.
 - V1 añade miembros que ya tienen cuenta, buscándolos por email. Las invitaciones por email llegan en la Fase 5 ([riesgo documentado](../security/threat-model.md)).
 

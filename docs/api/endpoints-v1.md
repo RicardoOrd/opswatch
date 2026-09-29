@@ -2,7 +2,7 @@
 
 Estado: diseño inicial · Última revisión: 2026-09-29 · Convenciones: [api-guidelines.md](api-guidelines.md) · Permisos: [authorization-model.md](../security/authorization-model.md)
 
-**Existen `POST /api/v1/auth/register` (OW-012), `POST /api/v1/auth/login` y `GET /api/v1/me` (OW-013), y `POST /api/v1/auth/refresh` y `POST /api/v1/auth/logout` (OW-014), con rate limiting desde OW-015, `PATCH /api/v1/me` y `POST /api/v1/me/password` (OW-045), y los cinco endpoints de organizaciones (OW-016). El resto está planificado.** La columna "Fase" indica cuándo se implementa cada uno. Los errores comunes a todos los endpoints autenticados (`401`, `404` a quien no es miembro, `429` y `500`) no se repiten en cada tabla.
+**Existen `POST /api/v1/auth/register` (OW-012), `POST /api/v1/auth/login` y `GET /api/v1/me` (OW-013), y `POST /api/v1/auth/refresh` y `POST /api/v1/auth/logout` (OW-014), con rate limiting desde OW-015, `PATCH /api/v1/me` y `POST /api/v1/me/password` (OW-045), los cinco endpoints de organizaciones (OW-016) y los cuatro de miembros (OW-017). El resto está planificado.** La columna "Fase" indica cuándo se implementa cada uno. Los errores comunes a todos los endpoints autenticados (`401`, `404` a quien no es miembro, `429` y `500`) no se repiten en cada tabla.
 
 ## Autenticación (`identity`)
 
@@ -94,17 +94,25 @@ Validaciones: `email` con formato válido, solo ASCII imprimible y hasta 254 car
 
 | Método | Ruta | Permiso | Éxito | Errores específicos | Fase |
 |---|---|---|---|---|---|
-| `GET` | `/api/v1/organizations/{orgId}/members` | `MEMBER_READ` | `200`, paginado | — | 1 |
-| `POST` | `/api/v1/organizations/{orgId}/members` | `MEMBER_MANAGE_BASIC` o `_PRIVILEGED`, según el rol asignado | `201` | `400`, `403`, `404` (email sin cuenta), `409` (ya es miembro), `422 quota-exceeded` | 1 |
-| `PATCH` | `/api/v1/organizations/{orgId}/members/{userId}` | Según el rol de origen y el de destino | `200` | `403`, `409 business-rule-violation` (último `OWNER`), `412` | 1 |
-| `DELETE` | `/api/v1/organizations/{orgId}/members/{userId}` | Ídem, o el propio usuario (abandonar) | `204` | `403`, `409` (último `OWNER`) | 1 |
+| `GET` | `/api/v1/organizations/{orgId}/members` | `MEMBER_READ` | `200`, paginado. `sort` por `joinedAt` (por defecto, ascendente) | `400 invalid-parameter` | 1 |
+| `POST` | `/api/v1/organizations/{orgId}/members` | `MEMBER_MANAGE_BASIC` o `_PRIVILEGED`, según el rol asignado | `201` y `ETag` | `400`, `403`, `404` (email sin cuenta), `409 conflict` (ya es miembro), `422 quota-exceeded` (50 miembros) | 1 |
+| `PATCH` | `/api/v1/organizations/{orgId}/members/{userId}` | Según el rol de origen y el de destino; bajarse el propio rol no necesita permiso | `200` y `ETag` nuevo | `400`, `403` (también al subirse el propio rol), `404` (no es miembro), `409 business-rule-violation` (último `OWNER`), `412` | 1 |
+| `DELETE` | `/api/v1/organizations/{orgId}/members/{userId}` | Ídem, o el propio usuario (abandonar) | `204` | `403`, `404` (no es miembro), `409` (último `OWNER`) | 1 |
 
 ```jsonc
 // POST /api/v1/organizations/{orgId}/members
 { "email": "luis@example.com", "role": "VIEWER" }
-// 201
-{ "userId": "0192…", "email": "luis@example.com", "displayName": "Luis", "role": "VIEWER", "joinedAt": "…" }
+// 201, Location: /api/v1/organizations/{orgId}/members/0192…, ETag: "0"
+{ "userId": "0192…", "email": "luis@example.com", "displayName": "Luis", "role": "VIEWER", "joinedAt": "…", "version": 0 }
+
+// PATCH /api/v1/organizations/{orgId}/members/{userId}, con If-Match: "0" (opcional)
+{ "role": "MEMBER" }
+// 200, ETag: "1"
 ```
+
+- Tocar `OWNER` o `ADMIN`, antes o después del cambio, exige `MEMBER_MANAGE_PRIVILEGED` (solo `OWNER`). Entre `MEMBER` y `VIEWER` basta `MEMBER_MANAGE_BASIC` (`OWNER` y `ADMIN`).
+- Degradar o expulsar al único `OWNER` da `409` sea quien sea quien lo pida: la regla se comprueba antes que el permiso ([modelo de autorización](../security/authorization-model.md#reglas-que-la-matriz-no-expresa)).
+- El permiso se comprueba antes de buscar el email: solo quien puede añadir miembros llega a saber si está registrado.
 
 V1 solo añade usuarios que ya tienen cuenta. El `404` revela si el email está registrado a quien tiene permiso de gestionar miembros: es un riesgo aceptado hasta que las invitaciones de la Fase 5 lo sustituyan ([threat model](../security/threat-model.md), T-06).
 

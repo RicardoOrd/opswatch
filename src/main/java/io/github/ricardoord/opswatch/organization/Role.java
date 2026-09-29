@@ -57,6 +57,16 @@ public enum Role {
         return permissions.contains(permission);
     }
 
+    /** Declared from the most to the least powerful: each role has everything the next one has, and more. */
+    public boolean outranks(Role other) {
+        return ordinal() < other.ordinal();
+    }
+
+    /** Only {@code MEMBER_MANAGE_PRIVILEGED} assigns, changes or removes these roles. */
+    public boolean isPrivileged() {
+        return this == OWNER || this == ADMIN;
+    }
+
     public Set<Permission> permissions() {
         return permissions;
     }

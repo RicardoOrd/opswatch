@@ -63,9 +63,19 @@ Nadie puede leer, con ningún rol, los valores de los headers de los monitores n
 |---|---|
 | Siempre hay al menos un `OWNER` | Degradar, expulsar o abandonar que deje cero `OWNER` → `409 business-rule-violation`. Se serializa con `SELECT … FOR UPDATE` sobre la organización |
 | Un `ADMIN` no puede tocar a un `OWNER` ni a otro `ADMIN` | Requiere `MEMBER_MANAGE_PRIVILEGED` |
-| Nadie cambia su propio rol hacia arriba | Un cambio de rol sobre uno mismo solo puede bajar el rol |
+| Nadie cambia su propio rol hacia arriba | Un cambio de rol sobre uno mismo solo puede bajar el rol. Bajar no necesita permiso de gestión, igual que abandonar |
 | Cualquier miembro puede abandonar la organización | Salvo el último `OWNER` |
 | Crear una organización | Cualquier usuario autenticado, hasta `opswatch.limits.organizations-per-user` |
+
+En `MembershipService`, cada cambio de miembros bloquea primero la fila de la organización y después comprueba, en este orden:
+1. que quien pide es miembro (`404`);
+2. que el miembro afectado existe (`404`);
+3. la regla del último `OWNER` (`409`);
+4. que nadie se sube el rol (`403`);
+5. el permiso según los roles implicados (`403`);
+6. `If-Match` (`412`).
+
+La regla del último `OWNER` va antes que el permiso a propósito. Cuando dos `OWNER` se degradan a la vez, el segundo en tomar el bloqueo ya no es `OWNER`, y la respuesta que explica por qué es el `409`. Que se autorice con el bloqueo tomado, y no antes, impide actuar con un rol que otro cambio acaba de quitar.
 
 ## 4. Cómo se decide en cada petición
 

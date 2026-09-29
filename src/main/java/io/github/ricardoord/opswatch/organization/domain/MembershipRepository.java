@@ -3,6 +3,8 @@ package io.github.ricardoord.opswatch.organization.domain;
 import io.github.ricardoord.opswatch.organization.Role;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -13,4 +15,10 @@ public interface MembershipRepository extends JpaRepository<Membership, Membersh
             SELECT m.role FROM Membership m JOIN Organization o ON o.id = m.organizationId
             WHERE m.organizationId = :organizationId AND m.userId = :userId AND o.deletedAt IS NULL""")
     Optional<Role> findActiveRole(UUID organizationId, UUID userId);
+
+    Page<Membership> findByOrganizationId(UUID organizationId, Pageable pageable);
+
+    long countByOrganizationId(UUID organizationId);
+
+    long countByOrganizationIdAndRole(UUID organizationId, Role role);
 }
