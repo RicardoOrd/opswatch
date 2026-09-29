@@ -163,27 +163,29 @@ Fuera del pipeline de PR. Procedimiento en el [plan de benchmarks](../performanc
 
 ### Rapidez
 
-1. **Un contenedor de PostgreSQL por ejecución de la JVM**, compartido por todas las clases de test con `@ServiceConnection`:
+1. **Un contenedor de PostgreSQL por ejecución de la JVM**, compartido por todas las clases de test. Un test de integración lo usa con `@Import(PostgresTestcontainer.class)`, y `@ServiceConnection` conecta el `DataSource` y Flyway sin propiedades:
 
 ```java
-@TestConfiguration(proxyBeanMethods = false)
-class PostgresTestcontainer {
-
-    @Bean
-    @ServiceConnection
-    PostgreSQLContainer<?> postgres() {
-        return new PostgreSQLContainer<>("postgres:18-alpine");   // misma imagen que en producción
-    }
-}
+@SpringBootTest
+@Import(PostgresTestcontainer.class)
+class MonitorRepositoryIT { … }
 ```
 
-(La clase y el paquete exactos del contenedor dependen de la versión de Testcontainers fijada en el Sprint 0: la 2.x reorganizó módulos y paquetes.)
+`PostgresTestcontainer` (en `src/test`, OW-007) resuelve tres detalles que un `@Bean` que devuelve `new PostgreSQLContainer(…)` no cubre:
+
+- **Un contenedor por JVM, no por contexto.** El contenedor es estático y el `@Bean` siempre devuelve el mismo. Un `@Bean` que lo crea tendría un contenedor por cada contexto de Spring distinto.
+- **Sobrevive al cierre de cualquier contexto.** Spring Boot cierra los contenedores que son beans al cerrar su contexto: con `@DirtiesContext` o cuando la cache de contextos expulsa uno. Por eso `stop()` no hace nada y Ryuk borra el contenedor al terminar la JVM. `PostgresTestcontainerIT` lo comprueba con dos contextos distintos.
+- **La imagen sale de `docker-compose.yml`.** Es la única fuente del digest y la que actualiza Dependabot, así que los tests usan el mismo PostgreSQL que el desarrollo local y producción. Testcontainers 2.0.5 no acepta `nombre:tag@digest`, así que el tag se quita y el digest fija la imagen.
 
 2. **Reutilización del contexto de Spring:** pocas configuraciones de contexto distintas. Cada `@MockitoBean` o perfil diferente crea un contexto nuevo, así que se usan con criterio.
 3. **Aislamiento de datos sin recrear la base de datos:** cada test crea sus propios datos con ids únicos y no depende de que la base de datos esté vacía. Donde hace falta empezar de cero, `TRUNCATE` de las tablas del módulo antes del test.
-4. **Reutilización del contenedor entre ejecuciones en local:** `testcontainers.reuse.enable=true` en `~/.testcontainers.properties` del desarrollador. **No en CI**, que siempre empieza limpio.
-5. **Separación Surefire y Failsafe:** `*Test` son unitarios (`mvn test`, sin Docker) y `*IT` son de integración (`mvn verify`). Se puede iterar sobre lógica pura sin arrancar contenedores.
+4. **Reutilización del contenedor entre ejecuciones en local** (opcional, ahorra unos 4 s por ejecución): añadir `testcontainers.reuse.enable=true` a `~/.testcontainers.properties`. `PostgresTestcontainer` ya declara `withReuse(true)`, que solo tiene efecto con esa línea. **No en CI**, que siempre empieza limpio. Con la reutilización activa:
+   - El contenedor queda en marcha al terminar (`docker ps`), con los datos y las migraciones de la ejecución anterior. Por eso los tests no pueden depender de una base de datos vacía (punto 3).
+   - Editar una migración ya aplicada, algo que solo pasa mientras se escribe, hace fallar la validación de Flyway por el checksum. Se borra el contenedor (`docker rm -f <id>`) y la siguiente ejecución crea uno nuevo.
+5. **Separación Surefire y Failsafe:** `*Test` y `*Tests` son unitarios (`./mvnw test`, sin Docker) y `*IT` son de integración (`./mvnw verify`). Se puede iterar sobre lógica pura sin arrancar contenedores.
 6. **Objetivo:** la suite completa por debajo de 5 minutos en CI. Si se supera, primero se revisa el número de contextos de Spring.
+
+**Baseline (OW-007, 2026-09-28):** `./mvnw clean verify` tarda **28 s** en local, con Windows 11, 12 hilos, 16 GB, Docker Desktop 29.6, la imagen ya descargada y sin reutilización. Son 56 tests unitarios y 8 de integración, con un solo contenedor que arranca en unos 4 s. La medida de CI llega con OW-010.
 
 ### CI
 

@@ -183,21 +183,21 @@ Línea de metadatos: `tipos` · prioridad · milestone · estado. Después: Cont
 - **Definition of Done:** catálogo de propiedades actualizado con lo implementado.
 
 ### OW-007 · Infraestructura de tests con Testcontainers
-`testing` · P1 · Milestone: Sprint 0 — Fundaciones · **Ready**
+`testing` · P1 · Milestone: Sprint 0 — Fundaciones · **Hecha**
 
 - **Context:** sin H2. Los tests de integración usan PostgreSQL real y deben ser rápidos ([estrategia](../testing/testing-strategy.md#testcontainers)).
 - **Objective:** un contenedor compartido, Surefire y Failsafe separados y convenciones claras.
 - **Tasks:**
-  - [ ] `PostgresTestcontainer` con `@ServiceConnection`, con la misma imagen que producción. La imagen se lee de `docker-compose.yml`, la única fuente: Dependabot actualiza el digest ahí y no en el código de los tests.
-  - [ ] Surefire (`*Test`) y Failsafe (`*IT`) en el `pom.xml`.
-  - [ ] `ApplicationStartupIT` (existe desde OW-004) pasa a usar `PostgresTestcontainer`.
-  - [ ] Nota breve en `docs/testing/` sobre la reutilización del contenedor en local.
+  - [x] `PostgresTestcontainer` con `@ServiceConnection`: un contenedor por JVM que sobrevive al cierre de cualquier contexto, con la imagen leída de `docker-compose.yml` (la única fuente: Dependabot actualiza el digest ahí).
+  - [x] Surefire (`*Test`, `*Tests`) y Failsafe (`*IT`): los valores por defecto del `pom.xml` de Spring Boot, declarados en OW-002.
+  - [x] `ApplicationStartupIT` (existe desde OW-004) usa `PostgresTestcontainer` y arranca la aplicación en puertos aleatorios reales.
+  - [x] Nota en la [estrategia de testing](../testing/testing-strategy.md#rapidez) sobre la reutilización del contenedor en local.
 - **Acceptance Criteria:** `./mvnw test` no arranca Docker; `./mvnw verify` sí; un solo contenedor de PostgreSQL por ejecución de la JVM. `ApplicationStartupIT` comprueba además, con la aplicación arrancada en puertos reales: `readiness` en `UP` en el puerto 8081, `/actuator/env` → `404` (heredado de OW-008) y una línea de log de una petición con su `requestId` (heredado de OW-006).
 - **Testing:**
-  - Integración: la propia suite y `ApplicationStartupIT`.
+  - Integración: `ApplicationStartupIT` (PostgreSQL 18, Flyway, `ddl-auto=validate`, `clean` rechazado, readiness, `/actuator/env` → `404` y el `requestId` en el log de una petición) y `PostgresTestcontainerIT` (un solo contenedor para dos contextos distintos, vivo tras cerrarlos).
 - **Security considerations:** la configuración solo para tests (`allowed-private-cidrs`, controladores de prueba, dobles de `EmailSender`) vive en `src/test` y en el perfil `test`, nunca en el código de producción; las salvaguardas de OW-006 impiden activarla en `production`. Probar contra la misma imagen de PostgreSQL que producción evita falsos verdes.
 - **Dependencies:** OW-004.
-- **Definition of Done:** tiempo de `./mvnw verify` anotado como baseline.
+- **Definition of Done:** tiempo de `./mvnw verify` anotado como baseline: 28 s en local ([estrategia de testing](../testing/testing-strategy.md#rapidez)).
 
 ### OW-008 · Seguridad base: denegar por defecto, cabeceras y CORS
 `security` · P1 · Milestone: Sprint 0 — Fundaciones · **Hecha**
@@ -272,6 +272,7 @@ Hecha el 2026-09-28: documentación publicada en el PR #1, issues creadas desde 
   - [ ] `RegistrationService` con `DelegatingPasswordEncoder` (bcrypt, coste 12).
   - [ ] Validación de la contraseña: de 12 caracteres a 72 bytes UTF-8.
   - [ ] Generador de UUIDv7.
+  - [ ] Primer builder de test (`aUser()`), según la [convención](../testing/testing-strategy.md#convenciones); aplazado desde OW-007, que no tenía entidades.
 - **Acceptance Criteria:** `201` con el usuario sin hash; un email duplicado, sin distinguir mayúsculas, da `409`; una contraseña de 73 bytes da `400`; el hash guardado empieza por `{bcrypt}`.
 - **Testing:**
   - Unitarios: invariantes de `User`, validación de la contraseña (límites de 12 caracteres y 72 bytes con caracteres multibyte).
