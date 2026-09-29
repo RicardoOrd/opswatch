@@ -61,6 +61,11 @@ public class ProblemDetailsHandler extends ResponseEntityExceptionHandler {
                     .header(HttpHeaders.WWW_AUTHENTICATE, BEARER)
                     .body(problem);
         }
+        if (ex instanceof RateLimitExceededException limited) {
+            return ResponseEntity.status(problem.getStatus())
+                    .header(HttpHeaders.RETRY_AFTER, String.valueOf(limited.retryAfterSeconds()))
+                    .body(problem);
+        }
         return respond(problem);
     }
 

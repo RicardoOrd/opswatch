@@ -13,5 +13,9 @@ logging:
       console: ecs
 
 server:
-  # Solo detrás de Caddy, el único proxy de confianza
-  forward-headers-strategy: framework
+  # Tomcat toma la IP del cliente de X-Forwarded-For solo si la conexión llega desde un proxy de
+  # server.tomcat.remoteip.internal-proxies. Ese valor es la IP de Caddy en la red de cada entorno y llega del entorno
+  # (SERVER_TOMCAT_REMOTEIP_INTERNALPROXIES=172.30.0.2/32), en notación CIDR: sin "/", Tomcat lo lee como una regex.
+  # Sin él, Tomcat confiaría en cualquier dirección privada, también en otros contenedores del host, y cualquiera de
+  # ellos podría elegir la IP que ve el rate limiting. DeploymentGuardrails exige las dos propiedades
+  forward-headers-strategy: native

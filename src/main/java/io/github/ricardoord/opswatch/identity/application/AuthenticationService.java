@@ -7,12 +7,9 @@ import io.github.ricardoord.opswatch.identity.domain.UserRepository;
 import io.github.ricardoord.opswatch.identity.domain.UserStatus;
 import io.github.ricardoord.opswatch.identity.security.AccessToken;
 import io.github.ricardoord.opswatch.identity.security.AccessTokenIssuer;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import io.github.ricardoord.opswatch.identity.security.EmailHash;
 import java.security.SecureRandom;
 import java.util.Base64;
-import java.util.HexFormat;
 import java.util.Optional;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -112,20 +109,9 @@ public class AuthenticationService {
                 .addKeyValue("event.category", "security")
                 .addKeyValue("event.action", "auth.login.failed")
                 .addKeyValue("event.reason", reason)
-                .addKeyValue("user.email.hash", emailHash(normalizedEmail))
+                .addKeyValue("user.email.hash", EmailHash.of(normalizedEmail))
                 .addKeyValue("client.address", clientAddress)
                 .log("Login failed: {}", reason);
-    }
-
-    /** Enough to link attempts against the same account without writing the email down. */
-    private static String emailHash(String normalizedEmail) {
-        try {
-            byte[] digest =
-                    MessageDigest.getInstance("SHA-256").digest(normalizedEmail.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest, 0, 8);
-        } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException("SHA-256 is always available", ex);
-        }
     }
 
     private static String randomPassword() {

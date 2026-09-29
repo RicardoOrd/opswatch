@@ -14,6 +14,8 @@ class DeploymentGuardrailsTest {
         "spring.datasource.url=jdbc:postgresql://db:5432/opswatch",
         "spring.datasource.password=from-a-secret",
         "opswatch.security.jwt.issuer=https://opswatch.example.com",
+        "server.forward-headers-strategy=native",
+        "server.tomcat.remoteip.internal-proxies=172.30.0.2/32",
     };
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner().withBean(DeploymentGuardrails.class);
@@ -74,6 +76,24 @@ class DeploymentGuardrailsTest {
     }
 
     @Test
+    void requiresNativeForwardedHeaders() {
+        // "framework" would take X-Forwarded-For from any client
+        assertFailsWith(
+                "server.forward-headers-strategy must be 'native'", "server.forward-headers-strategy=framework");
+    }
+
+    @Test
+    void requiresTheReverseProxyAsTheOnlyTrustedProxy() {
+        // Tomcat's default trusts every private address; without "/" the value would be read as a regex
+        assertFailsWith(
+                "server.tomcat.remoteip.internal-proxies must be the address of the reverse proxy",
+                "server.tomcat.remoteip.internal-proxies=");
+        assertFailsWith(
+                "server.tomcat.remoteip.internal-proxies must be the address of the reverse proxy",
+                "server.tomcat.remoteip.internal-proxies=172\\.30\\.0\\.2");
+    }
+
+    @Test
     void rejectsSwaggerInProductionUnlessExplicitlyPublic() {
         production()
                 .withPropertyValues(SAFE_DEPLOYED_CONFIG)
@@ -97,13 +117,25 @@ class DeploymentGuardrailsTest {
         // The guardrails only run under "deployed": if the group in application.yml broke, they would silently stop.
         // Read statically: starting an application with the production profile would switch the whole test JVM to
         // JSON logging.
-        var yaml = new YamlPropertiesFactoryBean();
-        yaml.setResources(new ClassPathResource("application.yml"));
-        Properties properties = yaml.getObject();
+        Properties properties = yaml("application.yml");
 
-        assertThat(properties).isNotNull();
         assertThat(properties.getProperty("spring.profiles.group.production")).isEqualTo(DeploymentGuardrails.DEPLOYED);
         assertThat(properties.getProperty("spring.profiles.group.staging")).isEqualTo(DeploymentGuardrails.DEPLOYED);
+    }
+
+    @Test
+    void deployedProfileTakesTheClientAddressFromTrustedProxiesOnly() {
+        Properties properties = yaml("application-deployed.yml");
+
+        assertThat(properties.getProperty("server.forward-headers-strategy")).isEqualTo("native");
+    }
+
+    private static Properties yaml(String resource) {
+        var yaml = new YamlPropertiesFactoryBean();
+        yaml.setResources(new ClassPathResource(resource));
+        Properties properties = yaml.getObject();
+        assertThat(properties).isNotNull();
+        return properties;
     }
 
     private ApplicationContextRunner production() {

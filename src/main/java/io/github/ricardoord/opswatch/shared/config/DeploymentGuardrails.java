@@ -66,6 +66,18 @@ public class DeploymentGuardrails implements SmartInitializingSingleton {
             }
         }
 
+        // The rate limits key on the client address. With "framework" any client could choose it in X-Forwarded-For,
+        // and with Tomcat's default proxies any private address could, including every other container of the host
+        String forwardHeaders = environment.getProperty("server.forward-headers-strategy", "");
+        if (!forwardHeaders.equalsIgnoreCase("native")) {
+            violations.add("server.forward-headers-strategy must be 'native'");
+        }
+        String proxies = environment.getProperty("server.tomcat.remoteip.internal-proxies", "");
+        if (!proxies.contains("/")) {
+            violations.add("server.tomcat.remoteip.internal-proxies must be the address of the reverse proxy in CIDR "
+                    + "notation, like 172.30.0.2/32");
+        }
+
         // Tokens are only as trustworthy as the issuer they name, and the client only reaches it over TLS
         String issuer = environment.getProperty("opswatch.security.jwt.issuer", "");
         if (!issuer.startsWith("https://")) {

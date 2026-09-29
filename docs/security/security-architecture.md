@@ -164,7 +164,11 @@ Las contraseñas no se cifran: se **hashean**. Los refresh tokens tampoco: se **
 - **HTTPS obligatorio** en staging y producción. Caddy termina TLS con certificados de Let's Encrypt renovados automáticamente.
 - **HSTS** (`max-age=31536000; includeSubDomains`) una vez comprobado que todo el dominio sirve HTTPS.
 - Entre Caddy y la aplicación hay HTTP dentro de la red interna de Docker, en el mismo host. Con servicios en varios hosts, se reevalúa (mTLS entre servicios).
-- La aplicación confía en `X-Forwarded-*` **solo** si viene de Caddy (`server.forward-headers-strategy=framework` y proxies de confianza restringidos a la red interna). Si no, cualquiera podría falsear su IP y saltarse el rate limiting.
+- La aplicación confía en `X-Forwarded-*` **solo** si la conexión viene de Caddy. Lo comprueba Tomcat (`server.forward-headers-strategy=native`) contra `server.tomcat.remoteip.internal-proxies`, que en los despliegues es la IP de Caddy en notación CIDR. Si no, cualquiera podría falsear su IP y saltarse el rate limiting.
+  - `framework` no sirve: el filtro de Spring acepta el header de cualquier cliente.
+  - Los proxies por defecto de Tomcat tampoco: aceptan cualquier dirección privada, incluidos los demás contenedores del host.
+  - `DeploymentGuardrails` impide arrancar `staging` o `production` sin las dos propiedades.
+  - Caddy, sin `trusted_proxies`, sustituye el `X-Forwarded-For` que envía el cliente por la IP real.
 
 ## 6. Navegador: CORS, CSRF, XSS y cabeceras
 
@@ -219,7 +223,12 @@ Las contraseñas no se cifran: se **hashean**. Los refresh tokens tampoco: se **
 | Resto de la API autenticada | 300/min (Fase 5) | usuario |
 | `POST /api/v1/notification-channels/{id}/test` | 5/min | canal |
 
-- Implementación en V1: **Bucket4j en memoria** (una instancia). Respuesta `429` con `Retry-After`.
+- Implementación en V1: **Bucket4j en memoria** (una instancia), en `AuthRateLimiter`. Respuesta `429 rate-limited` con `Retry-After` en segundos.
+- Relleno gradual: tras agotar el cupo, vuelve un intento cada `periodo / límite` (uno cada 6 s en el login por IP), no el cupo entero al acabar el periodo.
+- Nunca se bloquea una cuenta: solo se rechazan los intentos por encima del límite, así que un atacante no puede dejar fuera al dueño más allá de lo que dure el ataque. Un intento que rechaza el límite por IP no cuenta contra el email.
+- La clave por email usa el email normalizado. La clave por IP es la dirección IPv4 o el prefijo /64 de una IPv6: un cliente IPv6 suele tener el /64 entero, y con una clave por dirección tendría 2^64 cupos.
+- Los buckets viven en una cache de Caffeine acotada: 10 000 claves por límite y expiración tras un periodo sin uso, cuando el bucket ya está lleno y olvidarlo no cambia nada. Sin límite, millones de IP o de emails distintos agotarían la memoria.
+- Cada clave que alcanza un límite deja un evento de seguridad `auth.rate_limited` por ráfaga, no uno por petición rechazada.
 - Con varias instancias, los límites en memoria se multiplican por el número de instancias. Ese es uno de los disparadores de Redis ([ADR-009](../adr/ADR-009-redis.md)), o de Bucket4j sobre PostgreSQL como alternativa sin infraestructura nueva.
 
 ## 9. Logs y datos sensibles

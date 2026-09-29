@@ -5,3 +5,10 @@ opswatch:
       # bcrypt barato: los tests no miden la resistencia del hash y el coste 12 los haría lentos.
       # DeploymentGuardrails impide que este valor llegue a staging o a producción
       bcrypt-strength: 4
+    # Todas las peticiones de MockMvc llegan desde 127.0.0.1 y los tests que comparten contexto se sumarían. Los
+    # límites reales se prueban en AuthRateLimitIT, con su propio contexto
+    rate-limit:
+      login-per-ip: 100000/1m
+      login-per-email: 100000/1m
+      register-per-ip: 100000/1m
+      refresh-per-ip: 100000/1m

@@ -5,10 +5,12 @@ import io.github.ricardoord.opswatch.identity.application.InvalidRefreshTokenExc
 import io.github.ricardoord.opswatch.identity.application.RegistrationService;
 import io.github.ricardoord.opswatch.identity.application.SessionTokens;
 import io.github.ricardoord.opswatch.identity.domain.User;
+import io.github.ricardoord.opswatch.identity.security.AuthRateLimiter;
 import io.github.ricardoord.opswatch.identity.security.TrustedOrigins;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -37,20 +39,25 @@ class AuthController {
     /** The account of the caller once signed in: the only URL through which a user reads their own account. */
     static final URI CURRENT_USER = URI.create("/api/v1/me");
 
+    private static final String RETRY_AFTER = "Seconds until the next attempt is allowed";
+
     private final RegistrationService registration;
     private final AuthenticationService authentication;
     private final RefreshTokenCookies cookies;
     private final TrustedOrigins trustedOrigins;
+    private final AuthRateLimiter rateLimiter;
 
     AuthController(
             RegistrationService registration,
             AuthenticationService authentication,
             RefreshTokenCookies cookies,
-            TrustedOrigins trustedOrigins) {
+            TrustedOrigins trustedOrigins,
+            AuthRateLimiter rateLimiter) {
         this.registration = registration;
         this.authentication = authentication;
         this.cookies = cookies;
         this.trustedOrigins = trustedOrigins;
+        this.rateLimiter = rateLimiter;
     }
 
     @PostMapping("/register")
@@ -70,7 +77,21 @@ class AuthController {
                     @Content(
                             mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
                             schema = @Schema(implementation = ProblemDetail.class)))
-    ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterUserRequest request) {
+    @ApiResponse(
+            responseCode = "429",
+            description = "More than 5 registrations in an hour from the same address",
+            headers =
+                    @Header(
+                            name = HttpHeaders.RETRY_AFTER,
+                            description = RETRY_AFTER,
+                            schema = @Schema(type = "integer")),
+            content =
+                    @Content(
+                            mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                            schema = @Schema(implementation = ProblemDetail.class)))
+    ResponseEntity<UserResponse> register(
+            @Valid @RequestBody RegisterUserRequest request, HttpServletRequest httpRequest) {
+        rateLimiter.checkRegistration(httpRequest.getRemoteAddr());
         // Bean Validation has already rejected null fields
         User user = registration.register(
                 Objects.requireNonNull(request.email()),
@@ -98,12 +119,25 @@ class AuthController {
                     @Content(
                             mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
                             schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(
+            responseCode = "429",
+            description = "More than 10 attempts in a minute from the same address, or more than 5 against the same "
+                    + "email from any address. The account is never locked",
+            headers =
+                    @Header(
+                            name = HttpHeaders.RETRY_AFTER,
+                            description = RETRY_AFTER,
+                            schema = @Schema(type = "integer")),
+            content =
+                    @Content(
+                            mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                            schema = @Schema(implementation = ProblemDetail.class)))
     ResponseEntity<AccessTokenResponse> login(
             @Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
-        SessionTokens session = authentication.login(
-                Objects.requireNonNull(request.email()),
-                Objects.requireNonNull(request.password()),
-                httpRequest.getRemoteAddr());
+        String email = Objects.requireNonNull(request.email());
+        rateLimiter.checkLogin(httpRequest.getRemoteAddr(), email);
+        SessionTokens session =
+                authentication.login(email, Objects.requireNonNull(request.password()), httpRequest.getRemoteAddr());
         return withSession(session);
     }
 
@@ -133,7 +167,20 @@ class AuthController {
                     @Content(
                             mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
                             schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(
+            responseCode = "429",
+            description = "More than 30 refreshes in a minute from the same address",
+            headers =
+                    @Header(
+                            name = HttpHeaders.RETRY_AFTER,
+                            description = RETRY_AFTER,
+                            schema = @Schema(type = "integer")),
+            content =
+                    @Content(
+                            mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                            schema = @Schema(implementation = ProblemDetail.class)))
     ResponseEntity<AccessTokenResponse> refresh(HttpServletRequest httpRequest) {
+        rateLimiter.checkRefresh(httpRequest.getRemoteAddr());
         requireTrustedOrigin(httpRequest);
         String refreshToken = refreshToken(httpRequest);
         if (refreshToken == null) {

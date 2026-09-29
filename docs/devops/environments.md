@@ -90,8 +90,8 @@ Los rangos de validación del dominio (intervalo de 30 a 3600 s, timeout de 1 a 
 | `opswatch.security.encryption.keys.<id>` | — (**secreto**) | AES-256 en Base64. Varias para rotar |
 | `opswatch.security.encryption.active-key-id` | — | Clave con la que se cifra lo nuevo |
 | `opswatch.security.cors.allowed-origins` | vacío | Nunca `*` |
-| `opswatch.security.rate-limit.login-per-ip` | `10/1m` | |
-| `opswatch.security.rate-limit.login-per-email` | `5/1m` | |
+| `opswatch.security.rate-limit.login-per-ip` | `10/1m` | Formato `<intentos>/<periodo>`. IPv6 por prefijo /64. Los cuatro límites de autenticación son `100000/1m` en `test`, porque los tests con MockMvc comparten 127.0.0.1; `AuthRateLimitIT` prueba estos |
+| `opswatch.security.rate-limit.login-per-email` | `5/1m` | Email normalizado |
 | `opswatch.security.rate-limit.register-per-ip` | `5/1h` | |
 | `opswatch.security.rate-limit.refresh-per-ip` | `30/1m` | |
 | `opswatch.security.rate-limit.password-change-per-user` | `5/15m` | Contra adivinar la contraseña actual con un access token robado |
@@ -174,7 +174,8 @@ Los rangos de validación del dominio (intervalo de 30 a 3600 s, timeout de 1 a 
 | `spring.mvc.problemdetails.enabled` | No se usa | `ProblemDetailsHandler` sustituye al manejador de Problem Details de Spring Boot, que se desactiva solo al existir otro `ResponseEntityExceptionHandler` |
 | `server.shutdown` | `graceful` | |
 | `spring.lifecycle.timeout-per-shutdown-phase` | `35s` | |
-| `server.forward-headers-strategy` | `framework` | Solo con proxies de confianza |
+| `server.forward-headers-strategy` | `native` en `staging` y `production` | Tomcat acepta `X-Forwarded-*` solo de los proxies de `internal-proxies`. `framework` lo aceptaría de cualquier cliente |
+| `server.tomcat.remoteip.internal-proxies` | — (obligatoria en `staging` y `production`) | IP de Caddy en la red del entorno, en notación CIDR (`172.30.0.2/32`); sin `/`, Tomcat lo lee como una regex. Llega del entorno (`SERVER_TOMCAT_REMOTEIP_INTERNALPROXIES`). El valor por defecto de Tomcat acepta cualquier dirección privada |
 | `management.server.port` | `8081` | Separado de la API |
 | `management.endpoints.web.exposure.include` | `health,info,prometheus` | Nada más |
 | `management.endpoint.health.probes.enabled` | `true` | `liveness` y `readiness` |
@@ -193,6 +194,7 @@ Con el perfil `staging` o `production`, la aplicación falla al arrancar si:
 - `spring.flyway.clean-disabled` es `false`;
 - `opswatch.security.password.bcrypt-strength` es menor que 12 (el coste 4 del perfil `test` nunca llega a un despliegue);
 - `opswatch.security.jwt.issuer` no es una URL `https`;
+- `server.forward-headers-strategy` no es `native`, o `server.tomcat.remoteip.internal-proxies` no es un CIDR: sin ellos, el rate limiting vería una IP que el cliente puede elegir;
 - Swagger UI está activado en `production` sin la propiedad explícita que lo permite (`opswatch.api.docs-public=true`).
 
 En **cualquier** perfil, también en `local`, la aplicación no arranca sin `opswatch.security.jwt.private-key` ni `opswatch.security.jwt.issuer`, ni con una clave RSA de menos de 2048 bits (validación de `JwtProperties` y `JwtKeys`, OW-013). El mensaje nombra la propiedad, nunca la clave.

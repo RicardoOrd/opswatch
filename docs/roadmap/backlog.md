@@ -337,20 +337,21 @@ Hecha el 2026-09-28: documentación publicada en el PR #1, issues creadas desde 
 - **Definition of Done:** cubiertos T-03 y T-09 del threat model.
 
 ### OW-015 · Rate limiting de los endpoints de autenticación
-`security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Ready**
+`security` · P1 · Milestone: v0.1.0 — Identity y organizaciones · **Hecha**
 
-- **Context:** protección contra fuerza bruta y credential stuffing, sin bloquear cuentas. `application-deployed.yml` usa hoy `server.forward-headers-strategy=framework`, que acepta `X-Forwarded-For` de cualquier cliente que llegue a la aplicación: solo la red impide falsear la IP.
+- **Context:** protección contra fuerza bruta y credential stuffing, sin bloquear cuentas. `application-deployed.yml` usaba `server.forward-headers-strategy=framework`, que acepta `X-Forwarded-For` de cualquier cliente que llegue a la aplicación: solo la red impedía falsear la IP.
 - **Objective:** los límites de autenticación de la [tabla de rate limiting](../security/security-architecture.md#8-rate-limiting) con Bucket4j en memoria: login por IP y por email, registro por IP y refresh por IP.
 - **Tasks:**
-  - [ ] Dependencia de Bucket4j. No la gestiona Boot: la versión se confirma con Ricardo al empezar.
-  - [ ] `AuthRateLimiter` con los límites `opswatch.security.rate-limit.*` del [catálogo](../devops/environments.md#seguridad). La clave por email usa el email normalizado.
-  - [ ] Buckets en una cache acotada (tamaño máximo y expiración). Sin límite, millones de IP o de emails distintos agotarían la memoria.
-  - [ ] `429` con `Retry-After` y Problem Details.
-  - [ ] IP real: `server.forward-headers-strategy=native` con `server.tomcat.remoteip.internal-proxies` limitado a Caddy, para que la aplicación compruebe de dónde viene el header en lugar de confiar solo en la red. Corregir también la [arquitectura de seguridad](../security/security-architecture.md#5-transporte) y el [catálogo](../devops/environments.md), que hoy describen `framework` como si restringiera los proxies.
+  - [x] Dependencia `com.bucket4j:bucket4j_jdk17-core` 8.20.0, confirmada con Ricardo. Caffeine, gestionado por Boot, para la cache.
+  - [x] `AuthRateLimiter` con los límites `opswatch.security.rate-limit.*` del [catálogo](../devops/environments.md#seguridad) (`RateLimitProperties`, formato `10/1m`), llamado por `AuthController` antes de cualquier otro trabajo. La clave por email usa el email normalizado; la clave por IP agrupa las IPv6 por /64. Un intento que rechaza el límite por IP no cuenta contra el email.
+  - [x] Buckets en una cache acotada de Caffeine: 10 000 claves por límite y expiración tras un periodo sin uso, cuando el bucket ya está lleno. Sin límite, millones de IP o de emails distintos agotarían la memoria.
+  - [x] `429 rate-limited` con `Retry-After` en segundos redondeados hacia arriba y Problem Details (`RateLimitExceededException`). Un evento de seguridad `auth.rate_limited` por ráfaga, no por petición.
+  - [x] IP real: `server.forward-headers-strategy=native` con `server.tomcat.remoteip.internal-proxies` limitado a Caddy, en notación CIDR y desde el entorno, porque la IP de Caddy cambia con la red de cada entorno. `DeploymentGuardrails` exige las dos. Corregidas la [arquitectura de seguridad](../security/security-architecture.md#5-transporte), el [catálogo](../devops/environments.md) y [Docker](../devops/docker.md#producción-fase-6) (Caddy con IP fija).
 - **Acceptance Criteria:** el undécimo login por minuto desde una IP → `429`; el sexto intento por minuto contra un mismo email desde IPs distintas, aunque cambien las mayúsculas → `429`; el sexto registro en una hora desde una IP → `429`; el refresh número 31 en un minuto desde una IP → `429`; un `X-Forwarded-For` que no llega desde el proxy de confianza no cambia la IP usada.
 - **Testing:**
-  - Integración: `AuthRateLimitIT` con `Clock` controlado.
-  - Seguridad: suplantación de IP con `X-Forwarded-For`, con la configuración de proxies de `application-deployed.yml` y no la de los tests.
+  - Unitarios: `AuthRateLimiterTest` (límites, relleno, IPv6, expiración, un evento por ráfaga) y `RateLimitTest` (formato y valores por defecto del catálogo).
+  - Integración: `AuthRateLimitIT` con `MutableClock`, contra el servidor real y no MockMvc, porque la IP la resuelve el `RemoteIpValve` de Tomcat. Tiene su propio contexto: el perfil `test` sube los límites porque todas las peticiones de MockMvc llegan desde 127.0.0.1.
+  - Seguridad: suplantación de IP con `X-Forwarded-For`, con la configuración de servidor de `application-deployed.yml` y no la de los tests. 127.0.0.2 hace de Caddy y 127.0.0.1 de cualquier otro host.
 - **Security considerations:** sin bloqueo de cuentas, para que un atacante no pueda dejar fuera a la víctima; `X-Forwarded-For` solo desde proxies de confianza; la cache acotada evita que el propio limitador sea una vía de agotamiento de memoria. Límite conocido: con varias instancias, los límites en memoria se multiplican (ADR-009).
 - **Dependencies:** OW-013 y OW-014 (el límite de refresh necesita su endpoint).
 - **Definition of Done:** la arquitectura de seguridad y el catálogo de propiedades describen la configuración de proxies que existe.
