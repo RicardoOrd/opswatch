@@ -2,15 +2,15 @@
 
 Estado: diseño inicial · Última revisión: 2026-09-29 · Convenciones: [api-guidelines.md](api-guidelines.md) · Permisos: [authorization-model.md](../security/authorization-model.md)
 
-**Existen `POST /api/v1/auth/register` (OW-012), `POST /api/v1/auth/login` y `GET /api/v1/me` (OW-013), y `POST /api/v1/auth/refresh` y `POST /api/v1/auth/logout` (OW-014). El resto está planificado.** La columna "Fase" indica cuándo se implementa cada uno. Los errores comunes a todos los endpoints autenticados (`401`, `404` a quien no es miembro, `429` y `500`) no se repiten en cada tabla.
+**Existen `POST /api/v1/auth/register` (OW-012), `POST /api/v1/auth/login` y `GET /api/v1/me` (OW-013), y `POST /api/v1/auth/refresh` y `POST /api/v1/auth/logout` (OW-014), con rate limiting desde OW-015. El resto está planificado.** La columna "Fase" indica cuándo se implementa cada uno. Los errores comunes a todos los endpoints autenticados (`401`, `404` a quien no es miembro, `429` y `500`) no se repiten en cada tabla.
 
 ## Autenticación (`identity`)
 
 | Método | Ruta | Autenticación | Éxito | Errores específicos | Fase |
 |---|---|---|---|---|---|
-| `POST` | `/api/v1/auth/register` | Pública | `201` (no inicia sesión) | `400`, `409 conflict` (email registrado), `429` (desde OW-015) | 1 |
-| `POST` | `/api/v1/auth/login` | Pública | `200` y cookie de refresh | `400`, `401 invalid-credentials` (el mismo cuerpo exista o no el email), `429` (desde OW-015) | 1 |
-| `POST` | `/api/v1/auth/refresh` | Cookie | `200` y cookie nueva | `401 unauthenticated` (token ausente, desconocido, caducado, revocado o reutilizado, o cuenta deshabilitada), `403 access-denied` (`Origin` ausente o no permitido), `415` (sin `Content-Type: application/json`) | 1 |
+| `POST` | `/api/v1/auth/register` | Pública | `201` (no inicia sesión) | `400`, `409 conflict` (email registrado), `429 rate-limited` (más de 5 por hora desde una IP) | 1 |
+| `POST` | `/api/v1/auth/login` | Pública | `200` y cookie de refresh | `400`, `401 invalid-credentials` (el mismo cuerpo exista o no el email), `429 rate-limited` (más de 10 por minuto desde una IP o más de 5 contra un email) | 1 |
+| `POST` | `/api/v1/auth/refresh` | Cookie | `200` y cookie nueva | `401 unauthenticated` (token ausente, desconocido, caducado, revocado o reutilizado, o cuenta deshabilitada), `403 access-denied` (`Origin` ausente o no permitido), `415` (sin `Content-Type: application/json`), `429 rate-limited` (más de 30 por minuto desde una IP) | 1 |
 | `POST` | `/api/v1/auth/logout` | Cookie | `204` y cookie borrada, también sin cookie o con un token desconocido | `403 access-denied` (`Origin` ausente o no permitido), `415` | 1 |
 | `GET` | `/api/v1/me` | JWT | `200` | `401` (token ausente, inválido o caducado) | 1 |
 | `PATCH` | `/api/v1/me` | JWT | `200` | `400` | 1 |

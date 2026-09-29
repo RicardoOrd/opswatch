@@ -50,7 +50,7 @@ Contraseñas, hashes, tokens (access y refresh), cookies, valores de headers de 
 
 Se registran con `event.category=security` para poder filtrarlos:
 
-- `auth.login.failed` (email con hash, IP), `auth.refresh.reuse_detected`, `auth.rate_limited`;
+- `auth.login.failed` (email con hash, IP), `auth.refresh.reuse_detected`, `auth.rate_limited` (límite, IP y, en el del email, su hash; uno por ráfaga, no por petición rechazada);
 - `authz.denied` (usuario, organización, permiso);
 - `egress.blocked` (monitor, host y rango, sin la query string);
 - `membership.role_changed`, `membership.removed`.

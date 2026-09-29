@@ -73,6 +73,7 @@ La lógica pura, sin Spring, sin base de datos y sin red:
 - `MockMvcTester` (API de AssertJ para MockMvc de Spring Framework 6.2 y posteriores) contra el contexto completo con PostgreSQL de Testcontainers. Los endpoints se prueban **con la seguridad real activada**.
 - Cada endpoint: caso feliz, validación (`400` con `errors[]`), `401`, `403`, `404` de otra organización, conflicto (`409` o `412`) donde aplique, y la forma exacta del JSON de respuesta, incluidos los campos que **no** deben aparecer (secretos).
 - **No** se usa `@WebMvcTest` con los servicios mockeados para la mayoría de endpoints: probaría el mapeo de Spring más que el comportamiento. Se reserva para casos de serialización o validación aislados.
+- MockMvc no pasa por Tomcat. Lo que depende del servidor real, como la IP del cliente que resuelve el `RemoteIpValve` a partir de `X-Forwarded-For`, se prueba con `RANDOM_PORT` y el `HttpClient` del JDK (`AuthRateLimitIT`). Todas las peticiones de MockMvc llegan desde 127.0.0.1: por eso el perfil `test` sube los límites de rate limiting, y `AuthRateLimitIT` prueba los reales en su propio contexto.
 
 ### Pruebas de seguridad
 

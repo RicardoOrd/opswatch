@@ -7,6 +7,7 @@ import jakarta.servlet.RequestDispatcher;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import java.time.Duration;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -111,7 +112,8 @@ class ProblemDetailsHandlerTest {
         "target-not-allowed, 422, target-not-allowed",
         "optimistic-lock,    409, concurrent-modification",
         "bad-credentials,    401, unauthenticated",
-        "access-denied,      403, access-denied"
+        "access-denied,      403, access-denied",
+        "rate-limited,       429, rate-limited"
     })
     void translatesKnownExceptions(String path, int status, String code) {
         assertProblem(mvc.get().uri(BASE + "/" + path).exchange(), status, code);
@@ -122,6 +124,15 @@ class ProblemDetailsHandlerTest {
         MvcTestResult result = mvc.get().uri(BASE + "/bad-credentials").exchange();
 
         assertThat(result).headers().hasValue("WWW-Authenticate", "Bearer");
+    }
+
+    @Test
+    void rateLimitsSayWhenToRetryInWholeSeconds() {
+        MvcTestResult result = mvc.get().uri(BASE + "/rate-limited").exchange();
+
+        // 5.2 s rounds up: a retry after 5 s would be rejected again
+        assertThat(result).headers().hasValue("Retry-After", "6");
+        assertThat(result).bodyJson().extractingPath("$.detail").isEqualTo(RateLimitExceededException.DETAIL);
     }
 
     @Test
@@ -269,6 +280,11 @@ class ProblemDetailsHandlerTest {
         @GetMapping("/access-denied")
         void accessDenied() {
             throw new AccessDeniedException("denied");
+        }
+
+        @GetMapping("/rate-limited")
+        void rateLimited() {
+            throw new RateLimitExceededException(Duration.ofMillis(5200));
         }
 
         @GetMapping("/unexpected")

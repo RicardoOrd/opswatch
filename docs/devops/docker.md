@@ -125,6 +125,7 @@ Cada uno entra en su fase, con un profile de Compose para que no arranque si no 
 - `image: ghcr.io/ricardoord/opswatch:<versión>`, **sin `build`**: el servidor no compila.
 - Secretos como **Docker secrets** montados en `/run/secrets/…` y leídos con `configtree` ([entornos](environments.md)), no como variables de entorno. Las variables se ven en `docker inspect` y en `/proc/<pid>/environ`.
 - Sin puertos publicados: la aplicación escucha en la red interna y Caddy la alcanza por el nombre del servicio. PostgreSQL no se publica ni en loopback.
+- Caddy con IP fija en la red de cada entorno (`ipv4_address` sobre una subred declarada), porque la aplicación solo acepta `X-Forwarded-For` desde esa IP: `SERVER_TOMCAT_REMOTEIP_INTERNALPROXIES=<IP de Caddy>/32` ([seguridad](../security/security-architecture.md#5-transporte)). Sin `trusted_proxies` en el Caddyfile, Caddy sustituye el `X-Forwarded-For` que envía el cliente.
 - `restart: unless-stopped`.
 - Límites de CPU y memoria acordes con el VPS.
 - Logs en JSON con rotación del driver (`max-size`, `max-file`).
