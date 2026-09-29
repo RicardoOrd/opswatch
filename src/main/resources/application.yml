@@ -26,6 +26,19 @@ spring:
 server:
   shutdown: graceful
 
+management:
+  server:
+    # Puerto separado de la API; nunca se publica fuera del host
+    port: 8081
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
 logging:
   pattern:
     # El requestId (RequestIdFilter) aparece en cada línea de log de una petición
