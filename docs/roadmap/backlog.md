@@ -368,7 +368,7 @@ Hecha el 2026-09-28: documentación publicada en el PR #1, issues creadas desde 
   - [ ] `AccessControl.require`: `404` a quien no es miembro, `403` al miembro sin permiso. Una organización borrada da `404` a todos, también a sus miembros.
   - [ ] `OrganizationService`: creación con membresía `OWNER` en la misma transacción, borrado lógico y evento `OrganizationDeleted`.
   - [ ] Cuota `opswatch.limits.organizations-per-user`: cuenta las organizaciones no borradas de las que el usuario es `OWNER`. Se serializa por usuario (`pg_advisory_xact_lock`), para que dos creaciones simultáneas no la superen.
-  - [ ] `ETag` e `If-Match` en `PATCH`.
+  - [ ] `ETag` e `If-Match` en `PATCH`, también en `GET` y `PATCH /api/v1/me`, que OW-045 dejó sin ellos para no diseñar el mecanismo dos veces.
 - **Acceptance Criteria:** una organización nueva aparece en `GET /api/v1/organizations` con `myRole: OWNER`; un no miembro recibe `404` en `GET /api/v1/organizations/{orgId}`; un `VIEWER` recibe `403` en `PATCH`; la sexta organización de un usuario → `422 quota-exceeded`, también con creaciones simultáneas; un `If-Match` obsoleto → `412`; después de borrarla, sus miembros reciben `404` y deja de aparecer en su listado.
 - **Testing:**
   - Unitarios: mapa `Role` → `Permission` contra una tabla de datos.
@@ -419,20 +419,21 @@ Hecha el 2026-09-28: documentación publicada en el PR #1, issues creadas desde 
 - **Definition of Done:** la [estrategia de testing](../testing/testing-strategy.md#pruebas-de-seguridad) describe cómo añadir filas.
 
 ### OW-045 · Perfil del usuario: editar el nombre y cambiar la contraseña
-`feature` `security` · P2 · Milestone: v0.1.0 — Identity y organizaciones · **Ready**
+`feature` `security` · P2 · Milestone: v0.1.0 — Identity y organizaciones · **Hecha**
 
 - **Context:** el [catálogo](../api/endpoints-v1.md#autenticación-identity) y la [Fase 1 del roadmap](roadmap.md#fase-1-identity-y-organizaciones--010) incluyen `PATCH /api/v1/me` y `POST /api/v1/me/password`, pero ninguna issue los implementaba. Detectado al refinar la v0.1.0 (2026-09-29).
 - **Objective:** `PATCH /api/v1/me` y `POST /api/v1/me/password`.
 - **Tasks:**
-  - [ ] `PATCH /api/v1/me` con `displayName` como único campo editable. El email no cambia en V1: cambiarlo exige verificarlo (OW-037).
-  - [ ] `POST /api/v1/me/password` con `currentPassword` y `newPassword`: comprueba la actual, valida la nueva con las reglas de OW-012 y revoca todas las familias de refresh tokens del usuario (`PASSWORD_CHANGED`) en la misma transacción.
-  - [ ] Límite `opswatch.security.rate-limit.password-change-per-user` (`5/15m`) con el limitador de OW-015.
-  - [ ] `toString()` de los DTOs con contraseñas oculta sus valores.
+  - [x] `PATCH /api/v1/me` con `displayName` como único campo editable. El email no cambia en V1: cambiarlo exige verificarlo (OW-037). Un `displayName: null` explícito da `400` en lugar de tomarse por ausente (`NotNullIfPresent`, en `shared.web`). `ETag` e `If-Match` pasan a OW-016, que crea el mecanismo.
+  - [x] `POST /api/v1/me/password` con `currentPassword` y `newPassword`: comprueba la actual, valida la nueva con las reglas de OW-012 y revoca todas las familias de refresh tokens del usuario (`PASSWORD_CHANGED`) en la misma transacción. Los dos bcrypt van fuera de la transacción; dentro se comprueba que el hash sigue siendo el verificado (si otro cambio se adelantó, `409`). La contraseña actual incorrecta es un `InvalidFieldException`: `400 validation-error` con `incorrect-password` en `currentPassword`. Eventos `auth.password.changed` y `auth.password.change_failed`.
+  - [x] Límite `opswatch.security.rate-limit.password-change-per-user` (`5/15m`) con el limitador de OW-015, por usuario y desde cualquier IP.
+  - [x] `toString()` de los DTOs con contraseñas oculta sus valores.
 - **Acceptance Criteria:** `PATCH` con `displayName` → `200`; con `email` → `400` (propiedad desconocida); cambio con la contraseña actual correcta → `204`, y el refresh token de antes da `401`; con la actual incorrecta → `400` con el error en `currentPassword`; el sexto intento en 15 minutos → `429`.
 - **Testing:**
-  - API: `MeApiIT` y `PasswordChangeApiIT`.
+  - API: `MeApiIT` y `PasswordChangeApiIT`. El límite de cambio de contraseña se prueba con su valor real en el contexto compartido: va por usuario y cada test crea el suyo.
   - Integración: el cambio revoca todas las familias del usuario, y solo las suyas.
   - Seguridad: `toString()` de los DTOs y log del cambio sin contraseñas.
+  - Unitarios: `ProfileServiceTest` (contraseña incorrecta, cambio adelantado por otro), `UserTest`, `NotNullIfPresentTest` y `AuthRateLimiterTest`.
 - **Security considerations:** pedir la contraseña actual impide que un access token robado sirva para quedarse la cuenta, y el límite por usuario impide usarlo para adivinarla. Revocar todas las sesiones echa a quien tuviera un refresh token robado; los access tokens ya emitidos valen hasta caducar (ADR-004). La contraseña actual incorrecta da `400` y no `401`: el access token es válido, y un `401` haría que el cliente intentara refrescarlo.
 - **Dependencies:** OW-014 y OW-015.
 - **Definition of Done:** endpoints documentados en OpenAPI con sus errores; el límite nuevo en el catálogo de propiedades y en la tabla de rate limiting.

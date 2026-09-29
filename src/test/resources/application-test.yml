@@ -6,7 +6,8 @@ opswatch:
       # DeploymentGuardrails impide que este valor llegue a staging o a producción
       bcrypt-strength: 4
     # Todas las peticiones de MockMvc llegan desde 127.0.0.1 y los tests que comparten contexto se sumarían. Los
-    # límites reales se prueban en AuthRateLimitIT, con su propio contexto
+    # límites reales se prueban en AuthRateLimitIT, con su propio contexto. password-change-per-user conserva su
+    # valor: va por usuario y cada test crea el suyo
     rate-limit:
       login-per-ip: 100000/1m
       login-per-email: 100000/1m

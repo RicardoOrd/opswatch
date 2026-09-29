@@ -8,6 +8,7 @@ import io.github.ricardoord.opswatch.shared.error.RateLimitExceededException;
 import io.github.ricardoord.opswatch.shared.time.MutableClock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
@@ -28,7 +29,8 @@ class AuthRateLimiterTest {
                     RateLimit.valueOf("10/1m"),
                     RateLimit.valueOf("5/1m"),
                     RateLimit.valueOf("5/1h"),
-                    RateLimit.valueOf("30/1m")),
+                    RateLimit.valueOf("30/1m"),
+                    RateLimit.valueOf("5/15m")),
             clock);
 
     @Test
@@ -83,6 +85,18 @@ class AuthRateLimiterTest {
         }
 
         assertRejected(() -> limiter.checkRefresh(ADDRESS), 2);
+    }
+
+    @Test
+    void theSixthPasswordChangeInFifteenMinutesForOneUserIsRejectedFromAnyAddress() {
+        UUID user = UUID.randomUUID();
+        for (int i = 0; i < 5; i++) {
+            limiter.checkPasswordChange(user, "203.0.113." + i);
+        }
+
+        // A token every 3 minutes
+        assertRejected(() -> limiter.checkPasswordChange(user, "198.51.100.1"), 180);
+        assertAllowed(() -> limiter.checkPasswordChange(UUID.randomUUID(), ADDRESS));
     }
 
     @Test

@@ -85,9 +85,33 @@ public class User {
         if (passwordHash.isBlank()) {
             throw new IllegalArgumentException("The password hash is required");
         }
-        // PostgreSQL keeps microseconds: truncating here makes the returned value match what a later read returns
-        Instant now = clock.instant().truncatedTo(ChronoUnit.MICROS);
-        return new User(id, normalizedEmail, cleanDisplayName, passwordHash, now);
+        return new User(id, normalizedEmail, cleanDisplayName, passwordHash, now(clock));
+    }
+
+    /**
+     * @throws IllegalArgumentException if the name breaks an invariant (the request validation should have caught it)
+     */
+    public void rename(String displayName, Clock clock) {
+        String cleanDisplayName = displayName.strip();
+        requireValidDisplayName(cleanDisplayName);
+        if (!cleanDisplayName.equals(this.displayName)) {
+            this.displayName = cleanDisplayName;
+            this.updatedAt = now(clock);
+        }
+    }
+
+    /** The password must already be hashed. Ending the sessions opened with the old one is up to the caller. */
+    public void changePassword(String passwordHash, Clock clock) {
+        if (passwordHash.isBlank()) {
+            throw new IllegalArgumentException("The password hash is required");
+        }
+        this.passwordHash = passwordHash;
+        this.updatedAt = now(clock);
+    }
+
+    /** PostgreSQL keeps microseconds: truncating here makes the returned value match what a later read returns. */
+    private static Instant now(Clock clock) {
+        return clock.instant().truncatedTo(ChronoUnit.MICROS);
     }
 
     /** The form in which emails are stored and compared: without surrounding spaces and in lower case. */
@@ -134,6 +158,10 @@ public class User {
 
     public Instant createdAt() {
         return createdAt;
+    }
+
+    public Instant updatedAt() {
+        return updatedAt;
     }
 
     @Override

@@ -14,8 +14,9 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.jspecify.annotations.Nullable;
+import java.util.function.UnaryOperator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.spi.LoggingEventBuilder;
@@ -46,6 +47,7 @@ public class AuthRateLimiter {
     private final Limit loginPerEmail;
     private final Limit registerPerIp;
     private final Limit refreshPerIp;
+    private final Limit passwordChangePerUser;
 
     public AuthRateLimiter(RateLimitProperties properties, Clock clock) {
         TimeMeter time = new ClockTimeMeter(clock);
@@ -53,6 +55,7 @@ public class AuthRateLimiter {
         this.loginPerEmail = new Limit("login-per-email", properties.loginPerEmail(), time);
         this.registerPerIp = new Limit("register-per-ip", properties.registerPerIp(), time);
         this.refreshPerIp = new Limit("refresh-per-ip", properties.refreshPerIp(), time);
+        this.passwordChangePerUser = new Limit("password-change-per-user", properties.passwordChangePerUser(), time);
     }
 
     /**
@@ -63,19 +66,31 @@ public class AuthRateLimiter {
      * @throws RateLimitExceededException with the time until the next attempt is allowed
      */
     public void checkLogin(String clientAddress, String email) {
-        loginPerIp.consume(addressKey(clientAddress), clientAddress, null);
+        loginPerIp.consume(addressKey(clientAddress), clientAddress, UnaryOperator.identity());
         String normalizedEmail = User.normalizeEmail(email);
-        loginPerEmail.consume(normalizedEmail, clientAddress, normalizedEmail);
+        loginPerEmail.consume(
+                normalizedEmail,
+                clientAddress,
+                event -> event.addKeyValue("user.email.hash", EmailHash.of(normalizedEmail)));
     }
 
     /** @throws RateLimitExceededException with the time until the next attempt is allowed */
     public void checkRegistration(String clientAddress) {
-        registerPerIp.consume(addressKey(clientAddress), clientAddress, null);
+        registerPerIp.consume(addressKey(clientAddress), clientAddress, UnaryOperator.identity());
     }
 
     /** @throws RateLimitExceededException with the time until the next attempt is allowed */
     public void checkRefresh(String clientAddress) {
-        refreshPerIp.consume(addressKey(clientAddress), clientAddress, null);
+        refreshPerIp.consume(addressKey(clientAddress), clientAddress, UnaryOperator.identity());
+    }
+
+    /**
+     * Per user, from any address: a stolen access token must not become unlimited guesses of the current password.
+     *
+     * @throws RateLimitExceededException with the time until the next attempt is allowed
+     */
+    public void checkPasswordChange(UUID userId, String clientAddress) {
+        passwordChangePerUser.consume(userId.toString(), clientAddress, event -> event.addKeyValue("user.id", userId));
     }
 
     /**
@@ -118,7 +133,8 @@ public class AuthRateLimiter {
                     .build();
         }
 
-        void consume(String key, String clientAddress, @Nullable String normalizedEmail) {
+        /** @param subject adds the account the key names, if any, to the security event (the email only as a hash) */
+        void consume(String key, String clientAddress, UnaryOperator<LoggingEventBuilder> subject) {
             KeyBucket bucket = buckets.get(key, unused -> new KeyBucket(bandwidth, time));
             ConsumptionProbe probe = bucket.tokens.tryConsumeAndReturnRemaining(1);
             if (probe.isConsumed()) {
@@ -128,22 +144,19 @@ public class AuthRateLimiter {
             // One security event when a key hits the limit, not one per rejected request: a flood of requests must
             // not become a flood of log lines
             if (bucket.rejecting.compareAndSet(false, true)) {
-                logLimitReached(clientAddress, normalizedEmail);
+                logLimitReached(clientAddress, subject);
             }
             throw new RateLimitExceededException(Duration.ofNanos(probe.getNanosToWaitForRefill()));
         }
 
-        /** A security event (docs/devops/observability.md#eventos-de-seguridad): the email only as a hash. */
-        private void logLimitReached(String clientAddress, @Nullable String normalizedEmail) {
+        /** A security event (docs/devops/observability.md#eventos-de-seguridad). */
+        private void logLimitReached(String clientAddress, UnaryOperator<LoggingEventBuilder> subject) {
             LoggingEventBuilder event = log.atWarn()
                     .addKeyValue("event.category", "security")
                     .addKeyValue("event.action", "auth.rate_limited")
                     .addKeyValue("event.reason", name)
                     .addKeyValue("client.address", clientAddress);
-            if (normalizedEmail != null) {
-                event = event.addKeyValue("user.email.hash", EmailHash.of(normalizedEmail));
-            }
-            event.log("Rate limit {} reached", name);
+            subject.apply(event).log("Rate limit {} reached", name);
         }
     }
 

@@ -2,7 +2,7 @@
 
 Estado: diseño inicial · Última revisión: 2026-09-29 · Convenciones: [api-guidelines.md](api-guidelines.md) · Permisos: [authorization-model.md](../security/authorization-model.md)
 
-**Existen `POST /api/v1/auth/register` (OW-012), `POST /api/v1/auth/login` y `GET /api/v1/me` (OW-013), y `POST /api/v1/auth/refresh` y `POST /api/v1/auth/logout` (OW-014), con rate limiting desde OW-015. El resto está planificado.** La columna "Fase" indica cuándo se implementa cada uno. Los errores comunes a todos los endpoints autenticados (`401`, `404` a quien no es miembro, `429` y `500`) no se repiten en cada tabla.
+**Existen `POST /api/v1/auth/register` (OW-012), `POST /api/v1/auth/login` y `GET /api/v1/me` (OW-013), y `POST /api/v1/auth/refresh` y `POST /api/v1/auth/logout` (OW-014), con rate limiting desde OW-015, y `PATCH /api/v1/me` y `POST /api/v1/me/password` (OW-045). El resto está planificado.** La columna "Fase" indica cuándo se implementa cada uno. Los errores comunes a todos los endpoints autenticados (`401`, `404` a quien no es miembro, `429` y `500`) no se repiten en cada tabla.
 
 ## Autenticación (`identity`)
 
@@ -13,8 +13,8 @@ Estado: diseño inicial · Última revisión: 2026-09-29 · Convenciones: [api-g
 | `POST` | `/api/v1/auth/refresh` | Cookie | `200` y cookie nueva | `401 unauthenticated` (token ausente, desconocido, caducado, revocado o reutilizado, o cuenta deshabilitada), `403 access-denied` (`Origin` ausente o no permitido), `415` (sin `Content-Type: application/json`), `429 rate-limited` (más de 30 por minuto desde una IP) | 1 |
 | `POST` | `/api/v1/auth/logout` | Cookie | `204` y cookie borrada, también sin cookie o con un token desconocido | `403 access-denied` (`Origin` ausente o no permitido), `415` | 1 |
 | `GET` | `/api/v1/me` | JWT | `200` | `401` (token ausente, inválido o caducado) | 1 |
-| `PATCH` | `/api/v1/me` | JWT | `200` | `400` | 1 |
-| `POST` | `/api/v1/me/password` | JWT | `204` (revoca todos los refresh tokens) | `400` (también con la contraseña actual incorrecta, como error de `currentPassword`), `429` | 1 |
+| `PATCH` | `/api/v1/me` | JWT | `200` con la cuenta | `400` (`displayName` inválido o `null`; `email` u otra propiedad desconocida) | 1 |
+| `POST` | `/api/v1/me/password` | JWT | `204` (revoca todos los refresh tokens del usuario) | `400` (también con la contraseña actual incorrecta, como error `incorrect-password` de `currentPassword`), `409 concurrent-modification` (otro cambio de contraseña se adelantó), `429 rate-limited` (más de 5 intentos cada 15 minutos por usuario, desde cualquier IP) | 1 |
 
 ```jsonc
 // POST /api/v1/auth/register
@@ -37,12 +37,17 @@ Estado: diseño inicial · Última revisión: 2026-09-29 · Convenciones: [api-g
 // GET /api/v1/me
 { "id": "0192…", "email": "ana@example.com", "displayName": "Ana", "createdAt": "2026-09-28T10:00:00Z" }
 
+// PATCH /api/v1/me
+{ "displayName": "Ana García" }
+// 200
+{ "id": "0192…", "email": "ana@example.com", "displayName": "Ana García", "createdAt": "2026-09-28T10:00:00Z" }
+
 // POST /api/v1/me/password
 { "currentPassword": "correct horse battery", "newPassword": "another long passphrase" }
 // 204
 ```
 
-Validaciones: `email` con formato válido, solo ASCII imprimible y hasta 254 caracteres, normalizado a minúsculas. `displayName` de 1 a 100 caracteres, sin caracteres de control, separadores de línea ni de formato bidireccional. `password` y `newPassword` de 12 caracteres a 72 bytes UTF-8, con el código de error `password-policy`. Los espacios alrededor del email y del nombre se quitan; los de la contraseña, no.
+Validaciones: `email` con formato válido, solo ASCII imprimible y hasta 254 caracteres, normalizado a minúsculas. `displayName` de 1 a 100 caracteres, sin caracteres de control, separadores de línea ni de formato bidireccional. `password` y `newPassword` de 12 caracteres a 72 bytes UTF-8, con el código de error `password-policy`. Una `currentPassword` que no es la actual da el código `incorrect-password` en ese campo. Los espacios alrededor del email y del nombre se quitan; los de la contraseña, no.
 
 - El access token (RS256, 15 minutos) solo identifica al usuario: no lleva roles ni organizaciones ([ADR-004](../adr/ADR-004-security-strategy.md)). Un token rechazado da `401` con `WWW-Authenticate: Bearer error="invalid_token"`, sin decir por qué.
 - Un email inexistente, una contraseña incorrecta y una cuenta deshabilitada dan el mismo `401 invalid-credentials`, y tardan lo mismo: el email inexistente se compara con un hash señuelo del mismo coste.
@@ -50,6 +55,8 @@ Validaciones: `email` con formato válido, solo ASCII imprimible y hasta 254 car
 - `refresh` y `logout` solo aceptan un `Origin` igual al del `issuer` de los JWT o a uno de `opswatch.security.cors.allowed-origins`, y solo JSON: defensa contra CSRF además de `SameSite=Strict` ([arquitectura de seguridad](../security/security-architecture.md#csrf)).
 - `GET /api/v1/me` no incluye las organizaciones del usuario: `identity` no puede depender de `organization` ([módulos](../architecture/modules.md)). Salen, con el rol del usuario en cada una, en `GET /api/v1/organizations`.
 - La contraseña actual incorrecta en `POST /api/v1/me/password` da `400` y no `401`: el access token es válido, y un `401` haría que el cliente intentara refrescarlo.
+- El cambio de contraseña revoca todas las sesiones del usuario, también la de quien lo hace: su refresh token da `401` y tiene que volver a iniciar sesión. Los access tokens ya emitidos siguen valiendo hasta caducar ([ADR-004](../adr/ADR-004-security-strategy.md)).
+- `PATCH /api/v1/me` solo edita `displayName`. El email no cambia en V1, porque cambiarlo exige verificarlo (OW-037): un `email` en el cuerpo es una propiedad desconocida y da `400`. `/me` todavía no lleva `ETag` ni `If-Match`: llegan con OW-016.
 
 ## Organizaciones (`organization`)
 

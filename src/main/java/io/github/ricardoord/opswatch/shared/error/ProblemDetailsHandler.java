@@ -54,6 +54,10 @@ public class ProblemDetailsHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(DomainException.class)
     ResponseEntity<ProblemDetail> handleDomain(DomainException ex, HttpServletRequest request) {
         log.debug("Domain error {}: {}", ex.code().slug(), ex.getMessage());
+        if (ex instanceof InvalidFieldException invalid) {
+            return respond(
+                    problems.validation(invalidFields(1), List.of(invalid.violation()), request.getRequestURI()));
+        }
         ProblemDetail problem = problems.create(ex.code(), ex.getMessage(), request.getRequestURI());
         if (ex.code().status() == HttpStatus.UNAUTHORIZED) {
             // RFC 9110: every 401 names the authentication scheme to use
@@ -147,10 +151,12 @@ public class ProblemDetailsHandler extends ResponseEntityExceptionHandler {
     }
 
     private ResponseEntity<Object> validation(List<FieldViolation> errors, HttpHeaders headers, WebRequest request) {
-        String detail =
-                "The request contains " + errors.size() + " invalid " + (errors.size() == 1 ? "field." : "fields.");
-        ProblemDetail problem = problems.validation(detail, errors, path(request));
+        ProblemDetail problem = problems.validation(invalidFields(errors.size()), errors, path(request));
         return ResponseEntity.status(problem.getStatus()).headers(headers).body(problem);
+    }
+
+    private static String invalidFields(int count) {
+        return "The request contains " + count + " invalid " + (count == 1 ? "field." : "fields.");
     }
 
     private static ResponseEntity<ProblemDetail> respond(ProblemDetail problem) {

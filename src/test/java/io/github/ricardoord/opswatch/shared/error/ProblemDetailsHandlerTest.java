@@ -127,6 +127,17 @@ class ProblemDetailsHandlerTest {
     }
 
     @Test
+    void aFieldOnlyTheApplicationCanCheckIsReportedLikeAnyInvalidField() {
+        MvcTestResult result = mvc.get().uri(BASE + "/invalid-field").exchange();
+
+        assertProblem(result, 400, "validation-error");
+        assertThat(result).bodyJson().extractingPath("$.detail").isEqualTo("The request contains 1 invalid field.");
+        assertThat(result).bodyJson().extractingPath("$.errors[0].field").isEqualTo("currentPassword");
+        assertThat(result).bodyJson().extractingPath("$.errors[0].code").isEqualTo("incorrect-password");
+        assertThat(result).bodyJson().extractingPath("$.errors[0].message").isEqualTo("is not the current password");
+    }
+
+    @Test
     void rateLimitsSayWhenToRetryInWholeSeconds() {
         MvcTestResult result = mvc.get().uri(BASE + "/rate-limited").exchange();
 
@@ -280,6 +291,11 @@ class ProblemDetailsHandlerTest {
         @GetMapping("/access-denied")
         void accessDenied() {
             throw new AccessDeniedException("denied");
+        }
+
+        @GetMapping("/invalid-field")
+        void invalidField() {
+            throw new InvalidFieldException("currentPassword", "incorrect-password", "is not the current password");
         }
 
         @GetMapping("/rate-limited")
