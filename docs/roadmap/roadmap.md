@@ -8,9 +8,9 @@ Sin fechas: es un proyecto personal y el ritmo es variable. El orden y los crite
 
 | | |
 |---|---|
-| **Ahora** | **v0.1.0 — Identity y organizaciones**: OW-012 a OW-018 (#13 a #19) y OW-045, refinadas el 2026-09-29. Sprint 0 cerrado el 2026-09-28 |
-| **Siguiente** | v0.2.0 — Proyectos y monitores |
-| **Orden sugerido** | OW-012 → OW-013 → OW-014 → OW-015 → OW-045 → OW-016 → OW-017 → OW-018. OW-016 solo necesita OW-013, así que puede adelantarse |
+| **Ahora** | **Refinar la v0.2.0 — Proyectos y monitores** (OW-019, OW-020, OW-021, OW-022, OW-034 y OW-044) contra lo que dejó construido la v0.1.0: `AccessControl`, `PageQuery`, `ETags`, `NotNullIfPresent` y la matriz de autorización, que cada endpoint nuevo tiene que ampliar. Sus issues siguen en *Planned* hasta ese refinamiento |
+| **Hecho** | v0.1.0 — Identity y organizaciones, publicada el 2026-09-29 (release #69). Sprint 0 cerrado el 2026-09-28 |
+| **Orden sugerido** | Se fija al refinar la v0.2.0 |
 | **Fuera de foco** | Todo lo de V2 a V5 (Redis, broker, microservicios, tiempo real). Vive en este roadmap y en los ADR propuestos, no en issues |
 
 ## Milestones
