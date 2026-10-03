@@ -1,18 +1,20 @@
 package io.github.ricardoord.opswatch.monitoring.web;
 
+import io.github.ricardoord.opswatch.monitoring.application.MonitorView;
 import io.github.ricardoord.opswatch.monitoring.domain.Monitor;
 import io.github.ricardoord.opswatch.monitoring.domain.MonitorSettings;
 import io.github.ricardoord.opswatch.monitoring.domain.MonitorState;
 import io.github.ricardoord.opswatch.monitoring.domain.MonitorStatus;
-import io.github.ricardoord.opswatch.monitoring.domain.MonitorWithState;
 import io.github.ricardoord.opswatch.monitoring.domain.ProbeMethod;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
  * A monitor with its current state. {@code url} is the normalized one that was stored; {@code version} is the value
- * of its {@code ETag}, for {@code If-Match}.
+ * of its {@code ETag}, for {@code If-Match}. The headers show their names only.
  */
 public record MonitorResponse(
         UUID id,
@@ -28,6 +30,7 @@ public record MonitorResponse(
         boolean followRedirects,
         int failureThreshold,
         int recoveryThreshold,
+        List<HeaderResponse> headers,
         CurrentState state,
         Instant createdAt,
         Instant updatedAt,
@@ -35,6 +38,25 @@ public record MonitorResponse(
 
     /** Both ends included. */
     public record ExpectedStatusRange(int min, int max) {}
+
+    /**
+     * A header of the monitor: its value is write-only and nobody reads it back, whatever their role.
+     *
+     * @param value always null
+     * @param hasValue whether a value is stored
+     */
+    public record HeaderResponse(
+            String name,
+
+            @Schema(nullable = true, description = "Always null: write-only") @Nullable
+            String value,
+
+            boolean hasValue) {
+
+        static HeaderResponse from(MonitorView.HeaderName header) {
+            return new HeaderResponse(header.name(), null, header.hasValue());
+        }
+    }
 
     /**
      * Written by the engine: until it runs (v0.3.0), every monitor is {@code PENDING} with no check.
@@ -62,8 +84,8 @@ public record MonitorResponse(
         }
     }
 
-    static MonitorResponse from(MonitorWithState monitorWithState) {
-        Monitor monitor = monitorWithState.monitor();
+    static MonitorResponse from(MonitorView view) {
+        Monitor monitor = view.monitor();
         MonitorSettings settings = monitor.settings();
         return new MonitorResponse(
                 monitor.id(),
@@ -79,7 +101,8 @@ public record MonitorResponse(
                 settings.followRedirects(),
                 settings.failureThreshold(),
                 settings.recoveryThreshold(),
-                CurrentState.from(monitorWithState.state()),
+                view.headers().stream().map(HeaderResponse::from).toList(),
+                CurrentState.from(view.state()),
                 monitor.createdAt(),
                 monitor.updatedAt(),
                 monitor.savedVersion());

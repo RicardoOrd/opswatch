@@ -1,5 +1,6 @@
 package io.github.ricardoord.opswatch.monitoring.web;
 
+import io.github.ricardoord.opswatch.egress.RequestHeader;
 import io.github.ricardoord.opswatch.monitoring.application.SettingsChanges;
 import io.github.ricardoord.opswatch.monitoring.domain.Monitor;
 import io.github.ricardoord.opswatch.monitoring.domain.MonitorSettings;
@@ -11,8 +12,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 import org.jspecify.annotations.Nullable;
 import tools.jackson.databind.annotation.JsonDeserialize;
 
@@ -76,12 +79,26 @@ public record UpdateMonitorRequest(
         @Min(MonitorSettings.MIN_THRESHOLD)
         @Max(MonitorSettings.MAX_THRESHOLD)
         @Nullable
-        Integer recoveryThreshold) {
+        Integer recoveryThreshold,
+
+        @Schema(description = "The whole new list, which replaces the old one. [] removes them all")
+        @JsonDeserialize(using = NotNullIfPresent.class)
+        @Valid
+        @Nullable
+        List<@NotNull HeaderInput> headers) {
 
     /** Surrounding spaces are a typing slip, not part of the name. */
     public UpdateMonitorRequest {
         name = name == null ? null : name.strip();
         degradedThresholdMs = degradedThresholdMs == null ? PatchField.absent() : degradedThresholdMs;
+    }
+
+    /** Null when absent: the headers do not change. */
+    @Nullable
+    List<RequestHeader> requestHeaders() {
+        return headers == null
+                ? null
+                : headers.stream().map(HeaderInput::toHeader).toList();
     }
 
     SettingsChanges settings() {

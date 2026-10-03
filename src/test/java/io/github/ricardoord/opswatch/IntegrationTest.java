@@ -22,6 +22,6 @@ import org.springframework.test.context.ActiveProfiles;
 @Retention(RetentionPolicy.RUNTIME)
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import({PostgresTestcontainer.class, TestJwtKeys.class, TestHostResolver.class})
+@Import({PostgresTestcontainer.class, TestJwtKeys.class, TestEncryptionKeys.class, TestHostResolver.class})
 @ActiveProfiles("test")
 public @interface IntegrationTest {}

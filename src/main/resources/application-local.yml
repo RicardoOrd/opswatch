@@ -20,6 +20,11 @@ opswatch:
     jwt:
       issuer: http://localhost:8080
       private-key: ${jwt-dev-private.pem}
+    # Headers cifrados de los monitores (OW-022): una sola clave, la 0, de secrets/encryption-dev-key
+    encryption:
+      keys:
+        "0": ${encryption-dev-key}
+      active-key-id: 0
 
 logging:
   level:

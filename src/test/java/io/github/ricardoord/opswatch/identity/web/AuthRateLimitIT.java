@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jayway.jsonpath.JsonPath;
 import io.github.ricardoord.opswatch.PostgresTestcontainer;
+import io.github.ricardoord.opswatch.TestEncryptionKeys;
 import io.github.ricardoord.opswatch.TestJwtKeys;
 import io.github.ricardoord.opswatch.shared.time.MutableClock;
 import java.io.IOException;
@@ -66,7 +67,8 @@ import org.springframework.test.context.TestPropertySource;
 @TestPropertySource(
         locations = "classpath:application-deployed.yml",
         factory = AuthRateLimitIT.ServerSettingsOnly.class)
-@Import({PostgresTestcontainer.class, TestJwtKeys.class, AuthRateLimitIT.ControlledClock.class})
+@Import({PostgresTestcontainer.class, TestJwtKeys.class, TestEncryptionKeys.class, AuthRateLimitIT.ControlledClock.class
+})
 @ActiveProfiles("test")
 class AuthRateLimitIT {
 
