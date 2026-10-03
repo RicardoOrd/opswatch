@@ -78,6 +78,9 @@ class EndpointAuthorizationMatrixIT {
             GET    /api/v1/projects/{projectId}/monitors/summary    200 200 200 200 404 401
             GET    /api/v1/monitors/{monitorId}                     200 200 200 200 404 401
             PATCH  /api/v1/monitors/{monitorId}                     200 200 200 403 404 401
+            POST   /api/v1/monitors/{monitorId}/pause               200 200 200 403 404 401
+            POST   /api/v1/monitors/{monitorId}/resume              200 200 200 403 404 401
+            DELETE /api/v1/monitors/{monitorId}                     204 204 204 403 404 401
             """;
 
     private static final Pattern ROW = Pattern.compile("(GET|POST|PATCH|DELETE)\\s+(\\S+)((?:\\s+\\d{3}){6})");
@@ -274,6 +277,15 @@ class EndpointAuthorizationMatrixIT {
                 "PATCH /api/v1/monitors/{monitorId}",
                 (mvc, fixture) ->
                         json(mvc.patch(), "/api/v1/monitors/" + fixture.monitor(), "{\"name\": \"Renamed\"}"));
+        requests.put(
+                "POST /api/v1/monitors/{monitorId}/pause",
+                (mvc, fixture) -> mvc.post().uri("/api/v1/monitors/{monitorId}/pause", fixture.monitor()));
+        requests.put(
+                "POST /api/v1/monitors/{monitorId}/resume",
+                (mvc, fixture) -> mvc.post().uri("/api/v1/monitors/{monitorId}/resume", fixture.pausedMonitor()));
+        requests.put(
+                "DELETE /api/v1/monitors/{monitorId}",
+                (mvc, fixture) -> mvc.delete().uri("/api/v1/monitors/{monitorId}", fixture.monitor()));
         return requests;
     }
 
@@ -329,14 +341,22 @@ class EndpointAuthorizationMatrixIT {
         jdbc.update("""
                 INSERT INTO projects (id, organization_id, name, created_at, updated_at)
                 VALUES (?, ?, 'Production', now(), now())""", project, organization);
-        UUID monitor = UUID.randomUUID();
+        UUID monitor = insertMonitor(organization, project, "Authentication API", false);
+        UUID pausedMonitor = insertMonitor(organization, project, "Donations API", true);
+        return new Fixture(
+                organization, project, monitor, pausedMonitor, callerTokens, subject, subjectEmail, newcomerEmail);
+    }
+
+    private UUID insertMonitor(UUID organization, UUID project, String name, boolean paused) {
+        UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO monitors (id, organization_id, project_id, name, url, created_at, updated_at)
-                VALUES (?, ?, ?, 'Authentication API', 'https://api.example.com/health', now(), now())""", monitor, organization, project);
+                VALUES (?, ?, ?, ?, 'https://api.example.com/health', now(), now())""", id, organization, project, name);
+        String status = paused ? "PAUSED" : "PENDING";
         jdbc.update("""
-                INSERT INTO monitor_state (monitor_id, status_changed_at, next_check_at, updated_at)
-                VALUES (?, now(), now(), now())""", monitor);
-        return new Fixture(organization, project, monitor, callerTokens, subject, subjectEmail, newcomerEmail);
+                INSERT INTO monitor_state (monitor_id, status, status_changed_at, next_check_at, updated_at)
+                VALUES (?, ?, now(), CASE WHEN ? = 'PAUSED' THEN NULL ELSE now() END, now())""", id, status, status);
+        return id;
     }
 
     private UUID insertUser(String email, String passwordHash) {
@@ -355,7 +375,8 @@ class EndpointAuthorizationMatrixIT {
 
     /**
      * @param project a project of the organization
-     * @param monitor a monitor of the project
+     * @param monitor a monitor of the project, scheduled
+     * @param pausedMonitor a paused monitor of the project, which can be resumed
      * @param tokens the access token of each caller; none for {@link Caller#ANONYMOUS}
      * @param subject a {@code MEMBER} that the member endpoints change or remove
      * @param newcomerEmail a user with an account who is not a member yet
@@ -364,6 +385,7 @@ class EndpointAuthorizationMatrixIT {
             UUID organization,
             UUID project,
             UUID monitor,
+            UUID pausedMonitor,
             Map<Caller, @Nullable String> tokens,
             UUID subject,
             String subjectEmail,

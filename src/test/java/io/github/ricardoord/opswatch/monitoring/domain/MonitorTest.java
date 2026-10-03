@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import io.github.ricardoord.opswatch.organization.ProjectRef;
 import java.net.URI;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
@@ -117,6 +118,17 @@ class MonitorTest {
         assertThat(monitor.updatedAt()).isEqualTo(LATER.instant());
         monitor.replaceHeaders(null, LATER);
         assertThat(monitor.requestHeaders()).isNull();
+    }
+
+    @Test
+    void aDeletionKeepsItsFirstMoment() {
+        Monitor monitor = monitor("Payments API");
+
+        monitor.delete(LATER);
+        monitor.delete(Clock.offset(LATER, Duration.ofHours(1)));
+
+        assertThat(monitor.isDeleted()).isTrue();
+        assertThat(monitor.updatedAt()).isEqualTo(LATER.instant());
     }
 
     /** The query string of a URL may carry a token. */

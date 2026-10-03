@@ -83,9 +83,8 @@ public record UpdateMonitorRequest(
 
         @Schema(description = "The whole new list, which replaces the old one. [] removes them all")
         @JsonDeserialize(using = NotNullIfPresent.class)
-        @Valid
         @Nullable
-        List<@NotNull HeaderInput> headers) {
+        List<@NotNull @Valid HeaderInput> headers) {
 
     /** Surrounding spaces are a typing slip, not part of the name. */
     public UpdateMonitorRequest {

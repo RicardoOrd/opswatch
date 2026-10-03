@@ -1,5 +1,6 @@
 package io.github.ricardoord.opswatch.monitoring.domain;
 
+import io.github.ricardoord.opswatch.shared.error.ConflictException;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -90,6 +91,53 @@ public class MonitorState implements Persistable<UUID> {
             this.nextCheckAt = byNewInterval;
             this.updatedAt = now;
         }
+    }
+
+    /**
+     * {@code PAUSED} and unscheduled, with the counters back to zero
+     * (docs/architecture/monitoring-engine.md#pausa-reanudación-borrado-y-edición). A check already in flight is saved
+     * when it comes back, but it no longer changes the state.
+     *
+     * @throws ConflictException if it is already paused (409)
+     */
+    public void pause(Clock clock) {
+        if (status == MonitorStatus.PAUSED) {
+            throw new ConflictException("The monitor is already paused.");
+        }
+        stop(clock);
+    }
+
+    /**
+     * {@code PENDING} again, with the counters back to zero and the first check {@code jitter} from now, as a new monitor.
+     *
+     * @throws ConflictException if it is not paused (409)
+     */
+    public void resume(Duration jitter, Clock clock) {
+        if (status != MonitorStatus.PAUSED) {
+            throw new ConflictException("The monitor is not paused.");
+        }
+        Instant now = now(clock);
+        this.status = MonitorStatus.PENDING;
+        this.statusChangedAt = now;
+        this.nextCheckAt = now.plus(jitter).truncatedTo(ChronoUnit.MICROS);
+        resetCounters(now);
+    }
+
+    /** The state of a deleted monitor: as a pause, whatever it was before, so that it never runs again. */
+    public void stop(Clock clock) {
+        Instant now = now(clock);
+        if (status != MonitorStatus.PAUSED) {
+            this.status = MonitorStatus.PAUSED;
+            this.statusChangedAt = now;
+        }
+        this.nextCheckAt = null;
+        resetCounters(now);
+    }
+
+    private void resetCounters(Instant now) {
+        this.consecutiveFailures = 0;
+        this.consecutiveSuccesses = 0;
+        this.updatedAt = now;
     }
 
     /** PostgreSQL keeps microseconds: truncating here makes the returned value match what a later read returns. */

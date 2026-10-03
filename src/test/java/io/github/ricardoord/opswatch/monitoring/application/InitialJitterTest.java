@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.function.LongUnaryOperator;
 import java.util.random.RandomGenerator;
 import org.junit.jupiter.api.Test;
@@ -32,8 +33,8 @@ class InitialJitterTest {
     }
 
     @Test
-    void theDefaultGeneratorStaysInRange() {
-        InitialJitter jitter = new InitialJitter();
+    void theGeneratorOfTheApplicationStaysInRange() {
+        InitialJitter jitter = new InitialJitter(new Random());
 
         for (int i = 0; i < 1000; i++) {
             assertThat(jitter.next(60)).isGreaterThanOrEqualTo(Duration.ZERO).isLessThan(InitialJitter.MAX);

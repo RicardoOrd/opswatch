@@ -4,6 +4,8 @@ import io.github.ricardoord.opswatch.egress.HeaderPolicy;
 import io.github.ricardoord.opswatch.egress.RequestHeader;
 import io.github.ricardoord.opswatch.egress.TargetKind;
 import io.github.ricardoord.opswatch.egress.TargetPolicy;
+import io.github.ricardoord.opswatch.monitoring.MonitorDeleted;
+import io.github.ricardoord.opswatch.monitoring.MonitorPaused;
 import io.github.ricardoord.opswatch.monitoring.domain.Monitor;
 import io.github.ricardoord.opswatch.monitoring.domain.MonitorRepository;
 import io.github.ricardoord.opswatch.monitoring.domain.MonitorSettings;
@@ -34,11 +36,13 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
 import org.hibernate.exception.ConstraintViolationException;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -71,6 +75,7 @@ public class MonitorService {
     private final InitialJitter jitter;
     private final MonitorHeaders monitorHeaders;
     private final MonitorLimits limits;
+    private final ApplicationEventPublisher events;
     private final TransactionOperations transactions;
     private final Clock clock;
 
@@ -85,6 +90,7 @@ public class MonitorService {
             InitialJitter jitter,
             MonitorHeaders monitorHeaders,
             MonitorLimits limits,
+            ApplicationEventPublisher events,
             TransactionOperations transactions,
             Clock clock) {
         this.monitors = monitors;
@@ -97,6 +103,7 @@ public class MonitorService {
         this.jitter = jitter;
         this.monitorHeaders = monitorHeaders;
         this.limits = limits;
+        this.events = events;
         this.transactions = transactions;
         this.clock = clock;
     }
@@ -250,12 +257,94 @@ public class MonitorService {
     }
 
     /**
+     * Stops checking it until it is resumed, and publishes {@link MonitorPaused} in the same transaction.
+     *
+     * @throws ConflictException if it is already paused (409)
+     */
+    public MonitorView pause(UUID userId, UUID monitorId) {
+        authorized(userId, monitorId, Permission.MONITOR_WRITE);
+        return inTransaction(() -> {
+            MonitorState state = lockedStateOf(monitorId);
+            Monitor monitor = authorized(userId, monitorId, Permission.MONITOR_WRITE);
+            state.pause(clock);
+            events.publishEvent(new MonitorPaused(
+                    monitor.id(), monitor.organizationId(), monitor.projectId(), clock.instant(), userId));
+            return view(monitor, state);
+        });
+    }
+
+    /**
+     * Checks it again, {@code PENDING} and with its first check a random while away, as a new monitor.
+     *
+     * @throws ConflictException if it is not paused (409)
+     */
+    public MonitorView resume(UUID userId, UUID monitorId) {
+        authorized(userId, monitorId, Permission.MONITOR_WRITE);
+        return inTransaction(() -> {
+            MonitorState state = lockedStateOf(monitorId);
+            Monitor monitor = authorized(userId, monitorId, Permission.MONITOR_WRITE);
+            state.resume(jitter.next(monitor.settings().intervalSeconds()), clock);
+            return view(monitor, state);
+        });
+    }
+
+    /** Logical, with the state as on a pause; publishes {@link MonitorDeleted} in the same transaction. */
+    public void delete(UUID userId, UUID monitorId) {
+        authorized(userId, monitorId, Permission.MONITOR_WRITE);
+        transactions.executeWithoutResult(status -> {
+            MonitorState state = lockedStateOf(monitorId);
+            Monitor monitor =
+                    authorize(userId, monitorId, Permission.MONITOR_WRITE, monitors.findActiveByIdForUpdate(monitorId));
+            delete(monitor, state, userId);
+        });
+    }
+
+    /**
+     * Every monitor of a deleted project, one by one through the same steps as {@link #delete(UUID, UUID)}, in the
+     * caller's transaction: each one publishes its {@link MonitorDeleted} and goes up a version. Never a bulk
+     * {@code UPDATE}: without the new version, a {@code PATCH} that read a monitor before would write it back alive.
+     * Only monitors not deleted yet, so a repeated call does nothing.
+     *
+     * @param deletedBy who deleted the project
+     */
+    void deleteAllOf(UUID projectId, UUID deletedBy) {
+        for (UUID monitorId : monitors.findActiveIdsOfProject(projectId)) {
+            MonitorState state = lockedStateOf(monitorId);
+            // Deleted meanwhile by someone else: nothing left to do
+            monitors.findActiveByIdForUpdate(monitorId).ifPresent(monitor -> delete(monitor, state, deletedBy));
+        }
+    }
+
+    /**
+     * The state row was locked first and the monitor's second, the order of every writer of both. The monitor was read
+     * locked, so its version is the last committed one.
+     */
+    private void delete(Monitor monitor, MonitorState state, UUID deletedBy) {
+        monitor.delete(clock);
+        state.stop(clock);
+        events.publishEvent(new MonitorDeleted(
+                monitor.id(), monitor.organizationId(), monitor.projectId(), clock.instant(), deletedBy));
+    }
+
+    /**
+     * {@code FOR UPDATE}, before reading the monitor in the same transaction: whoever was changing either of them has
+     * committed by then, and the monitor is read as it was left.
+     */
+    private MonitorState lockedStateOf(UUID monitorId) {
+        return states.findByIdForUpdate(monitorId)
+                .orElseThrow(() -> new ResourceNotFoundException("monitor", monitorId));
+    }
+
+    /**
      * Authorized on its project, which must not be deleted either. A non-member gets the 404 of a missing monitor,
      * never one that names its project.
      */
     private Monitor authorized(UUID userId, UUID monitorId, Permission permission) {
-        Monitor monitor = monitors.findByIdAndDeletedAtIsNull(monitorId)
-                .orElseThrow(() -> new ResourceNotFoundException("monitor", monitorId));
+        return authorize(userId, monitorId, permission, monitors.findByIdAndDeletedAtIsNull(monitorId));
+    }
+
+    private Monitor authorize(UUID userId, UUID monitorId, Permission permission, Optional<Monitor> found) {
+        Monitor monitor = found.orElseThrow(() -> new ResourceNotFoundException("monitor", monitorId));
         try {
             access.requireForProject(userId, monitor.projectId(), permission);
         } catch (ResourceNotFoundException ex) {

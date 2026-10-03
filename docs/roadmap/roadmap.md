@@ -8,7 +8,7 @@ Sin fechas: es un proyecto personal y el ritmo es variable. El orden y los crite
 
 | | |
 |---|---|
-| **Ahora** | **v0.2.0 — Proyectos y monitores**, refinada el 2026-10-02 ([backlog](backlog.md#v020--proyectos-y-monitores)). OW-034 (registro de eventos), OW-019 (proyectos), OW-020 (`TargetPolicy`), OW-021 (monitores) y OW-022 (headers cifrados) hechas; queda OW-044. Cada endpoint nuevo amplía la matriz de autorización |
+| **Ahora** | **v0.2.0 — Proyectos y monitores**, refinada el 2026-10-02 ([backlog](backlog.md#v020--proyectos-y-monitores)). OW-034 (registro de eventos), OW-019 (proyectos), OW-020 (`TargetPolicy`), OW-021 (monitores), OW-022 (headers cifrados) y OW-044 (pausa, borrado y limpieza) hechas: falta la release, con la comprobación de los criterios de la Fase 2 y las notas. Cada endpoint nuevo amplía la matriz de autorización |
 | **Hecho** | v0.1.0 — Identity y organizaciones, publicada el 2026-09-29 (release #69). Sprint 0 cerrado el 2026-09-28 |
 | **Orden** | OW-034 (registro de eventos) → OW-019 (proyectos) → OW-020 (`TargetPolicy`) → OW-021 (monitores) → OW-022 (headers cifrados) → OW-044 (pausa, borrado y limpieza por `ProjectDeleted`) |
 | **Fuera de foco** | Todo lo de V2 a V5 (Redis, broker, microservicios, tiempo real). Vive en este roadmap y en los ADR propuestos, no en issues |

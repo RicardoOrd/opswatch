@@ -73,9 +73,8 @@ public record CreateMonitorRequest(
         Integer recoveryThreshold,
 
         @Schema(description = "Sent with every check, at most 10. Stored encrypted; their values are never returned")
-        @Valid
         @Nullable
-        List<@NotNull HeaderInput> headers) {
+        List<@NotNull @Valid HeaderInput> headers) {
 
     /** Surrounding spaces are a typing slip, not part of the name. */
     public CreateMonitorRequest {

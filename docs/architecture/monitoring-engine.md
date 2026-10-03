@@ -135,7 +135,7 @@ Propiedades:
 | Cambiar el intervalo | `next_check_at = min(next_check_at, now + nuevo intervalo)`. Si está pausado, sigue en `NULL` |
 | Borrar el proyecto | `monitoring` recibe `ProjectDeleted` y borra sus monitores |
 
-Todas bloquean la fila de `monitor_state` (`FOR UPDATE`) antes de escribir. Si hay un check en vuelo cuando se pausa, su resultado se guarda al volver, pero no cambia el estado: la transacción del resultado ve `PAUSED` y no aplica ninguna transición.
+Todas bloquean la fila de `monitor_state` (`FOR UPDATE`) antes de escribir, y leen el monitor después, ya con el bloqueo tomado: un borrado que se adelantó se ve como `404`. El borrado bloquea también la fila de `monitors` (`FOR UPDATE`, siempre después de la de `monitor_state`, el orden que sigue el `PATCH`) y la lee como quedó confirmada, así que no falla por la versión que acaba de escribir un `PATCH` (OW-044). Si hay un check en vuelo cuando se pausa, su resultado se guarda al volver, pero no cambia el estado: la transacción del resultado ve `PAUSED` y no aplica ninguna transición.
 
 ## 4. Modelo de concurrencia
 
