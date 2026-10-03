@@ -69,7 +69,7 @@ Resultado: **siete módulos**: `shared`, `egress`, `identity`, `organization`, `
 
 - **Es dueño de:** nada persistente.
 - **Hace:** valida URLs de destino (`TargetPolicy`), clasifica IP, resuelve DNS con filtrado y fijación de la IP (`GuardedDnsResolver`), construye clientes HTTP salientes endurecidos y valida redirects.
-- **API pública:** `TargetPolicy`, `EgressHttpClients` y `BlockedTargetException`.
+- **API pública:** `TargetPolicy` con `TargetKind` (OW-020), `EgressHttpClients` y `BlockedTargetException` (OW-024).
 - Detalle en [Protección SSRF](../security/ssrf-protection.md).
 
 ### `shared`
@@ -135,10 +135,10 @@ src/main/java/io/github/ricardoord/opswatch/
 │   ├── events/       EventPublicationPurgeJob, IncompleteEventPublicationsMonitor
 │   └── time/         ClockConfiguration
 ├── egress/
-│   ├── TargetPolicy.java                 ← API pública
+│   ├── TargetPolicy.java, TargetKind.java ← API pública
 │   ├── EgressHttpClients.java            ← API pública
 │   ├── BlockedTargetException.java       ← API pública
-│   └── internal/     GuardedDnsResolver, IpRangeClassifier, RedirectValidator
+│   └── internal/     TargetUrlParser, IpRangeClassifier, HostResolver, GuardedDnsResolver, RedirectValidator
 ├── identity/
 │   ├── UserDirectory.java, UserSummary.java          ← API pública
 │   ├── domain/       User, RefreshToken, UserRepository, RefreshTokenRepository

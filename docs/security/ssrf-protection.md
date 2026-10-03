@@ -56,7 +56,7 @@ flowchart TB
 
 ### Capa 1: validación al guardar
 
-`TargetPolicy.validate(URI)` se ejecuta al crear o editar un monitor o un webhook. Su función es dar **retroalimentación inmediata** al usuario (`422 target-not-allowed`), pero **no es la barrera definitiva**.
+`TargetPolicy.validate(url, kind)` (OW-020) se ejecuta al crear o editar un monitor (`TargetKind.MONITOR`) o un webhook (`TargetKind.WEBHOOK`). Su función es dar **retroalimentación inmediata** al usuario (`422 target-not-allowed`), pero **no es la barrera definitiva**.
 
 | Regla | Detalle |
 |---|---|
@@ -66,7 +66,7 @@ flowchart TB
 | Longitud | Máximo 2048 caracteres |
 | Puerto | `80`, `443` o de `1024` a `65535`. Los puertos bajos distintos de 80 y 443 (22, 25, 110…) se rechazan para limitar el uso del motor como escáner o relé SMTP |
 | Host IP literal | Solo IPv4 en notación decimal con puntos (cuatro octetos de 0 a 255, sin ceros a la izquierda) o IPv6 entre corchetes. Cualquier otra forma numérica (`2130706433`, `0x7f000001`, `0177.0.0.1`, `127.1`) se rechaza. La IP se clasifica igual que en la capa 2 |
-| Host nombre | Gramática de hostname (RFC 1123), con IDN convertido a punycode. Se rechazan `localhost`, `*.localhost`, `*.local`, `*.internal`, `*.home.arpa`, `metadata.google.internal` y nombres de una sola etiqueta (sin punto, como `postgres`) |
+| Host nombre | Gramática de hostname (RFC 1123), con IDN convertido a punycode bajo las reglas STD3 (sin `_`, `%` ni espacios). El punto final se quita antes de aplicar las reglas: `localhost.` es `localhost`. Se rechazan `localhost`, `*.localhost`, `*.local`, `*.internal`, `home.arpa` y `*.home.arpa`, `metadata.google.internal` y nombres de una sola etiqueta (sin punto, como `postgres`). Un host cuya última etiqueta es solo dígitos es una dirección (ningún dominio de primer nivel es numérico) y tiene que estar en decimal con puntos. `allowed-private-cidrs` abre direcciones, nunca estos nombres |
 | Resolución actual | Se resuelve el nombre, con un plazo máximo de `opswatch.egress.save-resolution-timeout` (2 s), y **todas** las IP tienen que pasar el clasificador. Si no resuelve o no responde a tiempo, se admite sin aviso en la respuesta: el DNS puede no existir todavía, la capa 2 decidirá en cada check y el primer check mostrará `DNS_FAILURE`. La resolución es I/O externo: se hace fuera de cualquier transacción |
 | Fragmento | Se descarta |
 | Normalización | La URL que se guarda y se devuelve es la normalizada: esquema y host en minúsculas, host en punycode y sin fragmento |
@@ -157,18 +157,18 @@ El clasificador bloquea todo lo que no sea unicast global enrutable en internet.
 
 | Rango | Motivo |
 |---|---|
-| `::/128`, `::1/128` | No especificada y loopback |
-| `::ffff:0:0/96` | IPv4 mapeada: **se extrae la IPv4 y se clasifica** (Java suele convertirla ya a `Inet4Address`) |
-| `64:ff9b::/96`, `64:ff9b:1::/48` | NAT64: se extrae la IPv4 incrustada y se clasifica |
-| `100::/64` | Descarte |
-| `2001::/32` | Teredo |
-| `2001:db8::/32` | Documentación |
-| `2002::/16` | 6to4: se extrae la IPv4 incrustada y se clasifica |
-| `fc00::/7` | Unique local (ULA). Incluye `fd00:ec2::254` (metadata IPv6 de AWS) |
-| `fe80::/10` | Link-local |
-| `ff00::/8` | Multicast |
+IPv6 se decide **por exclusión**: todo lo que está fuera del bloque global unicast `2000::/3` se bloquea, y dentro de él, unos pocos rangos especiales. Así quedan cubiertos sin enumerarlos `::/128`, `::1/128`, las IPv4-compatibles (`::/96`), `100::/64` (descarte), `fc00::/7` (ULA, con `fd00:ec2::254`, la metadata IPv6 de AWS), `fe80::/10` (link-local), `ff00::/8` (multicast) y el prefijo NAT64 de uso local `64:ff9b:1::/48`, que se bloquea entero en lugar de buscar la IPv4 en una posición que depende de cada red.
 
-La lista vive en código, en un único sitio, con un test por cada rango (la primera y la última dirección de cada uno, y una dirección pública vecina que debe pasar).
+| Rango | Tratamiento |
+|---|---|
+| `::ffff:0:0/96` | IPv4 mapeada: **se extrae la IPv4 y se clasifica** (Java suele convertirla ya a `Inet4Address`) |
+| `64:ff9b::/96` | NAT64 (prefijo conocido): se extrae la IPv4 incrustada y se clasifica |
+| `2002::/16` | 6to4: se extrae la IPv4 incrustada y se clasifica |
+| `2001::/23` | Asignaciones de protocolo de IETF, con Teredo (`2001::/32`): bloqueado |
+| `2001:db8::/32`, `3fff::/20` | Documentación (RFC 3849 y RFC 9637): bloqueado |
+| Fuera de `2000::/3` | Bloqueado |
+
+La lista vive en código, en un único sitio (`IpRangeClassifier`), con un test por cada rango (la primera y la última dirección de cada uno, y una dirección pública vecina que debe pasar).
 
 ### Capa 3: redirects
 
