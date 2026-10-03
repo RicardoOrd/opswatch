@@ -40,6 +40,8 @@ El trabajo de las Etapas 2 a 5 (Redis, broker, microservicios, analytics) **no t
 
 La prioridad indica **importancia**. El **cuándo** lo indica el milestone. Una issue P1 de la v0.3.0 no se empieza antes que una P2 del Sprint 0.
 
+El número `OW-NNN` es un identificador, no un orden: se asigna al crear la issue y no cambia, porque de él sale el número de la issue de GitHub. Una issue que se adelanta a un milestone anterior (OW-034) o que nace al partir otra (OW-044) conserva su número. Dentro de un milestone, el orden lo fijan las dependencias y se escribe al principio de su sección.
+
 ### Etiquetas
 
 - **Tipo:** `feature`, `architecture`, `security`, `testing`, `devops`, `documentation`, `performance`, `refactor`, `bug`. Una issue puede tener más de un tipo.
