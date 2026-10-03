@@ -75,7 +75,7 @@ Resultado: **siete módulos**: `shared`, `egress`, `identity`, `organization`, `
 ### `shared`
 
 - **Es dueño de:** nada persistente.
-- **Contiene:** excepciones base y su traducción a Problem Details, `RequestIdFilter`, DTOs de paginación, `CurrentUser`, el bean `Clock` y `SecretCipher` (AES-GCM).
+- **Contiene:** excepciones base y su traducción a Problem Details, `RequestIdFilter`, DTOs de paginación, `CurrentUser`, el bean `Clock`, `SecretCipher` (AES-GCM) y el mantenimiento del registro de eventos (purga del archivo y gauge de pendientes), que sirve a todos los módulos con listeners asíncronos.
 
 ## 4. Reglas de dependencia
 
@@ -132,6 +132,7 @@ src/main/java/io/github/ricardoord/opswatch/
 │   ├── web/          RequestIdFilter, PageResponse, CursorPage
 │   ├── security/     CurrentUser, CurrentUserArgumentResolver
 │   ├── crypto/       SecretCipher (AES-256-GCM con key id)
+│   ├── events/       EventPublicationPurgeJob, IncompleteEventPublicationsMonitor
 │   └── time/         ClockConfiguration
 ├── egress/
 │   ├── TargetPolicy.java                 ← API pública

@@ -100,10 +100,16 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
-        <!-- Límites de módulo verificados (ADR-003). El registro de eventos llega en OW-034 -->
+        <!-- Límites de módulo verificados (ADR-003) -->
         <dependency>
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-core</artifactId>
+        </dependency>
+        <!-- Event Publication Registry sobre JDBC (OW-034, docs/architecture/events.md#4-semántica-transaccional): las
+             publicaciones para listeners asíncronos se guardan en la transacción del publicador -->
+        <dependency>
+            <groupId>org.springframework.modulith</groupId>
+            <artifactId>spring-modulith-starter-jdbc</artifactId>
         </dependency>
 
         <!-- Anotaciones de nulabilidad (@NullMarked, @Nullable), las mismas que usa Spring Framework 7 -->
@@ -155,6 +161,12 @@
         <dependency>
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Esperar a los listeners asíncronos sin sleep fijos. Versión gestionada por Spring Boot -->
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

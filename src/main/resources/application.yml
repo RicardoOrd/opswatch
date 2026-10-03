@@ -41,6 +41,18 @@ spring:
     # Los mensajes de la API son un contrato técnico en inglés, sea cual sea el idioma del servidor o del cliente
     locale: en
     locale-resolver: fixed
+  # Event Publication Registry (OW-034, docs/architecture/events.md#4-semántica-transaccional)
+  modulith:
+    events:
+      # Al arrancar, se reenvían las publicaciones pendientes: lo que una caída dejó a medias se ejecuta
+      republish-outstanding-events-on-restart: true
+      # Una publicación completada pasa a event_publication_archive en lugar de borrarse. Solo
+      # EventPublicationPurgeJob borra, y solo del archivo
+      completion-mode: archive
+      jdbc:
+        schema-initialization:
+          # Flyway es el dueño del esquema (V4__modulith_create_event_publication)
+          enabled: false
 
 server:
   shutdown: graceful

@@ -142,6 +142,13 @@ Los rangos de validación del dominio (intervalo de 30 a 3600 s, timeout de 1 a 
 | `opswatch.notification.test.rate-limit` | `5/1m` por canal |
 | `spring.mail.*` | Según el entorno (host, puerto, usuario, contraseña **secreta**, STARTTLS) |
 
+### Eventos
+
+| Propiedad | Por defecto | Notas |
+|---|---|---|
+| `opswatch.events.incomplete-check-interval` | `30s` | Cada cuánto se recalcula `opswatch_event_publications_incomplete` |
+| `opswatch.events.incomplete-alert-after` | `15m` | Una publicación pendiente durante más tiempo produce un `WARN` en cada comprobación |
+
 ### Retención
 
 | Propiedad | Por defecto |
