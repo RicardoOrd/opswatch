@@ -1,6 +1,6 @@
 # Roadmap
 
-Estado: diseño inicial · Última revisión: 2026-09-29
+Estado: diseño inicial · Última revisión: 2026-10-02
 
 Sin fechas: es un proyecto personal y el ritmo es variable. El orden y los criterios de salida sí son firmes. Cada fase cumple la [Definition of Done global](definition-of-done.md) además de la suya.
 
@@ -8,9 +8,9 @@ Sin fechas: es un proyecto personal y el ritmo es variable. El orden y los crite
 
 | | |
 |---|---|
-| **Ahora** | **Refinar la v0.2.0 — Proyectos y monitores** (OW-019, OW-020, OW-021, OW-022, OW-034 y OW-044) contra lo que dejó construido la v0.1.0: `AccessControl`, `PageQuery`, `ETags`, `NotNullIfPresent` y la matriz de autorización, que cada endpoint nuevo tiene que ampliar. Sus issues siguen en *Planned* hasta ese refinamiento |
+| **Ahora** | **v0.2.0 — Proyectos y monitores**, refinada el 2026-10-02: sus seis issues están en *Ready* ([backlog](backlog.md#v020--proyectos-y-monitores)). Cada endpoint nuevo amplía la matriz de autorización |
 | **Hecho** | v0.1.0 — Identity y organizaciones, publicada el 2026-09-29 (release #69). Sprint 0 cerrado el 2026-09-28 |
-| **Orden sugerido** | Se fija al refinar la v0.2.0 |
+| **Orden** | OW-034 (registro de eventos) → OW-019 (proyectos) → OW-020 (`TargetPolicy`) → OW-021 (monitores) → OW-022 (headers cifrados) → OW-044 (pausa, borrado y limpieza por `ProjectDeleted`) |
 | **Fuera de foco** | Todo lo de V2 a V5 (Redis, broker, microservicios, tiempo real). Vive en este roadmap y en los ADR propuestos, no en issues |
 
 ## Milestones

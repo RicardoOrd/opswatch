@@ -1,6 +1,6 @@
 # Modelo de autorización multi-tenant
 
-Estado: diseño inicial · Última revisión: 2026-09-28 · Decisión: [ADR-004](../adr/ADR-004-security-strategy.md)
+Estado: diseño inicial · Última revisión: 2026-10-02 · Decisión: [ADR-004](../adr/ADR-004-security-strategy.md)
 
 ## 1. Modelo
 
@@ -98,7 +98,11 @@ public interface AccessControl {
      */
     Role require(UUID userId, UUID organizationId, Permission permission);
 
-    /** Resuelve el proyecto (no borrado) y comprueba el permiso en su organización. Llega con OW-019. */
+    /**
+     * Resuelve el proyecto (no borrado) y comprueba el permiso en su organización. Llega con OW-019.
+     * @return el proyecto y su organización, para que quien llama no los tome nunca de la petición
+     * @throws ResourceNotFoundException si el proyecto no existe, está borrado o el usuario no es miembro de su organización
+     */
     ProjectRef requireForProject(UUID userId, UUID projectId, Permission permission);
 }
 ```

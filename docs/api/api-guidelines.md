@@ -38,7 +38,7 @@ No se usa `PUT`: ningún recurso de V1 necesita un reemplazo completo y `PATCH` 
 
 **Semántica de `PATCH`:** el DTO tiene todos los campos opcionales. Un campo **ausente** no cambia. Un campo presente con `null` solo es válido si el campo admite nulo (por ejemplo, `degradedThresholdMs: null` desactiva el estado degradado). Las listas (`headers`) se reemplazan enteras si vienen en el cuerpo.
 
-En el código, un campo que no admite nulo lleva `@JsonDeserialize(using = NotNullIfPresent.class)`: ausente queda `null` y no cambia, y un `null` explícito da `400 malformed-request`. `@JsonSetter(nulls = Nulls.FAIL)` no sirve en un record, porque Jackson también lo aplica al campo ausente. Distinguir un `null` que borra de un campo ausente, en los campos que admiten nulo, queda para el primer `PATCH` que lo necesite.
+En el código, un campo que no admite nulo lleva `@JsonDeserialize(using = NotNullIfPresent.class)`: ausente queda `null` y no cambia, y un `null` explícito da `400 malformed-request`. `@JsonSetter(nulls = Nulls.FAIL)` no sirve en un record, porque Jackson también lo aplica al campo ausente. Un campo que admite nulo (`description` de un proyecto, `degradedThresholdMs` de un monitor) usa un tipo de tres estados de `shared.web` (ausente, `null` o valor), que llega con OW-019.
 
 ## 4. Códigos de estado
 
@@ -194,7 +194,7 @@ GET /api/v1/monitors/{monitorId}/checks?limit=50&cursor=eyJjIjoiMjAyNi0wOS0yOFQx
 
 ## 11. Filtros
 
-- Parámetros de query explícitos y documentados por endpoint: `?status=DOWN&enabled=true&q=payments`.
+- Parámetros de query explícitos y documentados por endpoint: `?status=DOWN&q=payments`.
 - Los valores múltiples se separan con comas: `?status=OPEN,ACKNOWLEDGED`.
 - Rangos de tiempo: `from` y `to` en ISO-8601, `from` inclusivo y `to` exclusivo.
 - `q` busca por prefijo sin distinguir mayúsculas en el campo de nombre. No hay búsqueda de texto completo en V1.

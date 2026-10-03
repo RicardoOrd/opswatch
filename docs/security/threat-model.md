@@ -105,7 +105,7 @@ Leyenda de fase: el número indica en qué fase se implementa el control. **Resi
 |---|---|---|---|---|---|
 | T-10 | I | IDOR: leer el monitor, el incidente o el canal de otra organización por id | Tenant resuelto desde el recurso, `404` a quien no es miembro, tests de IDOR por endpoint | 1–2 | Bajo |
 | T-11 | E | Un `VIEWER` edita o un `ADMIN` se asigna `OWNER` | Matriz RBAC en código y tests de la matriz completa | 1 | Bajo |
-| T-12 | T | Mass assignment (`organizationId`, `role`, `enabled` en DTOs que no los aceptan) | DTOs por operación y propiedades desconocidas → `400` | 1 | Bajo |
+| T-12 | T | Mass assignment (`organizationId`, `projectId`, `role` en DTOs que no los aceptan) | DTOs por operación y propiedades desconocidas → `400` | 1 | Bajo |
 | T-13 | T | SQL injection (filtros, `sort`) | Consultas parametrizadas y lista blanca de ordenación | 1 | Bajo |
 | T-14 | I | Lectura de los secretos de los headers a través de la API | Valores de solo escritura, enmascarados siempre | 2 | Bajo |
 | T-15 | D | Un usuario agota recursos (miles de monitores o proyectos) | Cuotas por organización y por usuario | 2 | Bajo |

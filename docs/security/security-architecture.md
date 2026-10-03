@@ -1,6 +1,6 @@
 # Arquitectura de seguridad
 
-Estado: diseño inicial · Última revisión: 2026-09-29 · Decisión: [ADR-004](../adr/ADR-004-security-strategy.md)
+Estado: diseño inicial · Última revisión: 2026-10-02 · Decisión: [ADR-004](../adr/ADR-004-security-strategy.md)
 
 Documentos relacionados: [Modelo de autorización](authorization-model.md) · [Threat model](threat-model.md) · [Protección SSRF](ssrf-protection.md)
 
@@ -138,7 +138,7 @@ El detalle está en [Modelo de autorización](authorization-model.md). En resume
 | Secreto | Dónde vive en producción | Rotación |
 |---|---|---|
 | Clave privada JWT (RSA) | Fichero montado como Docker secret (`/run/secrets/jwt_private_key`) | Con `kid`, sin cortar sesiones (sección 2) |
-| Clave de cifrado de datos (AES-256) | Docker secret | Versionada: cada texto cifrado lleva el `keyId`. Hay un job de recifrado |
+| Clave de cifrado de datos (AES-256) | Docker secret | Versionada: cada texto cifrado lleva el `keyId`, y una clave retirada sigue configurada mientras haya textos cifrados con ella. Recifrarlos con la clave nueva queda fuera de V1 |
 | Contraseña de PostgreSQL | Docker secret | Manual, con reinicio coordinado |
 | Credenciales SMTP | Docker secret | Manual |
 
@@ -155,7 +155,9 @@ Se cifran con **AES-256-GCM** (`SecretCipher` en `shared`):
 - los headers de los monitores (pueden llevar `Authorization`, API keys);
 - la configuración de los canales de notificación (URL del webhook con token, secreto de firma, destinatarios).
 
-Formato: `keyId (1 byte) ‖ nonce (12 bytes) ‖ ciphertext ‖ tag (16 bytes)`. El nonce es aleatorio por cifrado. Se usa como dato asociado (AAD) el id de la entidad, para que un texto cifrado no se pueda copiar de una fila a otra.
+Formato: `keyId (1 byte) ‖ nonce (12 bytes) ‖ ciphertext ‖ tag (16 bytes)`. El nonce es aleatorio por cifrado. Se usa como dato asociado (AAD) el propósito y el id de la entidad (`monitors.request_headers:<monitorId>`), para que un texto cifrado no se pueda copiar de una fila a otra ni de una tabla a otra.
+
+El cifrado es explícito en el servicio, no un `AttributeConverter` de JPA: un converter solo recibe el valor de la columna y, al leer, no conoce el id de la entidad que hace falta como dato asociado. La aplicación no arranca, en ningún perfil, sin la clave activa ni con una clave que no mida 32 bytes (OW-022).
 
 Las contraseñas no se cifran: se **hashean**. Los refresh tokens tampoco: se **hashean** con SHA-256. En los dos casos no hace falta recuperar el valor original.
 

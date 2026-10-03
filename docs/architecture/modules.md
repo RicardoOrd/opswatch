@@ -1,6 +1,6 @@
 # Módulos
 
-Estado: diseño inicial · Última revisión: 2026-09-28 · Decisiones: [ADR-001](../adr/ADR-001-modular-monolith.md), [ADR-003](../adr/ADR-003-spring-modulith.md)
+Estado: diseño inicial · Última revisión: 2026-10-02 · Decisiones: [ADR-001](../adr/ADR-001-modular-monolith.md), [ADR-003](../adr/ADR-003-spring-modulith.md)
 
 ## 1. Criterios para definir un módulo
 
@@ -39,7 +39,7 @@ Resultado: **siete módulos**: `shared`, `egress`, `identity`, `organization`, `
 
 - **Es dueño de:** `organizations`, `memberships` y `projects`.
 - **Hace:** CRUD de organizaciones y proyectos, gestión de miembros y roles, invariante del último `OWNER` y **decisiones de autorización**.
-- **API pública:** `AccessControl` (¿puede el usuario U ejercer el permiso P en la organización O o en el proyecto X?), `ProjectDirectory`, los enums `Role` y `Permission`.
+- **API pública:** `AccessControl` (¿puede el usuario U ejercer el permiso P en la organización O o en el proyecto X?), `ProjectDirectory` (bloquear un proyecto no borrado mientras se le añade un monitor), los enums `Role` y `Permission`.
 - **Publica:** `ProjectDeleted` y `OrganizationDeleted`.
 - **Escucha:** nada.
 

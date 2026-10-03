@@ -1,6 +1,6 @@
 # Catálogo de endpoints `/api/v1`
 
-Estado: diseño inicial · Última revisión: 2026-09-29 · Convenciones: [api-guidelines.md](api-guidelines.md) · Permisos: [authorization-model.md](../security/authorization-model.md)
+Estado: diseño inicial · Última revisión: 2026-10-02 · Convenciones: [api-guidelines.md](api-guidelines.md) · Permisos: [authorization-model.md](../security/authorization-model.md)
 
 **Existen `POST /api/v1/auth/register` (OW-012), `POST /api/v1/auth/login` y `GET /api/v1/me` (OW-013), y `POST /api/v1/auth/refresh` y `POST /api/v1/auth/logout` (OW-014), con rate limiting desde OW-015, `PATCH /api/v1/me` y `POST /api/v1/me/password` (OW-045), los cinco endpoints de organizaciones (OW-016) y los cuatro de miembros (OW-017). El resto está planificado.** La columna "Fase" indica cuándo se implementa cada uno. Los errores comunes a todos los endpoints autenticados (`401`, `404` a quien no es miembro, `429` y `500`) no se repiten en cada tabla.
 
@@ -120,32 +120,40 @@ V1 solo añade usuarios que ya tienen cuenta. El `404` revela si el email está 
 
 | Método | Ruta | Permiso | Éxito | Errores específicos | Fase |
 |---|---|---|---|---|---|
-| `POST` | `/api/v1/organizations/{orgId}/projects` | `PROJECT_WRITE` | `201` | `400`, `403`, `409` (nombre duplicado), `422 quota-exceeded` | 2 |
-| `GET` | `/api/v1/organizations/{orgId}/projects` | `PROJECT_READ` | `200`, paginado. `sort`: `name`, `createdAt` | — | 2 |
-| `GET` | `/api/v1/projects/{projectId}` | `PROJECT_READ` | `200` (incluye un resumen: monitores por estado) | — | 2 |
-| `PATCH` | `/api/v1/projects/{projectId}` | `PROJECT_WRITE` | `200` | `400`, `403`, `409`, `412` | 2 |
+| `POST` | `/api/v1/organizations/{orgId}/projects` | `PROJECT_WRITE` | `201` y `ETag` | `400`, `403`, `409` (nombre duplicado), `422 quota-exceeded` (20 proyectos) | 2 |
+| `GET` | `/api/v1/organizations/{orgId}/projects` | `PROJECT_READ` | `200`, paginado. `sort` por `name` (por defecto) o `createdAt` | `400 invalid-parameter` | 2 |
+| `GET` | `/api/v1/projects/{projectId}` | `PROJECT_READ` | `200` y `ETag` | — | 2 |
+| `PATCH` | `/api/v1/projects/{projectId}` | `PROJECT_WRITE` | `200` y `ETag` nuevo | `400`, `403`, `409` (nombre duplicado o cambio concurrente), `412` | 2 |
 | `DELETE` | `/api/v1/projects/{projectId}` | `PROJECT_WRITE` | `204` (borra sus monitores de forma asíncrona) | `403` | 2 |
 
 ```jsonc
 // POST /api/v1/organizations/{orgId}/projects
 { "name": "Production", "description": "Servicios en producción" }
-// GET /api/v1/projects/{projectId}
+// GET /api/v1/projects/{projectId}, ETag: "2"
 {
   "id": "0192…", "organizationId": "0192…", "name": "Production", "description": "…",
-  "monitorCounts": { "UP": 3, "DEGRADED": 0, "DOWN": 1, "PENDING": 0, "PAUSED": 0 },
-  "createdAt": "…", "version": 2
+  "createdAt": "…", "updatedAt": "…", "version": 2
 }
+
+// PATCH /api/v1/projects/{projectId}, con If-Match: "2" (opcional)
+{ "description": null }   // borra la descripción; sin el campo, se conserva
 ```
+
+- Quien no es miembro de la organización del proyecto recibe `404` en los endpoints con `{projectId}`, igual que con un id inexistente o un proyecto borrado.
+- `name`: de 1 a 100 caracteres, único en la organización sin distinguir mayúsculas (entre los no borrados), con las reglas de caracteres del nombre de la organización. `description`: opcional, hasta 500 caracteres, con las mismas reglas. En `PATCH`, `name: null` → `400` y `description: null` la borra.
+- Borrar la organización borra sus proyectos en la misma transacción.
+- Los monitores por estado de un proyecto los da `monitoring`: `GET /api/v1/projects/{projectId}/monitors/summary`. `organization` no puede depender de `monitoring` ([módulos](../architecture/modules.md#4-reglas-de-dependencia)).
 
 ## Monitores (`monitoring`)
 
 | Método | Ruta | Permiso | Éxito | Errores específicos | Fase |
 |---|---|---|---|---|---|
-| `POST` | `/api/v1/projects/{projectId}/monitors` | `MONITOR_WRITE` | `201` | `400`, `403`, `409` (nombre duplicado), `422 target-not-allowed`, `422 quota-exceeded` | 2 |
-| `GET` | `/api/v1/projects/{projectId}/monitors` | `MONITOR_READ` | `200`, paginado. Filtros `status`, `enabled`, `q`. `sort`: `name`, `status`, `createdAt` | `400` | 2 |
-| `GET` | `/api/v1/monitors/{monitorId}` | `MONITOR_READ` | `200` con `ETag` | — | 2 |
-| `PATCH` | `/api/v1/monitors/{monitorId}` | `MONITOR_WRITE` | `200` | `400`, `403`, `409`, `412`, `422 target-not-allowed` | 2 |
-| `POST` | `/api/v1/monitors/{monitorId}/pause` | `MONITOR_WRITE` | `200` (resuelve el incidente activo) | `403`, `409` (ya pausado) | 2 |
+| `POST` | `/api/v1/projects/{projectId}/monitors` | `MONITOR_WRITE` | `201` y `ETag` | `400`, `403`, `409` (nombre duplicado), `422 target-not-allowed`, `422 quota-exceeded` (50 monitores por organización) | 2 |
+| `GET` | `/api/v1/projects/{projectId}/monitors` | `MONITOR_READ` | `200`, paginado. Filtros `status` y `q` (nombre). `sort` por `name` (por defecto), `status` o `createdAt` | `400 invalid-parameter` | 2 |
+| `GET` | `/api/v1/projects/{projectId}/monitors/summary` | `MONITOR_READ` | `200`: monitores del proyecto por estado | — | 2 |
+| `GET` | `/api/v1/monitors/{monitorId}` | `MONITOR_READ` | `200` y `ETag` | — | 2 |
+| `PATCH` | `/api/v1/monitors/{monitorId}` | `MONITOR_WRITE` | `200` y `ETag` nuevo | `400`, `403`, `409` (nombre duplicado o cambio concurrente), `412`, `422 target-not-allowed` | 2 |
+| `POST` | `/api/v1/monitors/{monitorId}/pause` | `MONITOR_WRITE` | `200` (desde OW-032, resuelve el incidente activo) | `403`, `409` (ya pausado) | 2 |
 | `POST` | `/api/v1/monitors/{monitorId}/resume` | `MONITOR_WRITE` | `200` | `403`, `409` (no estaba pausado) | 2 |
 | `DELETE` | `/api/v1/monitors/{monitorId}` | `MONITOR_WRITE` | `204` | `403` | 2 |
 
@@ -162,8 +170,7 @@ V1 solo añade usuarios que ya tienen cuenta. El `404` revela si el email está 
   "followRedirects": true,                       // por defecto true
   "failureThreshold": 3,                         // 1–10, por defecto 3
   "recoveryThreshold": 2,                        // 1–10, por defecto 2
-  "headers": [ { "name": "Authorization", "value": "Bearer s3cr3t" } ],   // máximo 10, solo escritura
-  "enabled": true
+  "headers": [ { "name": "Authorization", "value": "Bearer s3cr3t" } ]    // máximo 10, solo escritura (OW-022)
 }
 
 // 201, GET /api/v1/monitors/{monitorId}
@@ -174,7 +181,6 @@ V1 solo añade usuarios que ya tienen cuenta. El `404` revela si el email está 
   "intervalSeconds": 60, "timeoutMs": 10000, "degradedThresholdMs": 2000,
   "followRedirects": true, "failureThreshold": 3, "recoveryThreshold": 2,
   "headers": [ { "name": "Authorization", "value": null, "hasValue": true } ],
-  "enabled": true,
   "state": {
     "status": "UP", "statusChangedAt": "…",
     "lastCheckedAt": "…", "lastResponseTimeMs": 143, "lastHttpStatus": 200,
@@ -184,7 +190,19 @@ V1 solo añade usuarios que ya tienen cuenta. El `404` revela si el email está 
 }
 ```
 
-Validaciones: ver el [modelo de dominio](../architecture/domain-model.md#monitor) y la [política SSRF](../security/ssrf-protection.md#capa-1-validación-al-guardar). En `PATCH`, `headers` reemplaza la lista entera si viene en el cuerpo.
+```jsonc
+// GET /api/v1/projects/{projectId}/monitors/summary
+{ "total": 4, "byStatus": { "PENDING": 0, "UP": 3, "DEGRADED": 0, "DOWN": 1, "PAUSED": 0 } }
+```
+
+Validaciones: ver el [modelo de dominio](../architecture/domain-model.md#monitor) y la [política SSRF](../security/ssrf-protection.md#capa-1-validación-al-guardar).
+
+- La URL se guarda y se devuelve **normalizada** (esquema y host en minúsculas, host en punycode, sin fragmento).
+- Un monitor nace en `PENDING`. No hay campo `enabled`: un monitor está pausado cuando su estado es `PAUSED`, y solo `pause` y `resume` lo cambian.
+- Las invariantes (por ejemplo, `timeoutMs` menor que el intervalo) se comprueban sobre el estado resultante: un `PATCH` que solo cambia uno de los dos puede dar `400`.
+- En `PATCH`, `degradedThresholdMs: null` desactiva el estado degradado; los demás campos no admiten `null`. `headers` reemplaza la lista entera si viene en el cuerpo, y `[]` los quita todos.
+- `q` busca en el nombre sin distinguir mayúsculas, de forma literal (`%` y `_` no son comodines), con 100 caracteres como máximo.
+- El `422 target-not-allowed` dice qué regla falla, nunca las IP resueltas.
 
 ## Checks y estadísticas
 

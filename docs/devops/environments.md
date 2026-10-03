@@ -1,6 +1,6 @@
 # Entornos, configuración y secretos
 
-Estado: diseño inicial · Última revisión: 2026-09-29
+Estado: diseño inicial · Última revisión: 2026-10-02
 
 ## Perfiles
 
@@ -87,7 +87,7 @@ Los rangos de validación del dominio (intervalo de 30 a 3600 s, timeout de 1 a 
 | `opswatch.security.refresh-token.family-max-ttl` | `30d` | |
 | `opswatch.security.refresh-token.cookie-name` | `opswatch_refresh` | |
 | `opswatch.security.password.bcrypt-strength` | `12` | `4` en `test` |
-| `opswatch.security.encryption.keys.<id>` | — (**secreto**) | AES-256 en Base64. Varias para rotar |
+| `opswatch.security.encryption.keys.<id>` | — (**secreto**) | AES-256 en Base64 (32 bytes). `<id>` de 0 a 255: es el byte `keyId` de cada texto cifrado. Varias para rotar |
 | `opswatch.security.encryption.active-key-id` | — | Clave con la que se cifra lo nuevo |
 | `opswatch.security.cors.allowed-origins` | vacío | Nunca `*` |
 | `opswatch.security.rate-limit.login-per-ip` | `10/1m` | Formato `<intentos>/<periodo>`. IPv6 por prefijo /64. Los cuatro límites de autenticación son `100000/1m` en `test`, porque los tests con MockMvc comparten 127.0.0.1; `AuthRateLimitIT` prueba estos |
@@ -126,6 +126,7 @@ Los rangos de validación del dominio (intervalo de 30 a 3600 s, timeout de 1 a 
 | Propiedad | Por defecto | Notas |
 |---|---|---|
 | `opswatch.egress.allowed-private-cidrs` | vacío | **Prohibida en `production`.** Nunca abre la metadata cloud ([SSRF](../security/ssrf-protection.md#4-configuración-para-pruebas-y-benchmarks)) |
+| `opswatch.egress.save-resolution-timeout` | `2s` | Plazo de la resolución DNS al guardar un monitor. Si vence, la URL se admite y decide la capa 2 |
 | `opswatch.egress.max-response-header-line` | `8KB` | |
 | `opswatch.egress.max-response-headers` | `100` | |
 
@@ -148,7 +149,7 @@ Los rangos de validación del dominio (intervalo de 30 a 3600 s, timeout de 1 a 
 | `opswatch.retention.checks` | `30d` |
 | `opswatch.retention.deliveries` | `90d` |
 | `opswatch.retention.refresh-tokens-grace` | `7d` |
-| `opswatch.retention.event-publications` | `7d` |
+| `opswatch.retention.event-publications` | `7d` (solo el archivo de publicaciones completadas) |
 | `opswatch.retention.batch-size` | `10000` |
 | `opswatch.retention.cron` | `0 30 3 * * *` (03:30 UTC) |
 
@@ -179,7 +180,9 @@ Los rangos de validación del dominio (intervalo de 30 a 3600 s, timeout de 1 a 
 | `management.server.port` | `8081` | Separado de la API |
 | `management.endpoints.web.exposure.include` | `health,info,prometheus` | Nada más |
 | `management.endpoint.health.probes.enabled` | `true` | `liveness` y `readiness` |
-| `spring.modulith.events.republish-outstanding-events-on-restart` | `true` | |
+| `spring.modulith.events.republish-outstanding-events-on-restart` | `true` | Desde OW-034 |
+| `spring.modulith.events.completion-mode` | `archive` | Las completadas pasan a `event_publication_archive`; las pendientes nunca se borran |
+| `spring.modulith.events.jdbc.schema-initialization.enabled` | `false` | Flyway es el dueño del esquema |
 | `spring.threads.virtual.enabled` | `true` | Virtual threads para Tomcat, `@Async` y `@Scheduled` (decidido en OW-006). Con Java 25 no hay pinning por `synchronized` y el modelo coincide con el del motor. Una petición bloqueada espera una conexión del pool de Hikari en lugar de agotar hilos, y esa espera se ve en `hikaricp_connections_pending` |
 
 ## Salvaguardas de arranque
@@ -197,6 +200,6 @@ Con el perfil `staging` o `production`, la aplicación falla al arrancar si:
 - `server.forward-headers-strategy` no es `native`, o `server.tomcat.remoteip.internal-proxies` no es un CIDR: sin ellos, el rate limiting vería una IP que el cliente puede elegir;
 - Swagger UI está activado en `production` sin la propiedad explícita que lo permite (`opswatch.api.docs-public=true`).
 
-En **cualquier** perfil, también en `local`, la aplicación no arranca sin `opswatch.security.jwt.private-key` ni `opswatch.security.jwt.issuer`, ni con una clave RSA de menos de 2048 bits (validación de `JwtProperties` y `JwtKeys`, OW-013). El mensaje nombra la propiedad, nunca la clave.
+En **cualquier** perfil, también en `local`, la aplicación no arranca sin `opswatch.security.jwt.private-key` ni `opswatch.security.jwt.issuer`, ni con una clave RSA de menos de 2048 bits (validación de `JwtProperties` y `JwtKeys`, OW-013). OW-022 añade la misma regla para la clave de cifrado: sin la clave de `opswatch.security.encryption.active-key-id`, o con una que no mida 32 bytes, no arranca. El mensaje nombra la propiedad, nunca la clave.
 
 Cada regla tiene su test ([testing](../testing/testing-strategy.md#pruebas-de-seguridad)).

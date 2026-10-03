@@ -1,6 +1,6 @@
 # Eventos internos
 
-Estado: diseño inicial · Última revisión: 2026-09-28 · Decisión: [ADR-005](../adr/ADR-005-internal-events.md)
+Estado: diseño inicial · Última revisión: 2026-10-02 · Decisión: [ADR-005](../adr/ADR-005-internal-events.md)
 
 ## 1. Para qué hay eventos
 
@@ -66,7 +66,7 @@ public record IncidentResolved(
 ### `organization`
 
 ```java
-public record ProjectDeleted(UUID projectId, UUID organizationId, Instant occurredAt) {}
+public record ProjectDeleted(UUID projectId, UUID organizationId, Instant occurredAt, UUID deletedBy) {}
 
 public record OrganizationDeleted(UUID organizationId, Instant occurredAt) {}
 ```
@@ -92,8 +92,8 @@ public record OrganizationDeleted(UUID organizationId, Instant occurredAt) {}
 | `IncidentOpened` | `incident` | `notification` | **Asíncrono, después del commit, con registro** | Efecto lateral con I/O externo y reintentos |
 | `IncidentResolved` | `incident` | `notification` | **Asíncrono, después del commit, con registro** | Ídem |
 | `IncidentAcknowledged` | `incident` | — (Fase 8: tiempo real) | — | Se publica ya por consistencia del catálogo |
-| `ProjectDeleted` | `organization` | `monitoring` | **Asíncrono, después del commit, con registro** | Limpieza que puede tardar y no tiene que bloquear la petición |
-| `OrganizationDeleted` | `organization` | `organization` (borra sus proyectos, desde que existan en OW-019; en la v0.1.0 nadie lo escucha) | Síncrono, dentro del módulo | Mismo módulo |
+| `ProjectDeleted` | `organization` | `monitoring` | **Asíncrono, después del commit, con registro** | Limpieza que puede tardar y no tiene que bloquear la petición. Borra cada monitor por el mismo camino que `DELETE`, así que cada uno publica su `MonitorDeleted` con el `deletedBy` del proyecto (OW-044) |
+| `OrganizationDeleted` | `organization` | — (nadie en V1) | — | Los proyectos de la organización no se borran escuchándolo: `OrganizationService` llama a `ProjectService` en la misma transacción (OW-019). Dentro de un módulo, un evento solo añadiría indirección |
 
 ## 4. Semántica transaccional
 
@@ -145,7 +145,11 @@ class IncidentEventsListener {
 - Enviar un email o un webhook es I/O externo, lento y falible. Dentro de la transacción del check, bloquearía una conexión a la base de datos durante segundos y un SMTP caído revertiría incidentes.
 - Solo debe notificarse lo que **se confirmó**: si la transacción que abre el incidente hace rollback, no se avisa de un incidente que no existe. Eso es lo que da `AFTER_COMMIT`.
 
-**Garantía:** Spring Modulith guarda la publicación en `event_publication` **dentro de la transacción del publicador** (patrón transactional outbox). Si la aplicación cae entre el commit y la ejecución del listener, la publicación sigue pendiente y se vuelve a enviar al reiniciar (`spring.modulith.events.republish-outstanding-events-on-restart=true`). La entrega es **at-least-once**, así que el listener tiene que ser idempotente:
+**Garantía:** Spring Modulith guarda la publicación en `event_publication` **dentro de la transacción del publicador** (patrón transactional outbox). Si la aplicación cae entre el commit y la ejecución del listener, la publicación sigue pendiente y se vuelve a enviar al reiniciar (`spring.modulith.events.republish-outstanding-events-on-restart=true`). El primer listener que lo usa es el de `ProjectDeleted` en `monitoring` (OW-044).
+
+**Registro (OW-034):** JDBC, con el esquema en una migración de Flyway (`spring.modulith.events.jdbc.schema-initialization.enabled=false`). Con `spring.modulith.events.completion-mode=archive`, una publicación completada pasa a `event_publication_archive` en lugar de borrarse: queda rastro de qué se entregó durante `opswatch.retention.event-publications` (7 días), y después un job la purga del archivo. Ningún proceso borra de `event_publication`: lo que hay ahí es trabajo pendiente y no caduca. Los nombres de las propiedades se comprueban contra la versión fijada al implementar OW-034.
+
+La entrega es **at-least-once**, así que el listener tiene que ser idempotente:
 
 - `notification_deliveries` tiene la clave única `(channel_id, incident_id, event_type)`, y un evento duplicado no crea entregas nuevas.
 - El envío real lo hace el `DeliveryWorker`, que reintenta con backoff. El listener solo encola trabajo en la base de datos.
@@ -168,7 +172,7 @@ class IncidentEventsListener {
 | **Evento perdido** | Caída entre el commit y el listener | Event Publication Registry (outbox) |
 | **Listener que falla siempre** | Bug o dato imposible | La publicación queda incompleta y visible en `event_publication`. Métrica y alerta sobre las publicaciones incompletas más antiguas que N minutos |
 | **Doble escritura** (guardar y publicar fuera de la transacción) | — | No existe: la publicación se registra en la misma transacción que el cambio |
-| **Crecimiento de `event_publication`** | Publicaciones completadas acumuladas | Modo de finalización que borra o archiva las completadas, más un job que purga las de más de 7 días (propiedad de Spring Modulith; se verifica el nombre exacto en la versión fijada) |
+| **Crecimiento de `event_publication`** | Publicaciones completadas acumuladas | Modo de finalización `archive`: las completadas pasan a `event_publication_archive`, y un job purga del archivo las de más de 7 días. Las pendientes nunca se purgan; se vigilan con la métrica `opswatch_event_publications_incomplete` |
 
 ## 7. Flujo de eventos
 
