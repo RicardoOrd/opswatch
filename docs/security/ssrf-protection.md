@@ -184,10 +184,12 @@ La lista vive en código, en un único sitio (`IpRangeClassifier`), con un test 
 |---|---|
 | Métodos: `GET` y `HEAD` en los monitores; `POST` solo para webhooks, con cuerpo generado por OpsWatch | Sin cuerpos controlados por el usuario no se pueden atacar endpoints que exigen `PUT`, como IMDSv2 de AWS, ni forjar protocolos |
 | Headers prohibidos: `Host`, `Content-Length`, `Transfer-Encoding`, `Connection`, `Upgrade`, `TE`, `Trailer`, `Expect`, `Proxy-*`, `Cookie`, `Metadata-Flavor`, `X-aws-ec2-metadata-token`, `X-aws-ec2-metadata-token-ttl-seconds`, `X-Forwarded-*`, `Forwarded` | Evitar el request smuggling y los headers que exige la metadata cloud. Es defensa en profundidad: la IP ya está bloqueada |
-| `Authorization: Bearer Oracle` | Se rechaza de forma explícita: es el header que exige la metadata v2 de Oracle Cloud |
-| Nombres y valores sin `CR` ni `LF`, nombres con la gramática de *token* HTTP, 10 headers como máximo y valores de 1024 bytes como máximo | Inyección de headers |
+| `Authorization: Bearer Oracle` | Se rechaza de forma explícita, sin distinguir mayúsculas y con cualquier espacio en medio: es el header que exige la metadata v2 de Oracle Cloud |
+| Nombres con la gramática de *token* HTTP y de 256 caracteres como máximo, sin repetir (sin distinguir mayúsculas). Valores solo con ASCII imprimible y tabulador, así que sin `CR`, `LF` ni otros caracteres de control, y de 1024 bytes como máximo. 10 headers como máximo | Inyección de headers. Un nombre repetido o un valor fuera de ASCII se interpretarían de forma distinta según el cliente HTTP |
 | Sin proxy (no se usan las propiedades del sistema) | Un proxy del entorno saltaría el `DnsResolver` |
 | Sin cookies, sin cache de autenticación, sin reintentos automáticos | Cada check está aislado |
+
+Las reglas de los headers viven en `egress.HeaderPolicy` (OW-022). Se aplican al guardar un monitor, donde un rechazo es un `400` sobre el campo, y se vuelven a aplicar antes de cada petición (OW-024), para que un header guardado antes de que existiera una regla nunca salga.
 
 ### Capa 5: restricciones de la respuesta
 

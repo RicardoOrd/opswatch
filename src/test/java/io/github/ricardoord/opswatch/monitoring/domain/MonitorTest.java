@@ -64,7 +64,14 @@ class MonitorTest {
 
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> Monitor.create(
-                        UUID.randomUUID(), PROJECT, "Payments", tooLong, MonitorSettings.DEFAULTS, CREATOR, CREATED));
+                        UUID.randomUUID(),
+                        PROJECT,
+                        "Payments",
+                        tooLong,
+                        MonitorSettings.DEFAULTS,
+                        null,
+                        CREATOR,
+                        CREATED));
     }
 
     @Test
@@ -94,6 +101,24 @@ class MonitorTest {
         assertThat(monitor.updatedAt()).isEqualTo(LATER.instant());
     }
 
+    /** The sealed headers are kept as they come: nobody outside can change them through a shared array. */
+    @Test
+    void replacesItsSealedHeadersAndOnlyHandsOutCopies() {
+        Monitor monitor = monitor("Payments API");
+        byte[] sealed = {1, 2, 3};
+
+        monitor.replaceHeaders(sealed, LATER);
+        sealed[0] = 9;
+        byte[] read = monitor.requestHeaders();
+        assertThat(read).containsExactly(1, 2, 3);
+        read[1] = 9;
+
+        assertThat(monitor.requestHeaders()).containsExactly(1, 2, 3);
+        assertThat(monitor.updatedAt()).isEqualTo(LATER.instant());
+        monitor.replaceHeaders(null, LATER);
+        assertThat(monitor.requestHeaders()).isNull();
+    }
+
     /** The query string of a URL may carry a token. */
     @Test
     void neverPrintsItsUrl() {
@@ -101,6 +126,6 @@ class MonitorTest {
     }
 
     private static Monitor monitor(String name) {
-        return Monitor.create(UUID.randomUUID(), PROJECT, name, URL, MonitorSettings.DEFAULTS, CREATOR, CREATED);
+        return Monitor.create(UUID.randomUUID(), PROJECT, name, URL, MonitorSettings.DEFAULTS, null, CREATOR, CREATED);
     }
 }

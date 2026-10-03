@@ -1,5 +1,6 @@
 package io.github.ricardoord.opswatch.monitoring.web;
 
+import io.github.ricardoord.opswatch.egress.RequestHeader;
 import io.github.ricardoord.opswatch.monitoring.application.SettingsChanges;
 import io.github.ricardoord.opswatch.monitoring.domain.Monitor;
 import io.github.ricardoord.opswatch.monitoring.domain.MonitorSettings;
@@ -11,8 +12,10 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -67,11 +70,23 @@ public record CreateMonitorRequest(
         @Min(MonitorSettings.MIN_THRESHOLD)
         @Max(MonitorSettings.MAX_THRESHOLD)
         @Nullable
-        Integer recoveryThreshold) {
+        Integer recoveryThreshold,
+
+        @Schema(description = "Sent with every check, at most 10. Stored encrypted; their values are never returned")
+        @Valid
+        @Nullable
+        List<@NotNull HeaderInput> headers) {
 
     /** Surrounding spaces are a typing slip, not part of the name. */
     public CreateMonitorRequest {
         name = name == null ? null : name.strip();
+    }
+
+    /** None when absent or null. */
+    List<RequestHeader> requestHeaders() {
+        return headers == null
+                ? List.of()
+                : headers.stream().map(HeaderInput::toHeader).toList();
     }
 
     SettingsChanges settings() {

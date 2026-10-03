@@ -15,7 +15,8 @@ import org.springframework.util.StringUtils;
  * docs/devops/environments.md#salvaguardas-de-arranque.
  *
  * <p>A missing JWT key already stops every environment (validation of {@code JwtProperties}), and so does one shorter
- * than 2048 bits ({@code JwtKeys}). Rules for the encryption key arrive with OW-022.
+ * than 2048 bits ({@code JwtKeys}). So does a missing active encryption key, or one that is not 32 bytes
+ * ({@code EncryptionProperties}).
  */
 @Component
 public class DeploymentGuardrails implements SmartInitializingSingleton {

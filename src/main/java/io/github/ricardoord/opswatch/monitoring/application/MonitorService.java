@@ -1,5 +1,7 @@
 package io.github.ricardoord.opswatch.monitoring.application;
 
+import io.github.ricardoord.opswatch.egress.HeaderPolicy;
+import io.github.ricardoord.opswatch.egress.RequestHeader;
 import io.github.ricardoord.opswatch.egress.TargetKind;
 import io.github.ricardoord.opswatch.egress.TargetPolicy;
 import io.github.ricardoord.opswatch.monitoring.domain.Monitor;
@@ -8,7 +10,6 @@ import io.github.ricardoord.opswatch.monitoring.domain.MonitorSettings;
 import io.github.ricardoord.opswatch.monitoring.domain.MonitorState;
 import io.github.ricardoord.opswatch.monitoring.domain.MonitorStateRepository;
 import io.github.ricardoord.opswatch.monitoring.domain.MonitorStatus;
-import io.github.ricardoord.opswatch.monitoring.domain.MonitorWithState;
 import io.github.ricardoord.opswatch.monitoring.domain.StatusCount;
 import io.github.ricardoord.opswatch.organization.AccessControl;
 import io.github.ricardoord.opswatch.organization.Permission;
@@ -30,6 +31,7 @@ import java.time.Clock;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -67,6 +69,7 @@ public class MonitorService {
     private final AdvisoryLocks locks;
     private final IdGenerator ids;
     private final InitialJitter jitter;
+    private final MonitorHeaders monitorHeaders;
     private final MonitorLimits limits;
     private final TransactionOperations transactions;
     private final Clock clock;
@@ -80,6 +83,7 @@ public class MonitorService {
             AdvisoryLocks locks,
             IdGenerator ids,
             InitialJitter jitter,
+            MonitorHeaders monitorHeaders,
             MonitorLimits limits,
             TransactionOperations transactions,
             Clock clock) {
@@ -91,6 +95,7 @@ public class MonitorService {
         this.locks = locks;
         this.ids = ids;
         this.jitter = jitter;
+        this.monitorHeaders = monitorHeaders;
         this.limits = limits;
         this.transactions = transactions;
         this.clock = clock;
@@ -103,14 +108,22 @@ public class MonitorService {
      * an advisory lock for the quota.
      *
      * @param changes the settings sent; the rest take {@link MonitorSettings#DEFAULTS}
-     * @throws InvalidFieldException if the settings break an invariant (400)
+     * @param headers stored encrypted ({@link MonitorHeaders}); empty for none
+     * @throws InvalidFieldException if the settings break an invariant, or a header breaks {@link HeaderPolicy} (400)
      * @throws TargetNotAllowedException if {@link TargetPolicy} rejects the URL (422)
      * @throws ConflictException if the project already has a monitor with that name, whatever its case (409)
      * @throws QuotaExceededException if the organization has as many monitors as allowed (422)
      */
-    public MonitorWithState create(UUID userId, UUID projectId, String name, String url, SettingsChanges changes) {
+    public MonitorView create(
+            UUID userId,
+            UUID projectId,
+            String name,
+            String url,
+            SettingsChanges changes,
+            List<RequestHeader> headers) {
         access.requireForProject(userId, projectId, Permission.MONITOR_WRITE);
         MonitorSettings settings = changes.applyTo(MonitorSettings.DEFAULTS);
+        requireAllowed(headers);
         URI target = targets.validate(url, TargetKind.MONITOR);
         return inTransaction(() -> {
             access.requireForProject(userId, projectId, Permission.MONITOR_WRITE);
@@ -121,7 +134,9 @@ public class MonitorService {
                 throw new QuotaExceededException(
                         "The organization already has " + limit + " monitors, the most allowed.");
             }
-            Monitor monitor = Monitor.create(ids.next(), project, name, target, settings, userId, clock);
+            UUID id = ids.next();
+            Monitor monitor = Monitor.create(
+                    id, project, name, target, settings, monitorHeaders.seal(id, headers), userId, clock);
             if (monitors.existsActiveName(project.id(), monitor.name())) {
                 throw new ConflictException(NAME_TAKEN);
             }
@@ -130,7 +145,7 @@ public class MonitorService {
                     states.save(MonitorState.pending(monitor.id(), jitter.next(settings.intervalSeconds()), clock));
             // Assigns the version for the ETag of the response
             flushTranslatingDuplicateName();
-            return new MonitorWithState(monitor, state);
+            return MonitorView.of(monitor, state, headers);
         });
     }
 
@@ -142,14 +157,15 @@ public class MonitorService {
      * @throws InvalidParameterException if {@code query} is longer than {@value #QUERY_MAX_LENGTH} characters (400)
      */
     @Transactional(readOnly = true)
-    public Page<MonitorWithState> listOf(
+    public Page<MonitorView> listOf(
             UUID userId, UUID projectId, @Nullable MonitorStatus status, @Nullable String query, Pageable pageable) {
         ProjectRef project = access.requireForProject(userId, projectId, Permission.MONITOR_READ);
         return monitors.findActiveOfProject(
-                project.id(),
-                status == null ? EnumSet.allOf(MonitorStatus.class) : EnumSet.of(status),
-                namePattern(query),
-                pageable);
+                        project.id(),
+                        status == null ? EnumSet.allOf(MonitorStatus.class) : EnumSet.of(status),
+                        namePattern(query),
+                        pageable)
+                .map(found -> view(found.monitor(), found.state()));
     }
 
     /** The monitors of a project by status, with every status even when it has none. */
@@ -167,9 +183,9 @@ public class MonitorService {
     }
 
     @Transactional(readOnly = true)
-    public MonitorWithState get(UUID userId, UUID monitorId) {
+    public MonitorView get(UUID userId, UUID monitorId) {
         Monitor monitor = authorized(userId, monitorId, Permission.MONITOR_READ);
-        return new MonitorWithState(monitor, stateOf(monitor));
+        return view(monitor, stateOf(monitor));
     }
 
     /**
@@ -180,20 +196,26 @@ public class MonitorService {
      *
      * @param name null to keep it
      * @param url null to keep it
+     * @param headers null to keep them; otherwise the whole new list, empty for none
      * @param ifMatch the {@code If-Match} header, if the client sent one
-     * @throws InvalidFieldException if the resulting settings break an invariant (400)
+     * @throws InvalidFieldException if the resulting settings break an invariant, or a header breaks
+     *     {@link HeaderPolicy} (400)
      * @throws TargetNotAllowedException if {@link TargetPolicy} rejects the new URL (422)
      * @throws ConflictException if another monitor of the project has the new name (409)
      * @throws PreconditionFailedException if {@code ifMatch} does not match the current version (412)
      */
-    public MonitorWithState update(
+    public MonitorView update(
             UUID userId,
             UUID monitorId,
             @Nullable String name,
             @Nullable String url,
             SettingsChanges changes,
+            @Nullable List<RequestHeader> headers,
             @Nullable String ifMatch) {
         authorized(userId, monitorId, Permission.MONITOR_WRITE);
+        if (headers != null) {
+            requireAllowed(headers);
+        }
         @Nullable URI target = url == null ? null : targets.validate(url, TargetKind.MONITOR);
         return inTransaction(() -> {
             Monitor monitor = authorized(userId, monitorId, Permission.MONITOR_WRITE);
@@ -212,12 +234,18 @@ public class MonitorService {
                 monitor.retarget(target, clock);
             }
             monitor.reconfigure(settings, clock);
+            List<RequestHeader> current = monitorHeaders.unseal(monitor);
+            // A new ciphertext would differ every time: only re-encrypt what really changed
+            if (headers != null && !headers.equals(current)) {
+                monitor.replaceHeaders(monitorHeaders.seal(monitor.id(), headers), clock);
+                current = headers;
+            }
             // Fails here on a concurrent change (@Version) or a taken name, and gives the response its new version
             flushTranslatingDuplicateName();
             if (rescheduled) {
                 state.intervalChanged(settings.intervalSeconds(), clock);
             }
-            return new MonitorWithState(monitor, state);
+            return MonitorView.of(monitor, state, current);
         });
     }
 
@@ -234,6 +262,17 @@ public class MonitorService {
             throw new ResourceNotFoundException("monitor", monitorId);
         }
         return monitor;
+    }
+
+    private MonitorView view(Monitor monitor, MonitorState state) {
+        return MonitorView.of(monitor, state, monitorHeaders.unseal(monitor));
+    }
+
+    /** The field of the error points at the header and its part: {@code headers[2].name}. Never quotes a value. */
+    private static void requireAllowed(List<RequestHeader> headers) {
+        HeaderPolicy.check(headers).ifPresent(violation -> {
+            throw new InvalidFieldException(violation.field("headers"), violation.code(), violation.message());
+        });
     }
 
     private MonitorState stateOf(Monitor monitor) {

@@ -159,6 +159,12 @@ Formato: `keyId (1 byte) ‖ nonce (12 bytes) ‖ ciphertext ‖ tag (16 bytes)`
 
 El cifrado es explícito en el servicio, no un `AttributeConverter` de JPA: un converter solo recibe el valor de la columna y, al leer, no conoce el id de la entidad que hace falta como dato asociado. La aplicación no arranca, en ningún perfil, sin la clave activa ni con una clave que no mida 32 bytes (OW-022).
 
+Implementación (OW-022):
+
+- **Headers de los monitores:** `MonitorHeaders` (`monitoring`) cifra la lista como JSON con su propio `JsonMapper`. Una lista vacía se guarda como `NULL`, sin cifrar nada. Un texto cifrado cambia en cada cifrado, así que un `PATCH` solo vuelve a cifrar si la lista descifrada es distinta: el mismo `headers` no sube la versión.
+- **Errores:** un texto cifrado que no se descifra (clave retirada, alterado o copiado de otra fila) lanza `DecryptionFailedException` y la petición que lo lee da `500`, sin datos en el mensaje.
+- **Redacción:** `RequestHeader`, `HeaderInput` y `EncryptionProperties` tienen un `toString()` que oculta los valores, comprobado con un valor centinela y los logs a TRACE en `MonitorHeadersApiIT`.
+
 Las contraseñas no se cifran: se **hashean**. Los refresh tokens tampoco: se **hashean** con SHA-256. En los dos casos no hace falta recuperar el valor original.
 
 ## 5. Transporte

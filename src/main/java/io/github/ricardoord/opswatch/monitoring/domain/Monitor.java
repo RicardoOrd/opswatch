@@ -58,6 +58,12 @@ public class Monitor {
 
     private short recoveryThreshold;
 
+    /**
+     * The headers as {@code SecretCipher} sealed them, never in clear: the service encrypts and decrypts them, because
+     * the id of the monitor is their associated data and a converter would not know it on reading. Null for none.
+     */
+    private byte @Nullable [] requestHeaders;
+
     /** Null once that user's account is deleted. */
     private @Nullable UUID createdBy;
 
@@ -75,12 +81,20 @@ public class Monitor {
     protected Monitor() {}
 
     private Monitor(
-            UUID id, ProjectRef project, String name, URI url, MonitorSettings settings, UUID createdBy, Instant now) {
+            UUID id,
+            ProjectRef project,
+            String name,
+            URI url,
+            MonitorSettings settings,
+            byte @Nullable [] requestHeaders,
+            UUID createdBy,
+            Instant now) {
         this.id = id;
         this.organizationId = project.organizationId();
         this.projectId = project.id();
         this.name = name;
         this.url = url.toString();
+        this.requestHeaders = copy(requestHeaders);
         this.createdBy = createdBy;
         this.createdAt = now;
         this.updatedAt = now;
@@ -90,12 +104,21 @@ public class Monitor {
     /**
      * @param project where it goes, with its organization, as {@code organization} hands it over: never from the request
      * @param url already accepted by {@code TargetPolicy}, which normalizes it
+     * @param requestHeaders sealed with this {@code id}; null for none
      * @throws IllegalArgumentException if the name or the URL breaks an invariant (the request validation and
      *     {@code TargetPolicy} should have caught it)
      */
     public static Monitor create(
-            UUID id, ProjectRef project, String name, URI url, MonitorSettings settings, UUID createdBy, Clock clock) {
-        return new Monitor(id, project, validName(name), validUrl(url), settings, createdBy, now(clock));
+            UUID id,
+            ProjectRef project,
+            String name,
+            URI url,
+            MonitorSettings settings,
+            byte @Nullable [] requestHeaders,
+            UUID createdBy,
+            Clock clock) {
+        return new Monitor(
+                id, project, validName(name), validUrl(url), settings, requestHeaders, createdBy, now(clock));
     }
 
     /**
@@ -122,6 +145,17 @@ public class Monitor {
             this.url = cleanUrl;
             this.updatedAt = now(clock);
         }
+    }
+
+    /**
+     * A sealed ciphertext differs on every encryption, so only the service can tell whether the headers changed: it
+     * calls this only when they did.
+     *
+     * @param requestHeaders sealed with the id of this monitor; null for none
+     */
+    public void replaceHeaders(byte @Nullable [] requestHeaders, Clock clock) {
+        this.requestHeaders = copy(requestHeaders);
+        this.updatedAt = now(clock);
     }
 
     /** Replaces every setting at once: {@link MonitorSettings} has already checked them against each other. */
@@ -166,6 +200,10 @@ public class Monitor {
         return clock.instant().truncatedTo(ChronoUnit.MICROS);
     }
 
+    private static byte @Nullable [] copy(byte @Nullable [] bytes) {
+        return bytes == null ? null : bytes.clone();
+    }
+
     public UUID id() {
         return id;
     }
@@ -197,6 +235,11 @@ public class Monitor {
                 followRedirects,
                 failureThreshold,
                 recoveryThreshold);
+    }
+
+    /** As sealed, a copy; null when it has none. */
+    public byte @Nullable [] requestHeaders() {
+        return copy(requestHeaders);
     }
 
     public @Nullable UUID createdBy() {

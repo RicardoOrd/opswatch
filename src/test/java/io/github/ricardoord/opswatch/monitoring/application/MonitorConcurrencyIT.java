@@ -81,7 +81,7 @@ class MonitorConcurrencyIT {
 
             List<Boolean> created = atOnce(i -> () -> {
                 try {
-                    service.create(owner, targets.get(i % 2), "Simultaneous " + i, HEALTH, DEFAULTS);
+                    service.create(owner, targets.get(i % 2), "Simultaneous " + i, HEALTH, DEFAULTS, List.of());
                     return true;
                 } catch (QuotaExceededException ex) {
                     return false;
@@ -103,7 +103,8 @@ class MonitorConcurrencyIT {
 
             List<Boolean> created = atOnce(i -> () -> {
                 try {
-                    service.create(owner, project, i % 2 == 0 ? "Payments API" : "PAYMENTS API", HEALTH, DEFAULTS);
+                    service.create(
+                            owner, project, i % 2 == 0 ? "Payments API" : "PAYMENTS API", HEALTH, DEFAULTS, List.of());
                     return true;
                 } catch (ConflictException ex) {
                     return false;
@@ -130,7 +131,7 @@ class MonitorConcurrencyIT {
                 Future<Boolean> creation = executor.submit(() -> {
                     start.await();
                     try {
-                        service.create(owner, project, "Racer", HEALTH, DEFAULTS);
+                        service.create(owner, project, "Racer", HEALTH, DEFAULTS, List.of());
                         return true;
                     } catch (ResourceNotFoundException ex) {
                         return false;
@@ -169,7 +170,8 @@ class MonitorConcurrencyIT {
             }));
             assertThat(locked.await(10, TimeUnit.SECONDS)).isTrue();
 
-            Future<?> waiting = executor.submit(() -> service.create(owner, project, "Waiting", HEALTH, DEFAULTS));
+            Future<?> waiting =
+                    executor.submit(() -> service.create(owner, project, "Waiting", HEALTH, DEFAULTS, List.of()));
 
             assertThatThrownBy(() -> waiting.get(STILL_WAITING.toMillis(), TimeUnit.MILLISECONDS))
                     .isInstanceOf(TimeoutException.class);

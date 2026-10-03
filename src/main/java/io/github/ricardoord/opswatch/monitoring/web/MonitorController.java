@@ -1,8 +1,8 @@
 package io.github.ricardoord.opswatch.monitoring.web;
 
 import io.github.ricardoord.opswatch.monitoring.application.MonitorService;
+import io.github.ricardoord.opswatch.monitoring.application.MonitorView;
 import io.github.ricardoord.opswatch.monitoring.domain.MonitorStatus;
-import io.github.ricardoord.opswatch.monitoring.domain.MonitorWithState;
 import io.github.ricardoord.opswatch.shared.security.CurrentUser;
 import io.github.ricardoord.opswatch.shared.web.ETags;
 import io.github.ricardoord.opswatch.shared.web.OpenApiConfiguration;
@@ -73,8 +73,8 @@ class MonitorController {
     @ApiResponse(responseCode = "201", description = "Created, with its ETag")
     @ApiResponse(
             responseCode = "400",
-            description = "Invalid fields, rules between fields broken (timeoutMs not below the interval…) or unknown"
-                    + " properties",
+            description = "Invalid fields, rules between fields broken (timeoutMs not below the interval…), a header"
+                    + " that is not allowed, or unknown properties",
             content =
                     @Content(
                             mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
@@ -111,12 +111,13 @@ class MonitorController {
     ResponseEntity<MonitorResponse> create(
             CurrentUser user, @PathVariable UUID projectId, @Valid @RequestBody CreateMonitorRequest request) {
         // Bean Validation has already rejected a null name or URL
-        MonitorWithState created = monitors.create(
+        MonitorView created = monitors.create(
                 user.id(),
                 projectId,
                 Objects.requireNonNull(request.name()),
                 Objects.requireNonNull(request.url()),
-                request.settings());
+                request.settings(),
+                request.requestHeaders());
         return ResponseEntity.created(
                         URI.create("/api/v1/monitors/" + created.monitor().id()))
                 .eTag(ETags.of(created.monitor().savedVersion()))
@@ -216,7 +217,8 @@ class MonitorController {
     @ApiResponse(responseCode = "200", description = "The monitor after the change, with its new ETag")
     @ApiResponse(
             responseCode = "400",
-            description = "Invalid or null fields, rules between fields broken on the result, or unknown properties",
+            description = "Invalid or null fields, rules between fields broken on the result, a header that is not"
+                    + " allowed, or unknown properties",
             content =
                     @Content(
                             mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
@@ -265,11 +267,17 @@ class MonitorController {
                     @Nullable
                     String ifMatch,
             @Valid @RequestBody UpdateMonitorRequest request) {
-        return withETag(
-                monitors.update(user.id(), monitorId, request.name(), request.url(), request.settings(), ifMatch));
+        return withETag(monitors.update(
+                user.id(),
+                monitorId,
+                request.name(),
+                request.url(),
+                request.settings(),
+                request.requestHeaders(),
+                ifMatch));
     }
 
-    private static ResponseEntity<MonitorResponse> withETag(MonitorWithState monitor) {
+    private static ResponseEntity<MonitorResponse> withETag(MonitorView monitor) {
         return ResponseEntity.ok()
                 .eTag(ETags.of(monitor.monitor().savedVersion()))
                 .body(MonitorResponse.from(monitor));

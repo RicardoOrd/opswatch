@@ -205,7 +205,7 @@ Validaciones: ver el [modelo de dominio](../architecture/domain-model.md#monitor
 - `q` busca en el nombre sin distinguir mayúsculas, de forma literal (`%`, `_` y `\` no son comodines ni escapes), con 100 caracteres como máximo. `status` filtra por estado (`PENDING`, `UP`, `DEGRADED`, `DOWN` o `PAUSED`, en mayúsculas). `sort=status` ordena por el código del estado en orden alfabético.
 - Quien no es miembro recibe `404` con el detalle del monitor (`monitor <id> was not found`), nunca del proyecto. Un monitor de un proyecto borrado da `404` aunque su limpieza asíncrona (OW-044) todavía no haya terminado.
 - El `422 target-not-allowed` dice qué regla falla, nunca las IP resueltas.
-- `headers` no aparece en las respuestas hasta OW-022.
+- `headers` (OW-022) es de solo escritura: las respuestas dan cada nombre con `"value": null` y `hasValue`, y ningún rol lee un valor. Se guardan cifrados ([cifrado](../security/security-architecture.md#cifrado-de-datos-sensibles-en-la-base-de-datos)). Los espacios alrededor de un valor se quitan. Un header que no cumple la [capa 4 de la política SSRF](../security/ssrf-protection.md#capa-4-restricciones-de-la-petición) da `400 validation-error` sobre su campo (`headers[1].name`, `headers[1].value` o `headers`), con los códigos `forbidden`, `invalid-name`, `invalid-value`, `duplicate`, `too-long` y `too-many`. El mensaje nunca repite el valor.
 
 ## Checks y estadísticas
 
