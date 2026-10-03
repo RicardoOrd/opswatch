@@ -1,6 +1,6 @@
 # Backlog
 
-Estado: sincronizado con GitHub Issues · Última revisión: 2026-09-29
+Estado: sincronizado con GitHub Issues · Última revisión: 2026-10-02
 
 Este fichero es la **fuente única** de las issues. Cada issue de GitHub se genera a partir de su entrada aquí: si una issue cambia, se cambia aquí y se vuelve a sincronizar con [`scripts/sync-issues.mjs`](../../scripts/sync-issues.mjs) (Node 22 y `gh` autenticado):
 
@@ -13,7 +13,7 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 
 **Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
-**Foco actual: refinar la v0.2.0 — Proyectos y monitores** contra lo que dejó construido la v0.1.0 (publicada el 2026-09-29, release #69). Hasta ese refinamiento, sus issues siguen en **Planned** y nada está listo para empezar. La v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
+**Foco actual: v0.2.0 — Proyectos y monitores**, refinada el 2026-10-02 contra lo que dejó construido la v0.1.0 (publicada el 2026-09-29, release #69). Sus seis issues están en **Ready**, en el orden OW-034 → OW-019 → OW-020 → OW-021 → OW-022 → OW-044. La v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
 
 ## Convenciones
 
@@ -445,118 +445,160 @@ Hecha el 2026-09-28: documentación publicada en el PR #1, issues creadas desde 
 
 ## v0.2.0 — Proyectos y monitores
 
-### OW-034 · Event Publication Registry de Spring Modulith
-`architecture` · P2 · Milestone: v0.2.0 — Proyectos y monitores · **Planned**
+Orden: OW-034 → OW-019 → OW-020 → OW-021 → OW-022 → OW-044. OW-034 va primero porque OW-044 lo necesita y no depende de nada; OW-022 va después de OW-021 porque cifra una columna de la entidad `Monitor`, que OW-021 crea.
 
-- **Context:** el primer listener asíncrono entre módulos (`ProjectDeleted` → `monitoring`, en OW-044) necesita un registro persistente para no perder eventos ([eventos](../architecture/events.md)). Antes estaba en la Fase 4, pero OW-044 lo necesita en la v0.2.0.
-- **Objective:** registro activo, con reenvío al reiniciar y limpieza de las publicaciones completadas.
+### OW-034 · Event Publication Registry de Spring Modulith
+`architecture` · P2 · Milestone: v0.2.0 — Proyectos y monitores · **Ready**
+
+- **Context:** el primer listener asíncrono entre módulos (`ProjectDeleted` → `monitoring`, en OW-044) necesita un registro persistente para no perder eventos ([eventos](../architecture/events.md)). Antes estaba en la Fase 4, pero OW-044 lo necesita en la v0.2.0. Hoy solo está `spring-modulith-starter-core`: no hay registro, y `OrganizationDeleted` se publica sin que nadie lo escuche.
+- **Objective:** registro JDBC activo, con reenvío al reiniciar, publicaciones completadas archivadas y una purga del archivo que nunca toca una publicación pendiente.
 - **Tasks:**
-  - [ ] Dependencia del registro de Spring Modulith (JPA o JDBC).
-  - [ ] Migración `modulith_create_event_publication` con el DDL de la versión fijada.
-  - [ ] `republish-outstanding-events-on-restart`, modo de finalización y purga de las completadas.
-  - [ ] Métrica `opswatch_event_publications_incomplete`.
-- **Acceptance Criteria:** si el contexto se mata después del commit y antes de que se ejecute el listener, al reiniciar el listener se ejecuta exactamente una vez.
+  - [ ] Dependencia `spring-modulith-starter-jdbc` (la versión la fija el BOM 2.1.1). JDBC y no JPA: el registro no necesita entidades, y así no depende del contexto de persistencia de cada caso de uso.
+  - [ ] Migración `modulith_create_event_publication` con las tablas `event_publication` y `event_publication_archive`, copiadas del `schema-postgresql.sql` del jar de la versión fijada. Flyway es el dueño del esquema: `spring.modulith.events.jdbc.schema-initialization.enabled=false`.
+  - [ ] `spring.modulith.events.republish-outstanding-events-on-restart=true` y `spring.modulith.events.completion-mode=archive`: una publicación completada pasa al archivo, no se borra. Los nombres de las propiedades se comprueban contra la versión fijada.
+  - [ ] `EventPublicationPurgeJob`: borra del **archivo** las publicaciones completadas hace más de `opswatch.retention.event-publications` (7 días), con la API de Spring Modulith (`CompletedEventPublications`), sin SQL a mano. Antes de implementarlo, comprobar en la versión fijada que esa API opera sobre el archivo en modo `archive`; si no, se para y se replantea. Nunca borra de `event_publication`.
+  - [ ] Métrica `opswatch_event_publications_incomplete` (gauge) y, en el log, un aviso por cada publicación pendiente con más de 15 minutos.
+  - [ ] Documentar las propiedades en el [catálogo de entornos](../devops/environments.md) y la retención en [data-retention](../database/data-retention.md).
+- **Acceptance Criteria:**
+  - Si el contexto se para después del commit y antes de que el listener termine, al reiniciar el listener se ejecuta y la publicación acaba en el archivo.
+  - Una publicación completada no queda en `event_publication`, sino en `event_publication_archive`.
+  - La purga borra las archivadas de más de 7 días y deja las más recientes. Una publicación **pendiente** de más de 7 días sigue intacta después de la purga.
 - **Testing:**
-  - Integración: `EventPublicationRegistryIT` con reinicio del contexto y un evento de prueba.
-- **Security considerations:** el payload de los eventos se guarda en `event_publication`, así que ningún evento puede llevar secretos (se revisa en cada evento nuevo). Entrega at-least-once: los listeners tienen que ser idempotentes para que un duplicado no cause efectos dobles (T-33, R-13).
+  - Integración: `EventPublicationRegistryIT` con dos contextos sobre el mismo PostgreSQL (el primero se cierra con la publicación pendiente; el segundo la reenvía) y un evento y un listener solo de test.
+  - Integración: `EventPublicationPurgeJobIT` con `MutableClock` (archivadas antiguas y recientes, y una pendiente antigua que sobrevive).
+- **Security considerations:** el payload de los eventos se guarda en claro en las dos tablas, durante 7 días en el archivo, así que ningún evento puede llevar secretos ni datos personales más allá de ids (se revisa en cada evento nuevo). Entrega at-least-once: los listeners tienen que ser idempotentes para que un duplicado no cause efectos dobles (T-33, R-13). El reenvío al reiniciar también reenvía lo que otra instancia tenga en vuelo, por la misma razón. La purga es la única operación que borra, y solo borra lo archivado: una publicación pendiente es trabajo sin hacer y no caduca.
 - **Dependencies:** Sprint 0.
 - **Definition of Done:** sección 4 de [eventos](../architecture/events.md) actualizada con las propiedades reales.
 
 ### OW-019 · Proyectos
-`feature` · P2 · Milestone: v0.2.0 — Proyectos y monitores · **Planned**
+`feature` · P2 · Milestone: v0.2.0 — Proyectos y monitores · **Ready**
 
-- **Context:** agrupación de monitores dentro de una organización.
-- **Objective:** endpoints de proyectos del [catálogo](../api/endpoints-v1.md#proyectos).
+- **Context:** agrupación de monitores dentro de una organización. De la v0.1.0 ya existen `AccessControl.require`, `PageQuery`, `ETags`, `NotNullIfPresent`, `VisibleText`, la cuota serializada con advisory lock y la matriz de autorización. `OrganizationDeleted` se publica desde OW-016, pero sus proyectos todavía no se borran porque no existen.
+- **Objective:** endpoints de proyectos del [catálogo](../api/endpoints-v1.md#proyectos), la API pública que `monitoring` necesita (`AccessControl.requireForProject` y `ProjectDirectory`) y el borrado de los proyectos con su organización.
 - **Tasks:**
-  - [ ] Migración `organization_create_projects`, con índice único parcial y `UNIQUE (id, organization_id)` para la FK compuesta de los monitores.
-  - [ ] `ProjectService`: cuota, borrado lógico y evento `ProjectDeleted`.
-  - [ ] `ProjectDirectory` como API pública.
-  - [ ] `AccessControl.requireForProject`, que OW-016 no pudo hacer sin proyectos.
-  - [ ] Filas nuevas en la matriz de autorización (OW-018).
-- **Acceptance Criteria:** un nombre duplicado en la misma organización → `409`; se puede repetir en otra organización o después de borrar el proyecto; un no miembro → `404` en todos los endpoints con id.
+  - [ ] Migración `organization_create_projects` con el [DDL](../database/database-design.md#9-ddl-preliminar): índice único parcial `(organization_id, lower(name))` y `UNIQUE (id, organization_id)` para la FK compuesta de los monitores.
+  - [ ] Entidad `Project` (nombre con `VisibleText`, de 1 a 100 caracteres; descripción opcional de hasta 500, también sin caracteres de control ni de formato bidireccional). El accesor de la versión es `savedVersion()`, como en `Organization`.
+  - [ ] `ProjectService`: crear, listar, consultar, editar y borrar. Nombre duplicado en la organización → `409 conflict`, también con dos creaciones simultáneas: la violación del índice único se traduce al mismo error. Borrado lógico y evento `ProjectDeleted(projectId, organizationId, occurredAt, deletedBy)`.
+  - [ ] Cuota `opswatch.limits.projects-per-organization` (20) serializada por organización. Los espacios de los advisory locks pasan a un único sitio en `shared` (hoy `QUOTA_LOCK_NAMESPACE = 1` vive en `OrganizationRepository`), porque `monitoring` necesitará el suyo en OW-021 y dos cuotas no pueden compartir espacio por accidente.
+  - [ ] Borrar una organización borra sus proyectos en la misma transacción: `OrganizationService.delete` llama a `ProjectService`, que publica un `ProjectDeleted` por proyecto. Es una llamada dentro del módulo y no un listener de `OrganizationDeleted`: dentro de un módulo, un evento solo añadiría indirección. Se actualiza el Javadoc de `OrganizationDeleted`.
+  - [ ] `AccessControl.requireForProject(userId, projectId, permission)`: carga el proyecto no borrado y comprueba el permiso en su organización. Devuelve `ProjectRef(projectId, organizationId)`. Un proyecto inexistente, borrado o de otra organización da el mismo `404`.
+  - [ ] `ProjectDirectory.lockActive(projectId)`: `SELECT … FOR SHARE` sobre el proyecto no borrado, dentro de la transacción de quien llama. Lo usa OW-021 para que un monitor no se cree en un proyecto que se está borrando.
+  - [ ] `PATCH` con `description: null` borra la descripción y sin `description` la conserva. `NotNullIfPresent` no distingue esos dos casos: nace en `shared.web` un tipo de tres estados (ausente, `null`, valor) con su deserializador (`getAbsentValue` y `getNullValue`, igual que `NotNullIfPresent`), que reutilizará OW-021 para `degradedThresholdMs`. `name: null` → `400`.
+  - [ ] `ETag` en `POST`, `GET` y `PATCH`, e `If-Match` opcional en `PATCH`, igual que en organizaciones.
+  - [ ] Listado paginado con `sort` por `name` (por defecto) o `createdAt`.
+  - [ ] Filas nuevas en la matriz de autorización (OW-018), con un proyecto en su `Fixture`.
+- **Acceptance Criteria:**
+  - Un `ADMIN` crea un proyecto; un `MEMBER` recibe `403`; un no miembro, `404` en todos los endpoints con id.
+  - Un nombre duplicado en la misma organización, sin distinguir mayúsculas → `409`, también con dos creaciones simultáneas. Se puede repetir en otra organización o después de borrar el proyecto.
+  - El proyecto 21 de una organización → `422 quota-exceeded`, también con creaciones simultáneas.
+  - `PATCH {"description": null}` borra la descripción, `PATCH {}` no cambia nada y `PATCH {"name": null}` → `400`.
+  - Un `If-Match` obsoleto → `412`.
+  - Al borrar la organización, sus proyectos quedan borrados y se publica un `ProjectDeleted` por cada uno.
 - **Testing:**
-  - Integración: índice único parcial.
-  - API y seguridad: endpoints por rol e IDOR.
-- **Security considerations:** la creación se autoriza sobre la organización de la ruta con `AccessControl`, nunca con un `organizationId` del cuerpo (mass assignment, T-12).
+  - Unitarios: invariantes de `Project` y el deserializador de tres estados.
+  - Integración: índice único parcial, creaciones simultáneas con el mismo nombre y en el límite de la cuota (como `OrganizationQuotaIT`), y `lockActive` bloquea un borrado concurrente hasta el commit.
+  - Módulo: borrar la organización publica un `ProjectDeleted` por proyecto (`@ApplicationModuleTest` con `PublishedEvents`).
+  - API y seguridad: endpoints por rol, IDOR (usuario de la organización B contra un proyecto de la A → `404` sin efectos) y `organizationId` en el cuerpo → `400` por propiedad desconocida.
+- **Security considerations:** la creación se autoriza sobre la organización de la ruta con `AccessControl`, nunca con un `organizationId` del cuerpo (mass assignment, T-12). `requireForProject` es la puerta de todos los recursos que cuelgan de un proyecto: un fallo aquí rompe el aislamiento de monitores, incidentes y canales (T-10, T-11). La descripción la ven todos los miembros: se le aplican las mismas reglas de caracteres que al nombre, para que no pueda disfrazar contenido.
 - **Dependencies:** OW-018.
-- **Definition of Done:** `monitorCounts` del proyecto se completa en OW-021.
+- **Definition of Done:** `ProjectDeleted` documentado en [eventos](../architecture/events.md) con su listener de OW-044; la firma de `requireForProject` del [modelo de autorización](../security/authorization-model.md#4-cómo-se-decide-en-cada-petición) coincide con el código.
 
 ### OW-020 · `TargetPolicy`: validación de las URL de destino
-`security` · P1 · Milestone: v0.2.0 — Proyectos y monitores · **Planned**
+`security` · P1 · Milestone: v0.2.0 — Proyectos y monitores · **Ready**
 
-- **Context:** capa 1 de la [protección SSRF](../security/ssrf-protection.md#capa-1-validación-al-guardar). Crea el módulo `egress`, por el que pasará todo el HTTP saliente.
-- **Objective:** `TargetPolicy` e `IpRangeClassifier` en `egress`.
+- **Context:** capa 1 de la [protección SSRF](../security/ssrf-protection.md#capa-1-validación-al-guardar). El módulo `egress` existe desde OW-003, vacío; aquí recibe su primer código, por el que pasará todo el HTTP saliente. `TargetNotAllowedException` (`422 target-not-allowed`) ya existe en `shared.error`.
+- **Objective:** `TargetPolicy` e `IpRangeClassifier` en `egress`, deterministas en los tests.
 - **Tasks:**
-  - [ ] `IpRangeClassifier` con todos los rangos IPv4 e IPv6, incluidas las IPv4 incrustadas (mapeada, NAT64, 6to4).
-  - [ ] Parser estricto: solo `http` y `https`, sin `userinfo`, puertos permitidos, formas de IP no canónicas rechazadas, hostnames prohibidos (`localhost`, `*.internal`, una sola etiqueta), IDN a punycode.
-  - [ ] Resolución DNS al guardar, con todas las IP resueltas clasificadas.
-  - [ ] Propiedad `allowed-private-cidrs` con sus salvaguardas: nunca abre la metadata cloud y está prohibida en `production`.
-- **Acceptance Criteria:** los casos 1 a 15, 20, 21, 24, 25 y 26 de la [tabla de SSRF](../security/ssrf-protection.md#5-casos-de-prueba-obligatorios) dan el resultado esperado.
+  - [ ] `IpRangeClassifier` con todos los rangos IPv4 e IPv6 de la [tabla](../security/ssrf-protection.md#rangos-bloqueados), incluidas las IPv4 incrustadas (mapeada, NAT64, 6to4), en un único sitio. Lo reutiliza `GuardedDnsResolver` en OW-024.
+  - [ ] Parser estricto: solo `http` y `https`, sin `userinfo`, puertos permitidos, formas de IP no canónicas rechazadas, hostnames prohibidos (`localhost`, `*.internal`, una sola etiqueta), IDN a punycode y fragmento descartado.
+  - [ ] `TargetPolicy.validate` devuelve la URL **normalizada** (esquema y host en minúsculas, host en punycode, sin fragmento). Es la que se guarda y la que devuelve la API.
+  - [ ] Resolución DNS al guardar, con todas las IP resueltas clasificadas, a través de una interfaz propia de `egress` (no `InetAddress` directamente), para que los tests usen un resolver falso y ningún test dependa del DNS real.
+  - [ ] Plazo máximo de la resolución (`opswatch.egress.save-resolution-timeout`, 2 s). Un nombre que no resuelve, o que no responde a tiempo, se admite sin aviso en la respuesta: la capa 2 decide en cada check, y el primer check mostrará `DNS_FAILURE`.
+  - [ ] Propiedad `opswatch.egress.allowed-private-cidrs` con sus salvaguardas: vacía por defecto, nunca abre la metadata cloud y `DeploymentGuardrails` no arranca con ella en `production`.
+- **Acceptance Criteria:** los casos 1 a 15, 20, 21, 24, 25 y 26 de la [tabla de SSRF](../security/ssrf-protection.md#5-casos-de-prueba-obligatorios) dan el resultado esperado; `HTTP://Ejemplo.COM/x#frag` se normaliza a `http://ejemplo.com/x`; un resolver que tarda más que el plazo no retiene la petición más de 2 s.
 - **Testing:**
-  - Unitarios: `IpRangeClassifierTest` (primera y última IP de cada rango, más una IP pública vecina que debe pasar) y `TargetPolicyTest` con los casos de la tabla.
-  - Seguridad: salvaguardas de `allowed-private-cidrs` (prohibida en `production`, metadata siempre bloqueada).
-- **Security considerations:** código crítico (T-20). Requiere revisión explícita contra el threat model. La validación al guardar da retroalimentación, pero **no es la barrera definitiva**: la definitiva es la resolución con IP fijada de OW-024.
+  - Unitarios: `IpRangeClassifierTest` (primera y última IP de cada rango, más una IP pública vecina que debe pasar) y `TargetPolicyTest` con los casos de la tabla y un resolver falso (IP mixtas pública y privada, nombre que no resuelve, resolver lento).
+  - Seguridad: salvaguardas de `allowed-private-cidrs` (prohibida en `production`, metadata siempre bloqueada) en `DeploymentGuardrailsTest`.
+- **Security considerations:** código crítico (T-20). Requiere revisión explícita contra el threat model. La validación al guardar da retroalimentación, pero **no es la barrera definitiva**: la definitiva es la resolución con IP fijada de OW-024. El detalle del `422` dice qué regla falla (esquema, puerto, credenciales, host no permitido) pero nunca las IP resueltas: no se convierte en un oráculo del DNS interno del servidor. Resolver un nombre es I/O externo: quien llama a `TargetPolicy` lo hace fuera de una transacción (OW-021).
 - **Dependencies:** Sprint 0.
-- **Definition of Done:** cada caso de la tabla de SSRF que se decide al guardar tiene su test.
-
-### OW-022 · `SecretCipher` y headers cifrados en los monitores
-`security` · P1 · Milestone: v0.2.0 — Proyectos y monitores · **Planned**
-
-- **Context:** los headers de los monitores pueden llevar credenciales de terceros (activo A4). `SecretCipher` estaba en el Sprint 0, pero su primer uso es este y no forma parte de la base.
-- **Objective:** `SecretCipher` (AES-256-GCM) en `shared.crypto` y headers cifrados y de solo escritura.
-- **Tasks:**
-  - [ ] `SecretCipher` con `keyId`, nonce aleatorio de 12 bytes y dato asociado.
-  - [ ] `AttributeConverter` JPA que usa `SecretCipher` con el id del monitor como dato asociado.
-  - [ ] Validación de headers: lista de prohibidos (incluidos los de metadata cloud), sin CR ni LF, gramática de *token*, 10 headers y 1024 bytes por valor como máximo.
-  - [ ] Respuesta con `value: null` y `hasValue: true`; `toString()` sin valores.
-- **Acceptance Criteria:** en la base de datos solo hay texto cifrado; ninguna respuesta ni línea de log contiene el valor; un texto cifrado copiado a otro monitor no se descifra.
-- **Testing:**
-  - Unitarios: `SecretCipherTest` (ida y vuelta, tag alterado, dato asociado distinto, `keyId` desconocido) y validación de headers.
-  - Seguridad: forma de la respuesta y captura de logs.
-- **Security considerations:** T-14. Nunca se reutiliza un nonce con la misma clave. La rotación está prevista con `keyId`. La clave solo se lee de un secreto.
-- **Dependencies:** Sprint 0.
-- **Definition of Done:** la sección de cifrado de la arquitectura de seguridad coincide con la implementación.
+- **Definition of Done:** cada caso de la tabla de SSRF que se decide al guardar tiene su test; la capa 1 del documento de SSRF describe la normalización, el plazo y el nombre que no resuelve.
 
 ### OW-021 · Monitores: crear, consultar, editar y cuotas
-`feature` · P2 · Milestone: v0.2.0 — Proyectos y monitores · **Planned**
+`feature` · P2 · Milestone: v0.2.0 — Proyectos y monitores · **Ready**
 
-- **Context:** la configuración de qué vigilar ([modelo de dominio](../architecture/domain-model.md#monitor)). La pausa, la reanudación y el borrado van en OW-044.
-- **Objective:** `POST /api/v1/projects/{projectId}/monitors`, `GET /api/v1/projects/{projectId}/monitors`, `GET /api/v1/monitors/{monitorId}` y `PATCH /api/v1/monitors/{monitorId}`, con `monitor_state` inicializado.
+- **Context:** la configuración de qué vigilar ([modelo de dominio](../architecture/domain-model.md#monitor)). Primer código del módulo `monitoring`. Los headers cifrados llegan en OW-022, y la pausa, la reanudación y el borrado en OW-044. No hay motor todavía: `monitor_state` se crea con cada monitor, pero nadie lo ejecuta hasta la v0.3.0.
+- **Objective:** `POST /api/v1/projects/{projectId}/monitors`, `GET /api/v1/projects/{projectId}/monitors`, `GET /api/v1/projects/{projectId}/monitors/summary`, `GET /api/v1/monitors/{monitorId}` y `PATCH /api/v1/monitors/{monitorId}`, con `monitor_state` inicializado.
 - **Tasks:**
-  - [ ] Migración `monitoring_create_monitors_and_state` (sin `monitor_checks`, que llega en OW-027).
-  - [ ] Entidad `Monitor` con sus invariantes (rangos, timeout menor que el intervalo, umbrales).
-  - [ ] `MonitorService`: crear (URL validada con `TargetPolicy`, `next_check_at` con jitter inicial) y editar (reprograma si cambia el intervalo).
-  - [ ] Filtros, ordenación con lista blanca y `monitorCounts` del proyecto.
-  - [ ] Filas nuevas en la matriz de autorización.
+  - [ ] Migración `monitoring_create_monitors_and_state` con el [DDL](../database/database-design.md#9-ddl-preliminar), sin `request_headers` (OW-022) ni `monitor_checks` (OW-027). No hay columna `enabled`: un monitor está pausado cuando su estado es `PAUSED`.
+  - [ ] Entidad `Monitor` con sus invariantes (rangos, timeout menor que el intervalo, umbral de degradación hasta `timeoutMs`), comprobadas sobre el estado **resultante** de cada cambio: un `PATCH` que solo baja `intervalSeconds` por debajo de `timeoutMs` → `400`. El accesor de la versión es `savedVersion()`.
+  - [ ] `MonitorService.create`: autoriza con `requireForProject` (`MONITOR_WRITE`), valida la URL con `TargetPolicy` **fuera de una transacción** y después, en una transacción corta, vuelve a autorizar, bloquea el proyecto con `ProjectDirectory.lockActive`, comprueba la cuota e inserta el monitor y su estado (`PENDING`, `next_check_at` con jitter inicial).
+  - [ ] `MonitorService.update`: el mismo patrón (autorizar, validar fuera de la transacción si cambia la URL, y en la transacción volver a autorizar y comprobar `If-Match`). Cambiar el intervalo reprograma `next_check_at = min(next_check_at, now + intervalo)` con la fila de `monitor_state` bloqueada (`FOR UPDATE`), salvo si el monitor está pausado, que sigue sin programar. Sin el bloqueo, una pausa concurrente acabaría en `PAUSED` con `next_check_at` programado, que `ck_monitor_state_paused` rechaza con un `500`.
+  - [ ] Cuota `opswatch.limits.monitors-per-organization` (50) con su propio espacio de advisory lock y sus propias propiedades en `monitoring` (`OrganizationLimits` es interna de `organization`).
+  - [ ] `degradedThresholdMs: null` en `PATCH` lo desactiva, con el tipo de tres estados de OW-019. Los demás campos no admiten `null` (`NotNullIfPresent`).
+  - [ ] Listado con filtros `status` y `q` (nombre, sin distinguir mayúsculas, con `%`, `_` y `\` escapados y de 100 caracteres como máximo) y `sort` por `name` (por defecto), `status` o `createdAt`.
+  - [ ] `GET /api/v1/projects/{projectId}/monitors/summary` (`MONITOR_READ`): monitores no borrados del proyecto por estado, con todos los estados aunque valgan 0. Sustituye al `monitorCounts` que el catálogo ponía en el proyecto, que obligaba a `organization` a depender de `monitoring`.
+  - [ ] `ETag` en `POST`, `GET` y `PATCH`, e `If-Match` opcional en `PATCH`.
+  - [ ] Filas nuevas en la matriz de autorización, con un monitor en su `Fixture` y la URL resuelta por el resolver falso de OW-020.
 - **Acceptance Criteria:**
-  - Un `MEMBER` crea `GET https://api.example.com/health` cada 60 s; un `VIEWER` recibe `403`.
-  - Una URL de la tabla de SSRF → `422 target-not-allowed`.
-  - El monitor 51 de una organización → `422 quota-exceeded`.
-  - `timeoutMs` mayor o igual que el intervalo → `400`.
+  - Un `MEMBER` crea `GET https://api.example.com/health` cada 60 s; un `VIEWER` recibe `403`; un no miembro, `404`.
+  - Una URL de la tabla de SSRF → `422 target-not-allowed`, también en `PATCH`.
+  - El monitor 51 de una organización → `422 quota-exceeded`, también con creaciones simultáneas.
+  - Un nombre duplicado en el mismo proyecto → `409`.
+  - `timeoutMs` mayor o igual que el intervalo → `400`, tanto al crear como al cambiar uno solo de los dos en `PATCH`.
   - `sort=url` (fuera de la lista blanca) → `400 invalid-parameter`.
+  - Un monitor creado mientras se borra su proyecto: o la creación da `404`, o el monitor existe antes de que se publique `ProjectDeleted` (nunca queda un monitor vivo en un proyecto borrado).
 - **Testing:**
-  - Unitarios: invariantes de `Monitor` y cálculo del jitter con `RandomGenerator` fijo.
-  - API y seguridad: endpoints por rol, IDOR y `projectId` solo desde la ruta.
-- **Security considerations:** URL validada con `TargetPolicy` (T-20); la ordenación por lista blanca evita inyecciones en la consulta (T-13); la cuota limita el uso del motor contra terceros (T-26).
-- **Dependencies:** OW-019, OW-020, OW-022.
-- **Definition of Done:** el ejemplo de CharityLink del README se puede crear entero por la API.
+  - Unitarios: invariantes de `Monitor` (también tras cada cambio parcial) y cálculo del jitter con `RandomGenerator` fijo.
+  - Integración (concurrencia): creaciones simultáneas en el límite de la cuota; creación de un monitor contra el borrado concurrente de su proyecto (20 repeticiones).
+  - API y seguridad: endpoints por rol, IDOR, `projectId` u `organizationId` en el cuerpo → `400`, `q` con `%` y `_` busca esos caracteres literalmente.
+- **Security considerations:** URL validada con `TargetPolicy` (T-20); la ordenación por lista blanca y el `q` parametrizado y escapado evitan inyecciones en la consulta (T-13); la cuota limita el uso del motor contra terceros (T-26). El `projectId` sale de la ruta y el `organizationId` del proyecto cargado, nunca del cuerpo (T-12). La resolución DNS fuera de la transacción evita que un DNS lento, que el usuario puede controlar, retenga conexiones del pool. Se autoriza antes de resolver, para que alguien sin permiso no pueda hacer que el servidor resuelva nombres.
+- **Dependencies:** OW-019, OW-020.
+- **Definition of Done:** el ejemplo de CharityLink del README, sin headers, se puede crear entero por la API.
+
+### OW-022 · `SecretCipher` y headers cifrados en los monitores
+`security` · P1 · Milestone: v0.2.0 — Proyectos y monitores · **Ready**
+
+- **Context:** los headers de los monitores pueden llevar credenciales de terceros (activo A4). `SecretCipher` estaba en el Sprint 0, pero su primer uso es este. Va después de OW-021 porque cifra una columna de `Monitor`. `scripts/dev-keys.sh` ya genera `secrets/encryption-dev-key` y `DeploymentGuardrails` deja sus reglas para esta issue.
+- **Objective:** `SecretCipher` (AES-256-GCM) en `shared.crypto` y headers de monitor cifrados y de solo escritura.
+- **Tasks:**
+  - [ ] `SecretCipher` con `keyId` de 1 byte, nonce aleatorio de 12 bytes (`SecureRandom`) y dato asociado. Formato `keyId ‖ nonce ‖ ciphertext ‖ tag`.
+  - [ ] Claves en `opswatch.security.encryption.keys.<id>` (id de 0 a 255, AES-256 en Base64) y `active-key-id`. La aplicación no arranca en ningún perfil sin la clave activa, ni con una clave que no mida 32 bytes. En `local`, desde `secrets/` con `configtree`, como las claves JWT; en los tests, una clave generada por JVM, como `TestJwtKeys`.
+  - [ ] Migración `monitoring_add_monitor_request_headers` (`request_headers bytea`, nula).
+  - [ ] Cifrado explícito en `monitoring`, sin `AttributeConverter`: un converter solo recibe la columna y al leer no conoce el id del monitor, que es el dato asociado. La entidad guarda los bytes cifrados y el servicio los cifra y descifra con el dato asociado `monitors.request_headers:<monitorId>`.
+  - [ ] Validación de headers en `egress` (capa 4 de SSRF, para que OW-024 la vuelva a aplicar al enviar): lista de prohibidos (incluidos los de metadata cloud y `Authorization: Bearer Oracle`), sin CR ni LF, gramática de *token* en el nombre, 10 headers y 1024 bytes por valor como máximo.
+  - [ ] `headers` en `POST` y `PATCH` (la lista se reemplaza entera; `[]` los quita; `null` → `400`). Respuesta con `value: null` y `hasValue: true`; `toString()` de los DTOs y del tipo de headers sin valores.
+- **Acceptance Criteria:** en la base de datos solo hay texto cifrado; ninguna respuesta ni línea de log contiene el valor; un texto cifrado copiado a otro monitor no se descifra; la aplicación no arranca sin clave; un texto cifrado con una clave antigua que sigue configurada se descifra después de cambiar `active-key-id`.
+- **Testing:**
+  - Unitarios: `SecretCipherTest` (ida y vuelta, tag alterado, dato asociado distinto, `keyId` desconocido, dos cifrados del mismo texto distintos) y validación de headers.
+  - Seguridad: forma de la respuesta, captura de logs con un valor centinela y texto cifrado copiado entre dos monitores.
+  - Arranque: `DeploymentGuardrailsTest` y `ApplicationStartupIT` sin clave.
+- **Security considerations:** T-14. Nunca se reutiliza un nonce con la misma clave: con nonces aleatorios de 12 bytes, el límite práctico es de unos 2³² cifrados por clave, muy lejos del volumen de V1. La rotación está prevista con `keyId`; recifrar lo guardado con una clave retirada queda fuera de V1. La clave solo se lee de un secreto. El dato asociado incluye el propósito además del id, para que un texto cifrado de otra tabla (los canales de la v0.4.0) no se pueda mover aquí.
+- **Dependencies:** OW-021.
+- **Definition of Done:** la sección de cifrado de la [arquitectura de seguridad](../security/security-architecture.md#cifrado-de-datos-sensibles-en-la-base-de-datos) coincide con la implementación; el ejemplo de CharityLink del README se puede crear con headers.
 
 ### OW-044 · Monitores: pausar, reanudar, borrar y limpieza por `ProjectDeleted`
-`feature` · P2 · Milestone: v0.2.0 — Proyectos y monitores · **Planned**
+`feature` · P2 · Milestone: v0.2.0 — Proyectos y monitores · **Ready**
 
-- **Context:** acciones de ciclo de vida del monitor, separadas de OW-021 para que ninguna de las dos issues sea demasiado grande.
+- **Context:** acciones de ciclo de vida del monitor, separadas de OW-021 para que ninguna de las dos issues sea demasiado grande. Es el primer listener asíncrono entre módulos, y usa el registro de OW-034.
 - **Objective:** `POST /api/v1/monitors/{monitorId}/pause`, `POST /api/v1/monitors/{monitorId}/resume`, `DELETE /api/v1/monitors/{monitorId}` y el borrado de monitores cuando se borra su proyecto.
 - **Tasks:**
-  - [ ] Pausa: `PAUSED` y `next_check_at = NULL`; evento `MonitorPaused`.
-  - [ ] Reanudación: `PENDING` y `next_check_at` con jitter.
-  - [ ] Borrado lógico; evento `MonitorDeleted`.
-  - [ ] Listener asíncrono de `ProjectDeleted` (`@ApplicationModuleListener`, con el registro de OW-034).
-- **Acceptance Criteria:** pausar un monitor pausado → `409`; reanudar uno activo → `409`; al borrar un proyecto, todos sus monitores quedan borrados y sin programar, también si la aplicación se reinicia entre el commit y el listener.
+  - [ ] Pausa: `PAUSED`, `next_check_at = NULL` y contadores a cero; evento `MonitorPaused`.
+  - [ ] Reanudación: `PENDING`, `next_check_at` con jitter y contadores a cero.
+  - [ ] Borrado lógico: `deleted_at`, estado como en la pausa; evento `MonitorDeleted`.
+  - [ ] Las tres bloquean la fila de `monitor_state` (`FOR UPDATE`) antes de escribir. El borrado cambia la fila de `monitors`, así que su `version` sube y un `PATCH` concurrente falla con `409`.
+  - [ ] Listener asíncrono de `ProjectDeleted` (`@ApplicationModuleListener`, con el registro de OW-034): borra cada monitor no borrado del proyecto por el mismo camino que `DELETE`, uno a uno. Así cada uno publica su `MonitorDeleted` (en OW-032, `incident` resolverá sus incidentes activos) y su `version` sube. **Nada de un `UPDATE` masivo**: no incrementaría `version`, y un `PATCH` concurrente reescribiría todas las columnas del monitor cargado, `deleted_at = NULL` incluido, y lo resucitaría.
+  - [ ] `MonitorDeleted.deletedBy` es quien borró el monitor o, en la limpieza, el `deletedBy` de `ProjectDeleted`.
+- **Acceptance Criteria:**
+  - Pausar un monitor pausado → `409`; reanudar uno activo → `409`; un `VIEWER` → `403`.
+  - Al borrar un proyecto, todos sus monitores quedan borrados y sin programar, también si la aplicación se reinicia entre el commit y el listener.
+  - Un `ProjectDeleted` duplicado no hace nada más.
+  - Un `PATCH` concurrente con la limpieza nunca resucita el monitor: o falla con `409`, o el monitor acaba borrado.
 - **Testing:**
   - Unitarios: transiciones de pausa y reanudación.
-  - Módulo: `@ApplicationModuleTest` con `Scenario`: `ProjectDeleted` → monitores borrados.
+  - Módulo: `@ApplicationModuleTest` con `Scenario`: `ProjectDeleted` → monitores borrados y un `MonitorDeleted` por cada uno.
+  - Integración: reinicio entre el commit y el listener (con la infraestructura de `EventPublicationRegistryIT`); `PATCH` concurrente con la limpieza (20 repeticiones).
   - API y seguridad: endpoints por rol e IDOR.
-- **Security considerations:** integridad: un monitor borrado o pausado no debe seguir haciendo peticiones (`next_check_at = NULL` y la restricción `ck_monitor_state_paused`). El listener es idempotente: un `ProjectDeleted` duplicado no hace nada más.
+- **Security considerations:** integridad: un monitor borrado o pausado no debe seguir haciendo peticiones (`next_check_at = NULL` y la restricción `ck_monitor_state_paused`). El listener es idempotente: solo toca monitores no borrados, así que un `ProjectDeleted` duplicado no hace nada. Entre el borrado del proyecto y la limpieza (normalmente milisegundos) sus monitores siguen visibles por id: es aceptable, porque la limpieza está garantizada por el registro.
 - **Dependencies:** OW-021, OW-034.
 - **Definition of Done:** los eventos `MonitorPaused` y `MonitorDeleted` están documentados; sus listeners en `incident` llegan en OW-032.
 

@@ -1,6 +1,6 @@
 # Retención y crecimiento de datos
 
-Estado: diseño inicial · Última revisión: 2026-09-28 · Decisión: [ADR-008](../adr/ADR-008-check-results-storage.md)
+Estado: diseño inicial · Última revisión: 2026-10-02 · Decisión: [ADR-008](../adr/ADR-008-check-results-storage.md)
 
 ## Crecimiento esperado de `monitor_checks`
 
@@ -30,7 +30,7 @@ Lectura:
 | `incidents`, `incident_timeline` | Indefinida mientras exista la organización | — |
 | `notification_deliveries` | 90 días (`opswatch.retention.deliveries`) | Job diario |
 | `refresh_tokens` | Hasta 7 días después de caducar o revocarse | Job diario |
-| `event_publication` (completadas) | 7 días | Configuración de Spring Modulith y job |
+| `event_publication_archive` (publicaciones completadas) | 7 días (`opswatch.retention.event-publications`) | Job que purga solo el archivo. Las pendientes de `event_publication` nunca se purgan |
 | Monitores borrados lógicamente | Sus checks se purgan en el siguiente ciclo del job y la fila de `monitors` se conserva mientras la referencien incidentes | Job diario |
 | Organizaciones borradas | Purga física a los 30 días | Después de V1 |
 

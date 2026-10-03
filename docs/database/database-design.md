@@ -1,6 +1,6 @@
 # Diseño de base de datos
 
-Estado: diseño inicial · Última revisión: 2026-09-29 · Decisiones: [ADR-002](../adr/ADR-002-postgresql.md), [ADR-008](../adr/ADR-008-check-results-storage.md)
+Estado: diseño inicial · Última revisión: 2026-10-02 · Decisiones: [ADR-002](../adr/ADR-002-postgresql.md), [ADR-008](../adr/ADR-008-check-results-storage.md)
 
 El modelo conceptual está en [Modelo de dominio](../architecture/domain-model.md). Este documento baja a PostgreSQL: tipos, claves, índices, bloqueos y un DDL preliminar. **El DDL es un borrador de diseño.** La versión válida será la de `src/main/resources/db/migration` cuando exista.
 
@@ -222,8 +222,7 @@ CREATE TABLE monitors (
     follow_redirects      boolean     NOT NULL DEFAULT true,
     failure_threshold     smallint    NOT NULL DEFAULT 3,
     recovery_threshold    smallint    NOT NULL DEFAULT 2,
-    request_headers       bytea,      -- JSON cifrado con AES-256-GCM (SecretCipher)
-    enabled               boolean     NOT NULL DEFAULT true,
+    request_headers       bytea,      -- JSON cifrado con AES-256-GCM (SecretCipher). Lo añade OW-022
     created_by            uuid,
     created_at            timestamptz NOT NULL,
     updated_at            timestamptz NOT NULL,

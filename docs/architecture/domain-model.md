@@ -1,6 +1,6 @@
 # Modelo de dominio
 
-Estado: diseño inicial · Última revisión: 2026-09-29
+Estado: diseño inicial · Última revisión: 2026-10-02
 
 Este documento define las entidades, su responsabilidad, campos, reglas y ciclo de vida. El DDL preliminar está en [Diseño de base de datos](../database/database-design.md). Los límites configurables (cuotas, rangos, TTL) están en el [catálogo de propiedades](../devops/environments.md#catálogo-de-propiedades).
 
@@ -85,7 +85,6 @@ erDiagram
         text url
         int interval_seconds
         int timeout_ms
-        boolean enabled
     }
     MONITOR_STATE {
         uuid monitor_id PK
@@ -206,7 +205,7 @@ erDiagram
 **Reglas:**
 - Quien la crea queda como `OWNER` en la misma transacción.
 - Un usuario puede ser `OWNER` de como mucho `opswatch.limits.organizations-per-user` organizaciones no borradas. Se comprueba al crear una, serializado por usuario para que las creaciones simultáneas no superen el límite.
-- Borrarla es borrado lógico: publica `OrganizationDeleted`, borra sus proyectos (lo que publica `ProjectDeleted` por cada uno) y deja de aparecer en todas las consultas. La purga física a los 30 días se deja para después de V1.
+- Borrarla es borrado lógico: borra sus proyectos en la misma transacción (lo que publica `ProjectDeleted` por cada uno), publica `OrganizationDeleted` y deja de aparecer en todas las consultas. La purga física a los 30 días se deja para después de V1.
 
 **Ciclo de vida:** creada → activa → borrada (lógicamente) → purgada (futuro).
 
@@ -249,7 +248,11 @@ La matriz completa de permisos está en [Modelo de autorización](../security/au
 
 **Índices:** único `(organization_id, lower(name)) WHERE deleted_at IS NULL`, único `(id, organization_id)` (soporte de la FK compuesta de `monitors`) e `(organization_id) WHERE deleted_at IS NULL`.
 
-**Reglas:** máximo `opswatch.limits.projects-per-organization` proyectos. Borrarlo publica `ProjectDeleted` y `monitoring` borra lógicamente sus monitores.
+**Reglas:**
+- Máximo `opswatch.limits.projects-per-organization` proyectos no borrados por organización. Se comprueba al crear uno, serializado por organización.
+- `name` y `description` siguen las reglas de caracteres del nombre de la organización.
+- Borrarlo publica `ProjectDeleted`, y `monitoring` borra lógicamente sus monitores de forma asíncrona.
+- Un monitor solo se crea con su proyecto bloqueado (`ProjectDirectory.lockActive`, `FOR SHARE`): sin eso, un monitor creado mientras se borra el proyecto podría quedar vivo después de la limpieza.
 
 ## 6. Módulo `monitoring`
 
@@ -279,17 +282,19 @@ En una sola fila, cada check incrementaría `version` y casi toda edición human
 | `followRedirects` | `boolean` | `boolean` | Por defecto `true`. Máximo 5 saltos |
 | `failureThreshold` | `int` | `smallint` | De 1 a 10. Por defecto 3 |
 | `recoveryThreshold` | `int` | `smallint` | De 1 a 10. Por defecto 2 |
-| `requestHeaders` | `List<Header>` | `bytea` | Máximo 10 headers, cifrados con AES-256-GCM. Los valores nunca se devuelven por la API |
-| `enabled` | `boolean` | `boolean` | Por defecto `true` |
+| `requestHeaders` | `byte[]` | `bytea` | Máximo 10 headers, cifrados con AES-256-GCM (OW-022). Los valores nunca se devuelven por la API |
 | `createdBy` | `UUID` | `uuid` | FK → `users`, `ON DELETE SET NULL` |
 | `createdAt`, `updatedAt`, `deletedAt` | `Instant` | `timestamptz` | |
 | `version` | `Long` | `bigint` | |
 
 **Reglas:**
-- Máximo `opswatch.limits.monitors-per-organization` monitores activos (no borrados) por organización.
+- No hay campo `enabled`: si un monitor está pausado lo dice `MonitorState.status = PAUSED`, la única fuente. Dos campos para lo mismo podrían contradecirse.
+- Máximo `opswatch.limits.monitors-per-organization` monitores no borrados (pausados incluidos) por organización. Se comprueba al crear uno, serializado por organización.
+- Las invariantes se comprueban sobre el estado resultante de cada cambio, no solo sobre los campos que llegan.
 - La URL se valida al crear y al editar: sintaxis, esquema, puerto y resolución DNS actual. La validación de seguridad definitiva ocurre en cada conexión.
 - Los nombres de header no pueden estar en la lista de bloqueados (`Host`, `Content-Length`, `Connection`, `Transfer-Encoding`, `Proxy-*`, `Cookie` y los de metadata cloud; ver [SSRF](../security/ssrf-protection.md#capa-4-restricciones-de-la-petición)). Nombres y valores no pueden contener `CR` ni `LF`.
-- Cambiar `intervalSeconds` reprograma `next_check_at`. Cambiar la URL no reinicia el estado: los siguientes checks lo corrigen de forma natural.
+- Cambiar `intervalSeconds` reprograma `next_check_at`, salvo si el monitor está pausado. Cambiar la URL no reinicia el estado: los siguientes checks lo corrigen de forma natural.
+- Los headers se cifran con el id del monitor en el dato asociado, de forma explícita en el servicio y no con un `AttributeConverter`, que al leer no conoce el id ([cifrado](../security/security-architecture.md#cifrado-de-datos-sensibles-en-la-base-de-datos)).
 
 **Ciclo de vida:**
 

@@ -132,7 +132,7 @@ Propiedades:
 | Pausar | `status = PAUSED`, `next_check_at = NULL`, contadores a cero. Publica `MonitorPaused` |
 | Reanudar | `status = PENDING`, `next_check_at = now + jitter`. Contadores a cero |
 | Borrar | Igual que pausar, más `monitors.deleted_at`. Publica `MonitorDeleted` |
-| Cambiar el intervalo | `next_check_at = min(next_check_at, now + nuevo intervalo)` |
+| Cambiar el intervalo | `next_check_at = min(next_check_at, now + nuevo intervalo)`. Si está pausado, sigue en `NULL` |
 | Borrar el proyecto | `monitoring` recibe `ProjectDeleted` y borra sus monitores |
 
 Todas bloquean la fila de `monitor_state` (`FOR UPDATE`) antes de escribir. Si hay un check en vuelo cuando se pausa, su resultado se guarda al volver, pero no cambia el estado: la transacción del resultado ve `PAUSED` y no aplica ninguna transición.

@@ -1,6 +1,6 @@
 # Protección contra SSRF
 
-Estado: diseño inicial · Última revisión: 2026-09-28 · Módulo: `egress` · Decisión relacionada: [ADR-007](../adr/ADR-007-http-client-and-concurrency.md)
+Estado: diseño inicial · Última revisión: 2026-10-02 · Módulo: `egress` · Decisión relacionada: [ADR-007](../adr/ADR-007-http-client-and-concurrency.md)
 
 ## 1. El riesgo
 
@@ -67,8 +67,10 @@ flowchart TB
 | Puerto | `80`, `443` o de `1024` a `65535`. Los puertos bajos distintos de 80 y 443 (22, 25, 110…) se rechazan para limitar el uso del motor como escáner o relé SMTP |
 | Host IP literal | Solo IPv4 en notación decimal con puntos (cuatro octetos de 0 a 255, sin ceros a la izquierda) o IPv6 entre corchetes. Cualquier otra forma numérica (`2130706433`, `0x7f000001`, `0177.0.0.1`, `127.1`) se rechaza. La IP se clasifica igual que en la capa 2 |
 | Host nombre | Gramática de hostname (RFC 1123), con IDN convertido a punycode. Se rechazan `localhost`, `*.localhost`, `*.local`, `*.internal`, `*.home.arpa`, `metadata.google.internal` y nombres de una sola etiqueta (sin punto, como `postgres`) |
-| Resolución actual | Se resuelve el nombre y **todas** las IP tienen que pasar el clasificador. Si no resuelve, se admite con una advertencia: el DNS puede no existir todavía, y la capa 2 decidirá en cada check |
+| Resolución actual | Se resuelve el nombre, con un plazo máximo de `opswatch.egress.save-resolution-timeout` (2 s), y **todas** las IP tienen que pasar el clasificador. Si no resuelve o no responde a tiempo, se admite sin aviso en la respuesta: el DNS puede no existir todavía, la capa 2 decidirá en cada check y el primer check mostrará `DNS_FAILURE`. La resolución es I/O externo: se hace fuera de cualquier transacción |
 | Fragmento | Se descarta |
+| Normalización | La URL que se guarda y se devuelve es la normalizada: esquema y host en minúsculas, host en punycode y sin fragmento |
+| Mensaje de error | El `422 target-not-allowed` dice qué regla falla, nunca las IP resueltas: no se convierte en un oráculo del DNS interno del servidor |
 
 ### Capa 2: resolución DNS con fijación de IP
 
