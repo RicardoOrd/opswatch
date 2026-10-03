@@ -2,8 +2,11 @@ package io.github.ricardoord.opswatch.organization.application;
 
 import io.github.ricardoord.opswatch.organization.AccessControl;
 import io.github.ricardoord.opswatch.organization.Permission;
+import io.github.ricardoord.opswatch.organization.ProjectRef;
 import io.github.ricardoord.opswatch.organization.Role;
 import io.github.ricardoord.opswatch.organization.domain.MembershipRepository;
+import io.github.ricardoord.opswatch.organization.domain.Project;
+import io.github.ricardoord.opswatch.organization.domain.ProjectRepository;
 import io.github.ricardoord.opswatch.shared.error.PermissionDeniedException;
 import io.github.ricardoord.opswatch.shared.error.ResourceNotFoundException;
 import java.util.UUID;
@@ -22,9 +25,11 @@ class DefaultAccessControl implements AccessControl {
     private static final Logger log = LoggerFactory.getLogger(DefaultAccessControl.class);
 
     private final MembershipRepository memberships;
+    private final ProjectRepository projects;
 
-    DefaultAccessControl(MembershipRepository memberships) {
+    DefaultAccessControl(MembershipRepository memberships, ProjectRepository projects) {
         this.memberships = memberships;
+        this.projects = projects;
     }
 
     @Override
@@ -33,6 +38,23 @@ class DefaultAccessControl implements AccessControl {
         Role role = memberships
                 .findActiveRole(organizationId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("organization", organizationId));
+        return granting(role, userId, organizationId, permission);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProjectRef requireForProject(UUID userId, UUID projectId, Permission permission) {
+        Project project = projects.findByIdAndDeletedAtIsNull(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("project", projectId));
+        // Same detail as a missing project: a non-member must not learn which organization it belongs to
+        Role role = memberships
+                .findActiveRole(project.organizationId(), userId)
+                .orElseThrow(() -> new ResourceNotFoundException("project", projectId));
+        granting(role, userId, project.organizationId(), permission);
+        return new ProjectRef(project.id(), project.organizationId());
+    }
+
+    private static Role granting(Role role, UUID userId, UUID organizationId, Permission permission) {
         if (!role.grants(permission)) {
             log.atInfo()
                     .addKeyValue("event.category", "security")

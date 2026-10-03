@@ -205,7 +205,7 @@ erDiagram
 **Reglas:**
 - Quien la crea queda como `OWNER` en la misma transacción.
 - Un usuario puede ser `OWNER` de como mucho `opswatch.limits.organizations-per-user` organizaciones no borradas. Se comprueba al crear una, serializado por usuario para que las creaciones simultáneas no superen el límite.
-- Borrarla es borrado lógico: borra sus proyectos en la misma transacción (lo que publica `ProjectDeleted` por cada uno), publica `OrganizationDeleted` y deja de aparecer en todas las consultas. La purga física a los 30 días se deja para después de V1.
+- Borrarla es borrado lógico: con su fila bloqueada (`SELECT … FOR UPDATE`, el mismo bloqueo que toma crear un proyecto), borra sus proyectos en la misma transacción (lo que publica `ProjectDeleted` por cada uno), publica `OrganizationDeleted` y deja de aparecer en todas las consultas. Ningún proyecto creado a la vez sobrevive a su organización. La purga física a los 30 días se deja para después de V1.
 
 **Ciclo de vida:** creada → activa → borrada (lógicamente) → purgada (futuro).
 
@@ -249,7 +249,7 @@ La matriz completa de permisos está en [Modelo de autorización](../security/au
 **Índices:** único `(organization_id, lower(name)) WHERE deleted_at IS NULL`, único `(id, organization_id)` (soporte de la FK compuesta de `monitors`) e `(organization_id) WHERE deleted_at IS NULL`.
 
 **Reglas:**
-- Máximo `opswatch.limits.projects-per-organization` proyectos no borrados por organización. Se comprueba al crear uno, serializado por organización.
+- Máximo `opswatch.limits.projects-per-organization` proyectos no borrados por organización. Se comprueba al crear uno con la fila de la organización bloqueada (`SELECT … FOR UPDATE`), igual que el nombre: dos creaciones simultáneas se turnan.
 - `name` y `description` siguen las reglas de caracteres del nombre de la organización.
 - Borrarlo publica `ProjectDeleted`, y `monitoring` borra lógicamente sus monitores de forma asíncrona.
 - Un monitor solo se crea con su proyecto bloqueado (`ProjectDirectory.lockActive`, `FOR SHARE`): sin eso, un monitor creado mientras se borra el proyecto podría quedar vivo después de la limpieza.

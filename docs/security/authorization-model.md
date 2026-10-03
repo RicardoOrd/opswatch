@@ -99,7 +99,8 @@ public interface AccessControl {
     Role require(UUID userId, UUID organizationId, Permission permission);
 
     /**
-     * Resuelve el proyecto (no borrado) y comprueba el permiso en su organización. Llega con OW-019.
+     * Resuelve el proyecto (no borrado) y comprueba el permiso en su organización (OW-019). El 404 habla del
+     * proyecto, nunca de su organización: no revela a quién pertenece.
      * @return el proyecto y su organización, para que quien llama no los tome nunca de la petición
      * @throws ResourceNotFoundException si el proyecto no existe, está borrado o el usuario no es miembro de su organización
      */

@@ -2,7 +2,7 @@
 
 Estado: diseño inicial · Última revisión: 2026-10-02 · Convenciones: [api-guidelines.md](api-guidelines.md) · Permisos: [authorization-model.md](../security/authorization-model.md)
 
-**Existen `POST /api/v1/auth/register` (OW-012), `POST /api/v1/auth/login` y `GET /api/v1/me` (OW-013), y `POST /api/v1/auth/refresh` y `POST /api/v1/auth/logout` (OW-014), con rate limiting desde OW-015, `PATCH /api/v1/me` y `POST /api/v1/me/password` (OW-045), los cinco endpoints de organizaciones (OW-016) y los cuatro de miembros (OW-017). El resto está planificado.** La columna "Fase" indica cuándo se implementa cada uno. Los errores comunes a todos los endpoints autenticados (`401`, `404` a quien no es miembro, `429` y `500`) no se repiten en cada tabla.
+**Existen `POST /api/v1/auth/register` (OW-012), `POST /api/v1/auth/login` y `GET /api/v1/me` (OW-013), y `POST /api/v1/auth/refresh` y `POST /api/v1/auth/logout` (OW-014), con rate limiting desde OW-015, `PATCH /api/v1/me` y `POST /api/v1/me/password` (OW-045), los cinco endpoints de organizaciones (OW-016), los cuatro de miembros (OW-017) y los cinco de proyectos (OW-019). El resto está planificado.** La columna "Fase" indica cuándo se implementa cada uno. Los errores comunes a todos los endpoints autenticados (`401`, `404` a quien no es miembro, `429` y `500`) no se repiten en cada tabla.
 
 ## Autenticación (`identity`)
 
