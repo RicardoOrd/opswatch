@@ -5,13 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.ricardoord.opswatch.egress.TargetKind;
 import io.github.ricardoord.opswatch.shared.error.TargetNotAllowedException;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,7 +23,7 @@ class DefaultTargetPolicyTest {
 
     private static final String HOST_NOT_ALLOWED = "The host is not allowed.";
 
-    private final FakeResolver resolver = new FakeResolver()
+    private final FakeHostResolver resolver = new FakeHostResolver()
             .with("example.com", "93.184.216.34")
             .with("api.example.com", "93.184.216.34", "2606:2800:220:1:248:1893:25c8:1946")
             .with("xn--ejmplo-cva.com", "93.184.216.35")
@@ -188,7 +184,7 @@ class DefaultTargetPolicyTest {
         assertThat(policy.validate("http://93.184.216.34/", TargetKind.MONITOR)).hasToString("http://93.184.216.34/");
         assertThat(policy.validate("http://[2606:4700:4700::1111]/", TargetKind.MONITOR))
                 .hasToString("http://[2606:4700:4700::1111]/");
-        assertThat(resolver.lookups).isEmpty();
+        assertThat(resolver.lookups()).isEmpty();
     }
 
     /** Its DNS may not exist yet: layer 2 decides on every check, and the first one will show DNS_FAILURE. */
@@ -274,29 +270,6 @@ class DefaultTargetPolicyTest {
             latch.await(30, TimeUnit.SECONDS);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-        }
-    }
-
-    /** Answers from a table; any other name does not resolve. Remembers what it was asked. */
-    private static final class FakeResolver implements HostResolver {
-
-        private final Map<String, List<InetAddress>> answers = new ConcurrentHashMap<>();
-        private final List<String> lookups = new java.util.concurrent.CopyOnWriteArrayList<>();
-
-        FakeResolver with(String host, String... addresses) {
-            answers.put(
-                    host, Arrays.stream(addresses).map(InetAddress::ofLiteral).toList());
-            return this;
-        }
-
-        @Override
-        public List<InetAddress> resolve(String host) throws UnknownHostException {
-            lookups.add(host);
-            List<InetAddress> addresses = answers.get(host);
-            if (addresses == null) {
-                throw new UnknownHostException(host);
-            }
-            return addresses;
         }
     }
 }

@@ -15,7 +15,7 @@ public record CreateOrganizationRequest(
         @Nullable
         String name) {
 
-    static final String VISIBLE_TEXT = "must not contain control or bidirectional formatting characters";
+    static final String VISIBLE_TEXT = VisibleText.MESSAGE;
 
     /** Surrounding spaces are a typing slip, not part of the name. */
     public CreateOrganizationRequest {

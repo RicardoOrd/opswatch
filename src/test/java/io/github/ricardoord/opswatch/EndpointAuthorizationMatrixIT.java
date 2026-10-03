@@ -73,6 +73,11 @@ class EndpointAuthorizationMatrixIT {
             GET    /api/v1/projects/{projectId}                     200 200 200 200 404 401
             PATCH  /api/v1/projects/{projectId}                     200 200 403 403 404 401
             DELETE /api/v1/projects/{projectId}                     204 204 403 403 404 401
+            POST   /api/v1/projects/{projectId}/monitors            201 201 201 403 404 401
+            GET    /api/v1/projects/{projectId}/monitors            200 200 200 200 404 401
+            GET    /api/v1/projects/{projectId}/monitors/summary    200 200 200 200 404 401
+            GET    /api/v1/monitors/{monitorId}                     200 200 200 200 404 401
+            PATCH  /api/v1/monitors/{monitorId}                     200 200 200 403 404 401
             """;
 
     private static final Pattern ROW = Pattern.compile("(GET|POST|PATCH|DELETE)\\s+(\\S+)((?:\\s+\\d{3}){6})");
@@ -249,6 +254,26 @@ class EndpointAuthorizationMatrixIT {
         requests.put(
                 "DELETE /api/v1/projects/{projectId}",
                 (mvc, fixture) -> mvc.delete().uri("/api/v1/projects/{projectId}", fixture.project()));
+        requests.put(
+                "POST /api/v1/projects/{projectId}/monitors",
+                (mvc, fixture) -> json(
+                        mvc.post(),
+                        "/api/v1/projects/" + fixture.project() + "/monitors",
+                        "{\"name\": \"Payments API\", \"url\": \"https://%s/health\"}"
+                                .formatted(TestHostResolver.PUBLIC_HOST)));
+        requests.put(
+                "GET /api/v1/projects/{projectId}/monitors",
+                (mvc, fixture) -> mvc.get().uri("/api/v1/projects/{projectId}/monitors", fixture.project()));
+        requests.put(
+                "GET /api/v1/projects/{projectId}/monitors/summary",
+                (mvc, fixture) -> mvc.get().uri("/api/v1/projects/{projectId}/monitors/summary", fixture.project()));
+        requests.put(
+                "GET /api/v1/monitors/{monitorId}",
+                (mvc, fixture) -> mvc.get().uri("/api/v1/monitors/{monitorId}", fixture.monitor()));
+        requests.put(
+                "PATCH /api/v1/monitors/{monitorId}",
+                (mvc, fixture) ->
+                        json(mvc.patch(), "/api/v1/monitors/" + fixture.monitor(), "{\"name\": \"Renamed\"}"));
         return requests;
     }
 
@@ -275,8 +300,8 @@ class EndpointAuthorizationMatrixIT {
     }
 
     /**
-     * An organization with one member of each role and a project, a user who is not a member, a {@code MEMBER} to
-     * change or remove and a user to add. Straight into the tables, with the tokens issued directly: nearly a hundred cases would
+     * An organization with one member of each role and a project with a monitor, a user who is not a member, a
+     * {@code MEMBER} to change or remove and a user to add. Straight into the tables, with the tokens issued directly: nearly a hundred cases would
      * otherwise mean hundreds of registrations.
      */
     private Fixture fixture() {
@@ -304,7 +329,14 @@ class EndpointAuthorizationMatrixIT {
         jdbc.update("""
                 INSERT INTO projects (id, organization_id, name, created_at, updated_at)
                 VALUES (?, ?, 'Production', now(), now())""", project, organization);
-        return new Fixture(organization, project, callerTokens, subject, subjectEmail, newcomerEmail);
+        UUID monitor = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO monitors (id, organization_id, project_id, name, url, created_at, updated_at)
+                VALUES (?, ?, ?, 'Authentication API', 'https://api.example.com/health', now(), now())""", monitor, organization, project);
+        jdbc.update("""
+                INSERT INTO monitor_state (monitor_id, status_changed_at, next_check_at, updated_at)
+                VALUES (?, now(), now(), now())""", monitor);
+        return new Fixture(organization, project, monitor, callerTokens, subject, subjectEmail, newcomerEmail);
     }
 
     private UUID insertUser(String email, String passwordHash) {
@@ -323,6 +355,7 @@ class EndpointAuthorizationMatrixIT {
 
     /**
      * @param project a project of the organization
+     * @param monitor a monitor of the project
      * @param tokens the access token of each caller; none for {@link Caller#ANONYMOUS}
      * @param subject a {@code MEMBER} that the member endpoints change or remove
      * @param newcomerEmail a user with an account who is not a member yet
@@ -330,6 +363,7 @@ class EndpointAuthorizationMatrixIT {
     private record Fixture(
             UUID organization,
             UUID project,
+            UUID monitor,
             Map<Caller, @Nullable String> tokens,
             UUID subject,
             String subjectEmail,

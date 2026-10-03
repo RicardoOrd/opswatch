@@ -12,6 +12,8 @@ import io.github.ricardoord.opswatch.organization.domain.OrganizationWithRole;
 import io.github.ricardoord.opswatch.shared.error.QuotaExceededException;
 import io.github.ricardoord.opswatch.shared.error.ResourceNotFoundException;
 import io.github.ricardoord.opswatch.shared.id.IdGenerator;
+import io.github.ricardoord.opswatch.shared.lock.AdvisoryLocks;
+import io.github.ricardoord.opswatch.shared.lock.LockSpace;
 import io.github.ricardoord.opswatch.shared.web.ETags;
 import java.time.Clock;
 import java.util.UUID;
@@ -36,6 +38,7 @@ public class OrganizationService {
     private final ProjectService projects;
     private final AccessControl access;
     private final IdGenerator ids;
+    private final AdvisoryLocks locks;
     private final ApplicationEventPublisher events;
     private final OrganizationLimits limits;
     private final Clock clock;
@@ -46,6 +49,7 @@ public class OrganizationService {
             ProjectService projects,
             AccessControl access,
             IdGenerator ids,
+            AdvisoryLocks locks,
             ApplicationEventPublisher events,
             OrganizationLimits limits,
             Clock clock) {
@@ -54,6 +58,7 @@ public class OrganizationService {
         this.projects = projects;
         this.access = access;
         this.ids = ids;
+        this.locks = locks;
         this.events = events;
         this.limits = limits;
         this.clock = clock;
@@ -67,7 +72,7 @@ public class OrganizationService {
      */
     @Transactional
     public OrganizationWithRole create(UUID userId, String name) {
-        organizations.lockQuotaOf(OrganizationRepository.QUOTA_LOCK_NAMESPACE, userId);
+        locks.lock(LockSpace.ORGANIZATIONS_OWNED_BY_USER, userId);
         int limit = limits.organizationsPerUser();
         if (organizations.countActiveWithRole(userId, Role.OWNER) >= limit) {
             throw new QuotaExceededException("You already own " + limit + " organizations, the most allowed.");

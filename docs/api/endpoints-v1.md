@@ -199,10 +199,13 @@ Validaciones: ver el [modelo de dominio](../architecture/domain-model.md#monitor
 
 - La URL se guarda y se devuelve **normalizada** (esquema y host en minúsculas, host en punycode, sin fragmento).
 - Un monitor nace en `PENDING`. No hay campo `enabled`: un monitor está pausado cuando su estado es `PAUSED`, y solo `pause` y `resume` lo cambian.
-- Las invariantes (por ejemplo, `timeoutMs` menor que el intervalo) se comprueban sobre el estado resultante: un `PATCH` que solo cambia uno de los dos puede dar `400`.
-- En `PATCH`, `degradedThresholdMs: null` desactiva el estado degradado; los demás campos no admiten `null`. `headers` reemplaza la lista entera si viene en el cuerpo, y `[]` los quita todos.
-- `q` busca en el nombre sin distinguir mayúsculas, de forma literal (`%` y `_` no son comodines), con 100 caracteres como máximo.
+- Las invariantes (por ejemplo, `timeoutMs` menor que el intervalo) se comprueban sobre el estado resultante: un `PATCH` que solo cambia uno de los dos puede dar `400`. El error es un `validation-error` sobre el campo que la rompe, con los códigos `not-below-interval` (`timeoutMs`), `above-timeout` (`degradedThresholdMs`) y `min-above-max` (`expectedStatus`).
+- En `POST`, un campo opcional ausente o `null` toma su valor por defecto. En `PATCH`, `degradedThresholdMs: null` desactiva el estado degradado; los demás campos no admiten `null`. `expectedStatus` cambia solo los extremos que vienen (`{"max": 204}` conserva `min`). `headers` reemplaza la lista entera si viene en el cuerpo, y `[]` los quita todos.
+- Un `PATCH` con `url` la vuelve a validar con la política SSRF, aunque sea la misma.
+- `q` busca en el nombre sin distinguir mayúsculas, de forma literal (`%`, `_` y `\` no son comodines ni escapes), con 100 caracteres como máximo. `status` filtra por estado (`PENDING`, `UP`, `DEGRADED`, `DOWN` o `PAUSED`, en mayúsculas). `sort=status` ordena por el código del estado en orden alfabético.
+- Quien no es miembro recibe `404` con el detalle del monitor (`monitor <id> was not found`), nunca del proyecto. Un monitor de un proyecto borrado da `404` aunque su limpieza asíncrona (OW-044) todavía no haya terminado.
 - El `422 target-not-allowed` dice qué regla falla, nunca las IP resueltas.
+- `headers` no aparece en las respuestas hasta OW-022.
 
 ## Checks y estadísticas
 
