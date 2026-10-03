@@ -108,18 +108,23 @@ public interface AccessControl {
 }
 ```
 
-Uso típico en un caso de uso:
+Uso típico en un caso de uso, el de `MonitorService` (OW-021):
 
 ```java
-@Transactional
-public MonitorResponse update(UUID monitorId, UpdateMonitorRequest request, CurrentUser user) {
-    Monitor monitor = monitors.findActiveById(monitorId)
+/** Autoriza sobre su proyecto, que tampoco puede estar borrado. El 404 habla del monitor, nunca de su proyecto. */
+private Monitor authorized(UUID userId, UUID monitorId, Permission permission) {
+    Monitor monitor = monitors.findByIdAndDeletedAtIsNull(monitorId)
             .orElseThrow(() -> new ResourceNotFoundException("monitor", monitorId));
-    access.require(user.id(), monitor.organizationId(), Permission.MONITOR_WRITE);
-    monitor.reconfigure(request.toChanges(), targetPolicy, clock);
-    return MonitorResponse.from(monitor);
+    try {
+        access.requireForProject(userId, monitor.projectId(), permission);
+    } catch (ResourceNotFoundException ex) {
+        throw new ResourceNotFoundException("monitor", monitorId);
+    }
+    return monitor;
 }
 ```
+
+Se autoriza sobre el proyecto y no con `require(monitor.organizationId())` por dos motivos: un monitor de un proyecto ya borrado da `404` aunque la limpieza asíncrona (OW-044) todavía no lo haya borrado, y el `404` de `require` nombraría la organización.
 
 ### Por qué `404` y no `403` para quien no es miembro
 

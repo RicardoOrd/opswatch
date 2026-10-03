@@ -11,6 +11,9 @@ public final class VisibleText {
     /** For {@code @Pattern} on request fields. */
     public static final String PATTERN = "[^\\p{Cc}\\p{Zl}\\p{Zp}\\u202A-\\u202E\\u2066-\\u2069]*";
 
+    /** The message of that {@code @Pattern}, the same on every field. */
+    public static final String MESSAGE = "must not contain control or bidirectional formatting characters";
+
     private static final Pattern COMPILED = Pattern.compile(PATTERN);
 
     private VisibleText() {}

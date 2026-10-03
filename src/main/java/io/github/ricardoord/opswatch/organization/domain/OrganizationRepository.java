@@ -12,9 +12,6 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface OrganizationRepository extends JpaRepository<Organization, UUID> {
 
-    /** Namespace of the advisory locks that serialize the quota of each user (two-key form of PostgreSQL). */
-    int QUOTA_LOCK_NAMESPACE = 1;
-
     Optional<Organization> findByIdAndDeletedAtIsNull(UUID id);
 
     /**
@@ -38,13 +35,4 @@ public interface OrganizationRepository extends JpaRepository<Organization, UUID
             SELECT count(o) FROM Organization o JOIN Membership m ON m.organizationId = o.id
             WHERE m.userId = :userId AND m.role = :role AND o.deletedAt IS NULL""")
     long countActiveWithRole(UUID userId, Role role);
-
-    /**
-     * Waits for the other transactions of the same user that hold this lock, until the current one ends. Checking a
-     * quota and inserting under it does not overcount with simultaneous requests.
-     */
-    @Query(nativeQuery = true, value = """
-            SELECT 1 FROM pg_advisory_xact_lock(
-                CAST(:namespace AS integer), hashtext(CAST(:userId AS text)))""")
-    int lockQuotaOf(int namespace, UUID userId);
 }

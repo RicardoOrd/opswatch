@@ -289,7 +289,7 @@ En una sola fila, cada check incrementaría `version` y casi toda edición human
 
 **Reglas:**
 - No hay campo `enabled`: si un monitor está pausado lo dice `MonitorState.status = PAUSED`, la única fuente. Dos campos para lo mismo podrían contradecirse.
-- Máximo `opswatch.limits.monitors-per-organization` monitores no borrados (pausados incluidos) por organización. Se comprueba al crear uno, serializado por organización.
+- Máximo `opswatch.limits.monitors-per-organization` monitores no borrados (pausados incluidos) por organización. Se comprueba al crear uno, serializado por organización con un advisory lock (espacio `MONITORS_OF_ORGANIZATION` de `LockSpace`).
 - Las invariantes se comprueban sobre el estado resultante de cada cambio, no solo sobre los campos que llegan.
 - La URL se valida al crear y al editar: sintaxis, esquema, puerto y resolución DNS actual. La validación de seguridad definitiva ocurre en cada conexión.
 - Los nombres de header no pueden estar en la lista de bloqueados (`Host`, `Content-Length`, `Connection`, `Transfer-Encoding`, `Proxy-*`, `Cookie` y los de metadata cloud; ver [SSRF](../security/ssrf-protection.md#capa-4-restricciones-de-la-petición)). Nombres y valores no pueden contener `CR` ni `LF`.

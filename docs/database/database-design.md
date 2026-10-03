@@ -88,8 +88,9 @@ Consecuencias del borrado lógico:
 | Mecanismo | Dónde | Por qué |
 |---|---|---|
 | **Bloqueo optimista** (`version bigint` + `@Version`) | `users`, `organizations`, `memberships`, `projects`, `monitors`, `incidents`, `notification_channels` | Ediciones humanas poco frecuentes. Un conflicto → `409` |
-| **Bloqueo de fila pesimista** (`SELECT … FOR UPDATE`) | `monitor_state` en cada resultado, pausa y reanudación. `organizations` al cambiar roles, al crear un proyecto y al borrarla. `refresh_tokens` al rotar | Escrituras frecuentes o invariantes entre filas (último `OWNER`, un solo uso por refresh token, cuota y nombre de los proyectos, ningún proyecto vivo en una organización borrada) |
+| **Bloqueo de fila pesimista** (`SELECT … FOR UPDATE`) | `monitor_state` en cada resultado, pausa, reanudación y cambio de intervalo. `organizations` al cambiar roles, al crear un proyecto y al borrarla. `refresh_tokens` al rotar | Escrituras frecuentes o invariantes entre filas (último `OWNER`, un solo uso por refresh token, cuota y nombre de los proyectos, ningún proyecto vivo en una organización borrada) |
 | **Bloqueo compartido** (`SELECT … FOR SHARE`) | `projects` al añadirle un monitor (`ProjectDirectory.lockActive`) | El borrado del proyecto espera, así que su listener de limpieza ve todo lo que se le añadió |
+| **Advisory lock de transacción** (`pg_advisory_xact_lock(espacio, hashtext(clave))`) | Cuota de organizaciones por usuario y de monitores por organización (`shared.lock.AdvisoryLocks`, un espacio por cuota en `LockSpace`) | Una cuota no tiene una fila que bloquear: contar e insertar con el lock tomado no se pasa del límite con peticiones simultáneas |
 | **`FOR UPDATE SKIP LOCKED`** | Claim de `monitor_state` y de `notification_deliveries` | Colas de trabajo con varios consumidores sin coordinación |
 | **Restricciones únicas** | Un incidente activo por monitor, una entrega por (canal, incidente, tipo), email único | Última línea de defensa ante carreras e idempotencia |
 

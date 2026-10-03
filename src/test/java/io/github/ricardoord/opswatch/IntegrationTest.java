@@ -11,9 +11,9 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * The whole application against PostgreSQL, with the {@code test} profile, its own JWT keys ({@link TestJwtKeys})
- * and {@code MockMvcTester} over the real security configuration. Every test class that uses it shares one cached
- * Spring context, so it only starts once.
+ * The whole application against PostgreSQL, with the {@code test} profile, its own JWT keys ({@link TestJwtKeys}), a
+ * fake DNS ({@link TestHostResolver}) and {@code MockMvcTester} over the real security configuration. Every test class
+ * that uses it shares one cached Spring context, so it only starts once.
  *
  * <p>Tests share the database too: each one creates its own data (unique emails, fresh ids) instead of cleaning up.
  */
@@ -22,6 +22,6 @@ import org.springframework.test.context.ActiveProfiles;
 @Retention(RetentionPolicy.RUNTIME)
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import({PostgresTestcontainer.class, TestJwtKeys.class})
+@Import({PostgresTestcontainer.class, TestJwtKeys.class, TestHostResolver.class})
 @ActiveProfiles("test")
 public @interface IntegrationTest {}
