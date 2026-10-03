@@ -13,7 +13,7 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 
 **Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
-**Foco actual: v0.2.0 — Proyectos y monitores**, refinada el 2026-10-02 contra lo que dejó construido la v0.1.0 (publicada el 2026-09-29, release #69). Sus seis issues están en **Ready**, en el orden OW-034 → OW-019 → OW-020 → OW-021 → OW-022 → OW-044. La v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
+**Foco actual: v0.2.0 — Proyectos y monitores**, refinada el 2026-10-02 contra lo que dejó construido la v0.1.0 (publicada el 2026-09-29, release #69). Orden: OW-034 → OW-019 → OW-020 → OW-021 → OW-022 → OW-044. OW-034 está **Hecha**; las otras cinco, en **Ready**. La v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
 
 ## Convenciones
 
@@ -448,24 +448,25 @@ Hecha el 2026-09-28: documentación publicada en el PR #1, issues creadas desde 
 Orden: OW-034 → OW-019 → OW-020 → OW-021 → OW-022 → OW-044. OW-034 va primero porque OW-044 lo necesita y no depende de nada; OW-022 va después de OW-021 porque cifra una columna de la entidad `Monitor`, que OW-021 crea.
 
 ### OW-034 · Event Publication Registry de Spring Modulith
-`architecture` · P2 · Milestone: v0.2.0 — Proyectos y monitores · **Ready**
+`architecture` · P2 · Milestone: v0.2.0 — Proyectos y monitores · **Hecha**
 
-- **Context:** el primer listener asíncrono entre módulos (`ProjectDeleted` → `monitoring`, en OW-044) necesita un registro persistente para no perder eventos ([eventos](../architecture/events.md)). Antes estaba en la Fase 4, pero OW-044 lo necesita en la v0.2.0. Hoy solo está `spring-modulith-starter-core`: no hay registro, y `OrganizationDeleted` se publica sin que nadie lo escuche.
+- **Context:** el primer listener asíncrono entre módulos (`ProjectDeleted` → `monitoring`, en OW-044) necesita un registro persistente para no perder eventos ([eventos](../architecture/events.md)). Antes estaba en la Fase 4, pero OW-044 lo necesita en la v0.2.0. Hasta esta issue solo estaba `spring-modulith-starter-core`: no había registro, y `OrganizationDeleted` se publicaba sin que nadie lo escuchara.
 - **Objective:** registro JDBC activo, con reenvío al reiniciar, publicaciones completadas archivadas y una purga del archivo que nunca toca una publicación pendiente.
 - **Tasks:**
-  - [ ] Dependencia `spring-modulith-starter-jdbc` (la versión la fija el BOM 2.1.1). JDBC y no JPA: el registro no necesita entidades, y así no depende del contexto de persistencia de cada caso de uso.
-  - [ ] Migración `modulith_create_event_publication` con las tablas `event_publication` y `event_publication_archive`, copiadas del `schema-postgresql.sql` del jar de la versión fijada. Flyway es el dueño del esquema: `spring.modulith.events.jdbc.schema-initialization.enabled=false`.
-  - [ ] `spring.modulith.events.republish-outstanding-events-on-restart=true` y `spring.modulith.events.completion-mode=archive`: una publicación completada pasa al archivo, no se borra. Los nombres de las propiedades se comprueban contra la versión fijada.
-  - [ ] `EventPublicationPurgeJob`: borra del **archivo** las publicaciones completadas hace más de `opswatch.retention.event-publications` (7 días), con la API de Spring Modulith (`CompletedEventPublications`), sin SQL a mano. Antes de implementarlo, comprobar en la versión fijada que esa API opera sobre el archivo en modo `archive`; si no, se para y se replantea. Nunca borra de `event_publication`.
-  - [ ] Métrica `opswatch_event_publications_incomplete` (gauge) y, en el log, un aviso por cada publicación pendiente con más de 15 minutos.
-  - [ ] Documentar las propiedades en el [catálogo de entornos](../devops/environments.md) y la retención en [data-retention](../database/data-retention.md).
+  - [x] Dependencia `spring-modulith-starter-jdbc` (la versión la fija el BOM 2.1.1). JDBC y no JPA: el registro no necesita entidades, y así no depende del contexto de persistencia de cada caso de uso.
+  - [x] Migración `V4__modulith_create_event_publication` con las tablas `event_publication` y `event_publication_archive`: las columnas del esquema **v2** de Spring Modulith 2.1.1 (`status`, `completion_attempts`, `last_resubmission_date`), con los índices nombrados según el diseño de base de datos. Flyway es el dueño del esquema: `spring.modulith.events.jdbc.schema-initialization.enabled=false`.
+  - [x] `spring.modulith.events.republish-outstanding-events-on-restart=true` y `spring.modulith.events.completion-mode=archive`: una publicación completada pasa al archivo, no se borra. Nombres comprobados en el código de la versión fijada.
+  - [x] `EventPublicationPurgeJob` (`shared.events`, con el cron de retención): borra del **archivo** las publicaciones completadas hace más de `opswatch.retention.event-publications` (7 días), con `CompletedEventPublications.deletePublicationsOlderThan`, sin SQL a mano. Comprobado en el código de Spring Modulith 2.1.1: en modo `archive` esa llamada solo ejecuta `DELETE` sobre `event_publication_archive` y solo de filas completadas. Nunca borra de `event_publication`.
+  - [x] Gauge `opswatch_event_publications_incomplete`, recalculado cada 30 s por `IncompleteEventPublicationsMonitor` (nunca en el scrape), y un `WARN` mientras alguna publicación lleve pendiente más de 15 minutos (`opswatch.events.*`).
+  - [x] Propiedades en el [catálogo de entornos](../devops/environments.md) y retención en [data-retention](../database/data-retention.md).
+  - [x] Awaitility declarada como dependencia de test (antes llegaba solo de forma transitiva), para esperar a los listeners asíncronos sin `sleep` fijos. Añadido durante la implementación.
 - **Acceptance Criteria:**
   - Si el contexto se para después del commit y antes de que el listener termine, al reiniciar el listener se ejecuta y la publicación acaba en el archivo.
   - Una publicación completada no queda en `event_publication`, sino en `event_publication_archive`.
   - La purga borra las archivadas de más de 7 días y deja las más recientes. Una publicación **pendiente** de más de 7 días sigue intacta después de la purga.
 - **Testing:**
-  - Integración: `EventPublicationRegistryIT` con dos contextos sobre el mismo PostgreSQL (el primero se cierra con la publicación pendiente; el segundo la reenvía) y un evento y un listener solo de test.
-  - Integración: `EventPublicationPurgeJobIT` con `MutableClock` (archivadas antiguas y recientes, y una pendiente antigua que sobrevive).
+  - Integración: `EventPublicationRegistryIT` con dos contextos sobre el mismo PostgreSQL, uno detrás de otro: en el primero el listener no termina y la publicación queda pendiente (y un publicador que hace rollback no deja ninguna); el primero se cierra y el segundo la reenvía al arrancar, la ejecuta una vez y la archiva. Con `republish-outstanding-events-on-restart=false` o `completion-mode=update`, el test falla (comprobado).
+  - Integración: `EventPublicationPurgeJobIT` (archivadas justo antes y justo después del límite de 7 días; una pendiente y una completada sin archivar de hace un año, en `event_publication`, que sobreviven) e `IncompleteEventPublicationsMonitorIT` (gauge, recuento de atrasadas y `WARN`). Los tiempos se fijan respecto al `Clock` del contexto, sin `MutableClock`: el registro usa el mismo bean.
 - **Security considerations:** el payload de los eventos se guarda en claro en las dos tablas, durante 7 días en el archivo, así que ningún evento puede llevar secretos ni datos personales más allá de ids (se revisa en cada evento nuevo). Entrega at-least-once: los listeners tienen que ser idempotentes para que un duplicado no cause efectos dobles (T-33, R-13). El reenvío al reiniciar también reenvía lo que otra instancia tenga en vuelo, por la misma razón. La purga es la única operación que borra, y solo borra lo archivado: una publicación pendiente es trabajo sin hacer y no caduca.
 - **Dependencies:** Sprint 0.
 - **Definition of Done:** sección 4 de [eventos](../architecture/events.md) actualizada con las propiedades reales.
