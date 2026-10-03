@@ -38,7 +38,7 @@ No se usa `PUT`: ningún recurso de V1 necesita un reemplazo completo y `PATCH` 
 
 **Semántica de `PATCH`:** el DTO tiene todos los campos opcionales. Un campo **ausente** no cambia. Un campo presente con `null` solo es válido si el campo admite nulo (por ejemplo, `degradedThresholdMs: null` desactiva el estado degradado). Las listas (`headers`) se reemplazan enteras si vienen en el cuerpo.
 
-En el código, un campo que no admite nulo lleva `@JsonDeserialize(using = NotNullIfPresent.class)`: ausente queda `null` y no cambia, y un `null` explícito da `400 malformed-request`. `@JsonSetter(nulls = Nulls.FAIL)` no sirve en un record, porque Jackson también lo aplica al campo ausente. Un campo que admite nulo (`description` de un proyecto, `degradedThresholdMs` de un monitor) usa un tipo de tres estados de `shared.web` (ausente, `null` o valor), que llega con OW-019.
+En el código, un campo que no admite nulo lleva `@JsonDeserialize(using = NotNullIfPresent.class)`: ausente queda `null` y no cambia, y un `null` explícito da `400 malformed-request`. `@JsonSetter(nulls = Nulls.FAIL)` no sirve en un record, porque Jackson también lo aplica al campo ausente. Un campo que admite nulo (`description` de un proyecto, `degradedThresholdMs` de un monitor) es un `PatchField<T>` de `shared.web` (ausente, `null` o valor, desde OW-019). Las restricciones del valor van en el argumento de tipo (`PatchField<@Size(max = 500) String>`) y un `null` las pasa, como en cualquier campo.
 
 ## 4. Códigos de estado
 

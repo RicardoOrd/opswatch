@@ -68,6 +68,11 @@ class EndpointAuthorizationMatrixIT {
             POST   /api/v1/organizations/{orgId}/members            201 201 403 403 404 401
             PATCH  /api/v1/organizations/{orgId}/members/{userId}   200 200 403 403 404 401
             DELETE /api/v1/organizations/{orgId}/members/{userId}   204 204 403 403 404 401
+            POST   /api/v1/organizations/{orgId}/projects           201 201 403 403 404 401
+            GET    /api/v1/organizations/{orgId}/projects           200 200 200 200 404 401
+            GET    /api/v1/projects/{projectId}                     200 200 200 200 404 401
+            PATCH  /api/v1/projects/{projectId}                     200 200 403 403 404 401
+            DELETE /api/v1/projects/{projectId}                     204 204 403 403 404 401
             """;
 
     private static final Pattern ROW = Pattern.compile("(GET|POST|PATCH|DELETE)\\s+(\\S+)((?:\\s+\\d{3}){6})");
@@ -225,6 +230,25 @@ class EndpointAuthorizationMatrixIT {
                                 "/api/v1/organizations/{orgId}/members/{userId}",
                                 fixture.organization(),
                                 fixture.subject()));
+        requests.put(
+                "POST /api/v1/organizations/{orgId}/projects",
+                (mvc, fixture) -> json(
+                        mvc.post(),
+                        "/api/v1/organizations/" + fixture.organization() + "/projects",
+                        "{\"name\": \"Staging\"}"));
+        requests.put(
+                "GET /api/v1/organizations/{orgId}/projects",
+                (mvc, fixture) -> mvc.get().uri("/api/v1/organizations/{orgId}/projects", fixture.organization()));
+        requests.put(
+                "GET /api/v1/projects/{projectId}",
+                (mvc, fixture) -> mvc.get().uri("/api/v1/projects/{projectId}", fixture.project()));
+        requests.put(
+                "PATCH /api/v1/projects/{projectId}",
+                (mvc, fixture) ->
+                        json(mvc.patch(), "/api/v1/projects/" + fixture.project(), "{\"name\": \"Renamed\"}"));
+        requests.put(
+                "DELETE /api/v1/projects/{projectId}",
+                (mvc, fixture) -> mvc.delete().uri("/api/v1/projects/{projectId}", fixture.project()));
         return requests;
     }
 
@@ -251,8 +275,8 @@ class EndpointAuthorizationMatrixIT {
     }
 
     /**
-     * An organization with one member of each role, a user who is not a member, a {@code MEMBER} to change or remove
-     * and a user to add. Straight into the tables, with the tokens issued directly: nearly a hundred cases would
+     * An organization with one member of each role and a project, a user who is not a member, a {@code MEMBER} to
+     * change or remove and a user to add. Straight into the tables, with the tokens issued directly: nearly a hundred cases would
      * otherwise mean hundreds of registrations.
      */
     private Fixture fixture() {
@@ -276,7 +300,11 @@ class EndpointAuthorizationMatrixIT {
         insertMembership(organization, subject, "MEMBER");
         String newcomerEmail = uniqueEmail();
         insertUser(newcomerEmail, passwordHash);
-        return new Fixture(organization, callerTokens, subject, subjectEmail, newcomerEmail);
+        UUID project = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO projects (id, organization_id, name, created_at, updated_at)
+                VALUES (?, ?, 'Production', now(), now())""", project, organization);
+        return new Fixture(organization, project, callerTokens, subject, subjectEmail, newcomerEmail);
     }
 
     private UUID insertUser(String email, String passwordHash) {
@@ -294,12 +322,14 @@ class EndpointAuthorizationMatrixIT {
     }
 
     /**
+     * @param project a project of the organization
      * @param tokens the access token of each caller; none for {@link Caller#ANONYMOUS}
      * @param subject a {@code MEMBER} that the member endpoints change or remove
      * @param newcomerEmail a user with an account who is not a member yet
      */
     private record Fixture(
             UUID organization,
+            UUID project,
             Map<Caller, @Nullable String> tokens,
             UUID subject,
             String subjectEmail,

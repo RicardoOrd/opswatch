@@ -33,6 +33,7 @@ public class OrganizationService {
 
     private final OrganizationRepository organizations;
     private final MembershipRepository memberships;
+    private final ProjectService projects;
     private final AccessControl access;
     private final IdGenerator ids;
     private final ApplicationEventPublisher events;
@@ -42,6 +43,7 @@ public class OrganizationService {
     public OrganizationService(
             OrganizationRepository organizations,
             MembershipRepository memberships,
+            ProjectService projects,
             AccessControl access,
             IdGenerator ids,
             ApplicationEventPublisher events,
@@ -49,6 +51,7 @@ public class OrganizationService {
             Clock clock) {
         this.organizations = organizations;
         this.memberships = memberships;
+        this.projects = projects;
         this.access = access;
         this.ids = ids;
         this.events = events;
@@ -107,12 +110,21 @@ public class OrganizationService {
         return new OrganizationWithRole(organization, role);
     }
 
-    /** Logical: it disappears for everyone, its members included. */
+    /**
+     * Logical: it disappears for everyone, its members included, and so do its projects, in the same transaction.
+     * The row stays locked ({@code FOR UPDATE}) until the end, as when a project is created: none can be born in it
+     * meanwhile and outlive it. Authorized before taking the lock, so that outsiders never hold it, and again with it
+     * taken.
+     */
     @Transactional
     public void delete(UUID userId, UUID organizationId) {
-        Organization organization = active(organizationId);
+        access.require(userId, organizationId, Permission.ORGANIZATION_DELETE);
+        Organization organization = organizations
+                .findActiveByIdForUpdate(organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("organization", organizationId));
         access.require(userId, organization.id(), Permission.ORGANIZATION_DELETE);
         organization.delete(clock);
+        projects.deleteAllOf(organization.id(), userId);
         events.publishEvent(new OrganizationDeleted(organization.id(), clock.instant()));
     }
 
