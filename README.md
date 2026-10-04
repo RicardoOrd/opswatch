@@ -10,7 +10,7 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 
 ## Estado actual
 
-**v0.1.0 publicada** (Identity y organizaciones): registro, login con JWT y refresh token rotatorio, rate limiting, perfil, organizaciones y miembros con roles, con el aislamiento entre organizaciones probado endpoint a endpoint. Todavía no vigila nada: los monitores llegan con la v0.2.0 y los checks con la v0.3.0.
+**v0.2.0 publicada** (Proyectos y monitores): sobre la identidad y las organizaciones de la v0.1.0, proyectos y monitores HTTP configurables con su cuota, la URL validada contra SSRF al guardar, headers cifrados y de solo escritura, pausa, reanudación y borrado. Todavía no comprueba nada: cada monitor queda programado, pero el motor de checks llega con la v0.3.0.
 
 | Qué | Estado |
 |---|---|
@@ -27,9 +27,15 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | Organizaciones con `AccessControl`, roles en código, cuota por usuario, `ETag` e `If-Match` (OW-016) | **Implemented** |
 | Miembros y roles con la invariante del último `OWNER` (OW-017) | **Implemented** |
 | Matriz de autorización endpoint × rol probada en cada build, con test de completitud (OW-018) | **Implemented** |
+| Event Publication Registry de Spring Modulith, con archivo y purga (OW-034) | **Implemented** |
+| Proyectos con cuota, nombre único y borrado con su organización (OW-019) | **Implemented** |
+| `TargetPolicy`: validación SSRF de las URL al guardar, con resolución DNS acotada (OW-020) | **Implemented** |
+| Monitores: crear, listar con filtros, resumen por estado y edición, con cuota de 50 por organización (OW-021) | **Implemented** |
+| Headers de monitor cifrados con AES-256-GCM y de solo escritura (OW-022) | **Implemented** |
+| Pausa, reanudación, borrado y limpieza de monitores al borrar su proyecto (OW-044) | **Implemented** |
 | Resto de funcionalidades de producto | Planned |
 
-**Qué se hace ahora:** refinar el milestone [v0.2.0 — Proyectos y monitores](https://github.com/RicardoOrd/opswatch/milestone/3) contra lo que dejó construido la v0.1.0. Siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
+**Qué se hace ahora:** refinar el milestone [v0.3.0 — Motor de monitoreo](https://github.com/RicardoOrd/opswatch/milestone/4) contra lo que dejó construido la v0.2.0. Siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
 
 ---
 
