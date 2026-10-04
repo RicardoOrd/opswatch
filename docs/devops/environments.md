@@ -199,7 +199,6 @@ Con el perfil `staging` o `production`, la aplicación falla al arrancar si:
 - falta cualquier propiedad marcada como secreto u obligatoria;
 - `opswatch.egress.allowed-private-cidrs` no está vacío (solo en `production`);
 - `opswatch.security.cors.allowed-origins` contiene `*`;
-- la clave JWT o la de cifrado coinciden con una clave de desarrollo conocida (huella comprobada);
 - `spring.jpa.hibernate.ddl-auto` no es `validate` ni `none`;
 - `spring.flyway.clean-disabled` es `false`;
 - `opswatch.security.password.bcrypt-strength` es menor que 12 (el coste 4 del perfil `test` nunca llega a un despliegue);
@@ -208,5 +207,16 @@ Con el perfil `staging` o `production`, la aplicación falla al arrancar si:
 - Swagger UI está activado en `production` sin la propiedad explícita que lo permite (`opswatch.api.docs-public=true`).
 
 En **cualquier** perfil, también en `local`, la aplicación no arranca sin `opswatch.security.jwt.private-key` ni `opswatch.security.jwt.issuer`, ni con una clave RSA de menos de 2048 bits (validación de `JwtProperties` y `JwtKeys`, OW-013). Lo mismo con la clave de cifrado (OW-022): sin la clave de `opswatch.security.encryption.active-key-id`, con una clave que no mida 32 bytes o con un id fuera de 0 a 255, no arranca. El mensaje nombra la propiedad, nunca la clave. Se comprueba al construir `SecretCipher` y no al enlazar las propiedades: un fallo de enlace lo informa Spring Boot con el valor de la última propiedad enlazada, que sería una clave.
+
+### Por qué no se comprueba la huella de una clave de desarrollo
+
+Hasta el 2026-10-03 esta lista incluía rechazar "una clave de desarrollo conocida (huella comprobada)". Nunca se implementó, y no se implementará: no existe ninguna clave de desarrollo conocida que reconocer. Una lista de huellas solo protege contra claves que se distribuyen con el código (versionadas, dentro de una imagen o publicadas en la documentación), y el proyecto impide que exista ninguna:
+
+- `scripts/dev-keys.sh` genera las claves en cada máquina con el generador aleatorio de `openssl`: no hay dos iguales;
+- `secrets/` está en `.gitignore`, y gitleaks (`secrets-scan`, check obligatorio de `main`) rechaza un secreto versionado;
+- `.dockerignore` es una lista de permitidos: `secrets/` no puede acabar en una capa de la imagen;
+- los tests generan las suyas en cada JVM (`TestJwtKeys`, `TestEncryptionKeys`).
+
+Fijar unas claves de desarrollo para poder reconocerlas sería peor: serían públicas. El riesgo que queda, alguien que copia sus claves locales al servidor, no se detecta desde la aplicación, sino en el despliegue: las claves de `staging` y `production` se generan en el propio servidor, por separado en cada entorno, y nunca se copian de `secrets/` (runbook de la [Fase 6](../roadmap/roadmap.md#fase-6-despliegue-y-cd--100-v1)).
 
 Cada regla tiene su test ([testing](../testing/testing-strategy.md#pruebas-de-seguridad)).
