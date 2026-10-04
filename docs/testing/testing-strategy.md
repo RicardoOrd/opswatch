@@ -172,7 +172,7 @@ Fuera del pipeline de PR. Procedimiento en el [plan de benchmarks](../performanc
 |---|---|
 | Algo depende de un comportamiento de PostgreSQL (índices parciales, `SKIP LOCKED`, BRIN, `percentile_cont`, `timestamptz`, FK compuestas) | **Sí**, PostgreSQL real |
 | Lógica pura | No |
-| HTTP externo | WireMock (dentro del proceso o en contenedor) |
+| HTTP externo | WireMock (`org.wiremock:wiremock-standalone` 3.13.2, sombreado, solo en test; decisión de Ricardo del 2026-10-03), dentro del proceso o en contenedor. Escucha en `127.0.0.1`, así que esos tests abren `opswatch.egress.allowed-private-cidrs=127.0.0.0/8`. El motor está desactivado en el perfil `test` y solo lo activan sus propios tests (OW-026) |
 | Redis o un broker (etapas futuras) | Sí, el mismo patrón |
 
 **H2 nunca.** El comportamiento que más importa probar (bloqueos, índices parciales, tipos de fecha, funciones de agregación) es justo el que H2 emula mal o no emula.

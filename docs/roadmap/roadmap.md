@@ -8,9 +8,9 @@ Sin fechas: es un proyecto personal y el ritmo es variable. El orden y los crite
 
 | | |
 |---|---|
-| **Ahora** | **Refinar la v0.3.0 — Motor de monitoreo** (OW-024 a OW-030) contra lo que dejó construido la v0.2.0: `TargetPolicy` y `HeaderPolicy`, que el cliente HTTP tiene que volver a aplicar en cada petición; `monitor_state` con su orden de bloqueos (estado antes que monitor); el bean `RandomGenerator` del jitter y el registro de eventos. Sus issues siguen en *Planned* hasta ese refinamiento |
+| **Ahora** | **v0.3.0 — Motor de monitoreo**, refinada el 2026-10-03 ([backlog](backlog.md#v030--motor-de-monitoreo)) contra lo que dejó construido la v0.2.0: el cliente vuelve a aplicar `TargetPolicy` y `HeaderPolicy` en cada petición, el motor sigue el orden de bloqueos de `monitor_state` y está desactivado en el perfil `test` |
 | **Hecho** | v0.2.0 — Proyectos y monitores, publicada el 2026-10-03 (release #79). v0.1.0 — Identity y organizaciones, publicada el 2026-09-29 (release #69). Sprint 0 cerrado el 2026-09-28 |
-| **Orden** | Se fija al refinar la v0.3.0 |
+| **Orden** | OW-024 (`GuardedDnsResolver` y cliente endurecido) → OW-025 (`HttpMonitorClient`) → OW-027 (registro de resultados) → OW-026 (scheduler) → OW-028 (checks y estadísticas) → OW-029 (retención) → OW-030 (métricas) |
 | **Fuera de foco** | Todo lo de V2 a V5 (Redis, broker, microservicios, tiempo real). Vive en este roadmap y en los ADR propuestos, no en issues |
 
 ## Milestones
