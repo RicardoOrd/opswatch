@@ -261,7 +261,7 @@ Ventajas de esta frontera:
 |---|---|---|
 | Resolución DNS | `GuardedDnsResolver` de `egress`, que resuelve con el `HostResolver` inyectable de OW-020 | Filtra las IP bloqueadas y fija la IP de conexión ([SSRF](../security/ssrf-protection.md#capa-2-resolución-dns-con-fijación-de-ip)). En los tests, `FakeHostResolver` decide qué devuelve cada nombre |
 | Proxy | Ninguno. **No** se usan las propiedades del sistema | Un proxy heredado del entorno saltaría el filtro de IP |
-| Timeout de conexión | `timeoutMs` | |
+| Timeout de conexión | El máximo de un monitor (30 s), en el cliente: httpclient5 5.x no deja fijarlo por petición sin una API deprecada (OW-024) | El deadline total corta cada check a su `timeoutMs` |
 | Timeout de lectura (socket) | `timeoutMs` | Cubre también el handshake TLS |
 | Timeout de respuesta | `timeoutMs` | |
 | **Deadline total** | `timeoutMs` más 200 ms. Una tarea programada llama a `cancel()` sobre la petición | Ningún check dura más que su timeout aunque el destino gotee bytes (slowloris) |
@@ -292,7 +292,7 @@ Ventajas de esta frontera:
 Con `followRedirects = true`:
 
 1. Si la respuesta es `301`, `302`, `303`, `307` o `308` y trae `Location`, se resuelve la URL relativa contra la actual.
-2. La nueva URL pasa `TargetPolicy.validateSyntax` (esquema, forma del host, puerto y credenciales, sin resolver el nombre), y los headers que se reenvían, `HeaderPolicy`. La IP se valida al conectar a través del `GuardedDnsResolver`, igual que en el primer salto, que también pasa por `validateSyntax` y `HeaderPolicy` antes de cada petición.
+2. El salto es una petición nueva del mismo cliente de `egress`, así que pasa por lo mismo que el primero (OW-024): `EgressRequestGuard` comprueba la URL con las reglas de la capa 1 que no necesitan DNS (esquema, forma del host, puerto y credenciales) y los headers que se reenvían con `HeaderPolicy`, antes de resolver y de conectar; la IP se valida al conectar a través del `GuardedDnsResolver`.
 3. `301`, `302` y `303` se siguen con `GET` (`HEAD` se mantiene como `HEAD`). `307` y `308` conservan el método.
 4. **Los headers configurados solo se reenvían si el salto es al mismo origen** (esquema, host y puerto). A un origen distinto se quitan, para que un redirect no filtre un `Authorization` a otro host. Es lo mismo que hacen los navegadores y curl.
 5. Como mucho 5 saltos. Si se supera el límite o se repite una URL, el resultado es `TOO_MANY_REDIRECTS`.
@@ -304,7 +304,7 @@ Con `followRedirects = false`, la respuesta `3xx` es la final y se evalúa contr
 
 | Excepción o condición | `FailureReason` |
 |---|---|
-| `BlockedTargetException` (lanzada por `GuardedDnsResolver`, `TargetPolicy.validateSyntax` o `HeaderPolicy` al enviar) | `TARGET_BLOCKED` |
+| `BlockedTargetException` (lanzada por `GuardedDnsResolver` o por `EgressRequestGuard`, que comprueba URL y headers antes de salir), y la `ClientProtocolException` con la que el cliente rechaza un esquema o credenciales en la URL | `TARGET_BLOCKED` |
 | `UnknownHostException` | `DNS_FAILURE` |
 | `ConnectTimeoutException`, `SocketTimeoutException`, cancelación por deadline | `TIMEOUT` |
 | `HttpHostConnectException`, `ConnectException`, `NoRouteToHostException`, conexión reseteada | `CONNECTION_FAILED` |

@@ -625,37 +625,49 @@ Refinada el 2026-10-03 contra lo que dejó construido la v0.2.0:
 - en los tests, `FakeHostResolver` y `TestHostResolver`.
 
 ### OW-024 · `GuardedDnsResolver` y cliente HTTP saliente endurecido
-`security` · P1 · Milestone: v0.3.0 — Motor de monitoreo · **Ready**
+`security` · P1 · Milestone: v0.3.0 — Motor de monitoreo · **Hecha**
 
 - **Context:** capas 2 a 5 de la protección SSRF: la defensa contra el DNS rebinding. Ya existen piezas en las que se apoya:
   - de OW-020, `HostResolver` (inyectable, con `FakeHostResolver` en los tests), `IpRangeClassifier` con `allowed-private-cidrs` y `TargetUrlParser`;
   - de OW-022, `HeaderPolicy`, que esta issue vuelve a aplicar al enviar.
 - **Objective:** `EgressHttpClients` construye clientes Apache HttpClient 5 con el resolver protegido y todas las restricciones; nadie más construye clientes HTTP.
 - **Tasks:**
-  - [ ] Dependencia `org.apache.httpcomponents.client5:httpclient5` sin versión propia: la fija el BOM de Spring Boot 4.1.1 (5.6.4). Decisión de Ricardo del 2026-10-03.
-  - [ ] `GuardedDnsResolver` (el `DnsResolver` de HttpClient):
+  - [x] Dependencia `org.apache.httpcomponents.client5:httpclient5` sin versión propia: la fija el BOM de Spring Boot 4.1.1 (5.6.4). Decisión de Ricardo del 2026-10-03.
+  - [x] `GuardedDnsResolver` (el `DnsResolver` de HttpClient):
     - resuelve con el `HostResolver` de OW-020 y clasifica **cada** dirección con `IpRangeClassifier`;
     - si alguna está bloqueada, lanza `BlockedTargetException`;
     - devuelve solo direcciones validadas, así que el cliente conecta exactamente a ellas;
     - sin plazo propio, porque la resolución del sistema no se puede interrumpir (sección DNS del documento del motor).
-  - [ ] `TargetPolicy.validateSyntax(url, kind)`: las reglas de `TargetUrlParser` sin resolver el nombre (esquema, forma del host, puerto y credenciales).
-    - Es lo que comprueba el cliente antes de cada petición y en cada redirect. `validate` resuelve el DNS; aquí la IP la decide el resolver al conectar, y resolver dos veces no aporta nada.
-    - Si una URL la incumple, el resultado es `BlockedTargetException`, no `TargetNotAllowedException`, que es el `422` de la API.
-  - [ ] `HeaderPolicy.check` antes de cada petición: un header guardado antes de que existiera una regla, o escrito en la base por fuera de la API, nunca sale (`BlockedTargetException`).
-  - [ ] Cliente sin proxy del entorno, sin reintentos, sin redirects automáticos, sin cookies, sin compresión y sin reutilizar conexiones; límites de línea (8 KiB) y número (100) de headers de respuesta.
-  - [ ] Regla ArchUnit: solo `egress` construye clientes HTTP (`HttpClients`, `HttpClientBuilder`, `java.net.http.HttpClient`, `RestClient` y `WebClient`).
-  - [ ] Evento de seguridad `egress.target_blocked` en el log, con el host ya validado y nunca la URL completa (la query puede llevar un token). La métrica `opswatch_egress_blocked_total` llega con OW-030.
+    - **Añadido durante la implementación:** una dirección literal se clasifica tal cual, sin preguntar a ningún resolver.
+  - [x] Las reglas de `TargetUrlParser` sin resolver el nombre (esquema, forma del host, puerto y credenciales), antes de cada petición y en cada redirect, con `BlockedTargetException` y nunca el `422` de la API.
+    - **Cambiado durante la implementación:** no hay un `TargetPolicy.validateSyntax` público que cada llamador tenga que recordar. La comprobación va dentro del cliente, en `EgressRequestGuard`, y ninguna petición se la salta, tampoco cada salto de un redirect.
+    - Es el primer eslabón de la cadena de ejecución (`addExecInterceptorFirst`), antes del DNS y de conectar. Un `HttpRequestInterceptor` no servía: en httpclient5 5.x los ejecuta `MainClientExec` **después** de `ConnectExec`, así que el interceptor llegaba con la conexión ya abierta (lo destapó el test del puerto 22).
+    - Un esquema que no es http ni https, o credenciales en la URL, los rechaza el propio cliente antes de la cadena, con `ClientProtocolException`. Tampoco salen ni resuelven nada.
+  - [x] `HeaderPolicy.check` antes de cada petición: un header guardado antes de que existiera una regla, o escrito en la base por fuera de la API, nunca sale (`BlockedTargetException`). Va en el mismo `EgressRequestGuard`.
+  - [x] Cliente sin proxy (ni el del entorno ni uno configurado), sin reintentos, sin redirects automáticos, sin cookies, sin compresión, sin cache de autenticación y sin reutilizar conexiones; límites de línea (8 KiB) y número (100) de headers de respuesta; TLS 1.2 o superior.
+    - **Cambiado durante la implementación:** el timeout de conexión no se puede fijar por petición (en httpclient5 5.x ese ajuste está deprecado en `RequestConfig` y el build trata los avisos como errores). El cliente se crea con el timeout máximo (`EgressClientSettings.timeout`). Cada petición puede bajar el de la respuesta, y el plazo de cada check lo corta el deadline de OW-025.
+  - [x] Regla ArchUnit: solo `egress` construye clientes HTTP (`HttpClients`, `HttpClientBuilder`, sus equivalentes asíncronos, `java.net.http.HttpClient`, `RestClient`, `RestTemplate`, `WebClient` y `URL.openConnection`).
+  - [x] Evento de seguridad `egress.target_blocked` en el log, con el host y nunca la URL completa (la query puede llevar un token). La métrica `opswatch_egress_blocked_total` llega con OW-030.
 - **Acceptance Criteria:**
   - Los casos 16, 17, 22 y 23 de la [tabla de SSRF](../security/ssrf-protection.md#5-casos-de-prueba-obligatorios).
+    - **Matiz:** del caso 22, aquí se prueba el destino que no contesta, que se corta con el timeout de respuesta. El que gotea bytes necesita el deadline sobre la petición entera, que es de OW-025.
   - Una URL con IP literal pasa por `resolve()` (test).
   - Una clase de `monitoring` que instancia `HttpClients` hace fallar el build.
-  - Un header `Metadata-Flavor` insertado en la base sin pasar por la API no sale.
+  - Un header `Metadata-Flavor` insertado en la base sin pasar por la API no sale. Aquí se prueba en el cliente; el camino desde la base lo recorrerá OW-026.
 - **Testing:**
-  - Unitarios: `GuardedDnsResolver` con `FakeHostResolver` (IP mixtas, y rebinding: pública al guardar y `127.0.0.1` al conectar).
-  - Integración: cliente contra WireMock (goteo, headers enormes).
+  - Unitarios: `GuardedDnsResolverTest` con `FakeHostResolver` (IP mixtas, rebinding: pública al guardar y privada al conectar, y literales sin pasar por el resolver).
+  - Integración: `EgressHttpClientsTest` contra WireMock en `127.0.0.1`:
+    - casos 16, 17 y 23;
+    - la IP literal pasa por el resolver;
+    - URL y headers comprobados otra vez antes de salir, sin DNS;
+    - el proxy del entorno se ignora;
+    - sin reintentos, redirects, cookies ni `Accept-Encoding`;
+    - destino que no contesta;
+    - `User-Agent`.
     - WireMock es `org.wiremock:wiremock-standalone` 3.13.2, solo en test: viene sombreado y no choca con Tomcat 11 (decisión de Ricardo del 2026-10-03).
     - Escucha en `127.0.0.1`, así que esos tests abren `opswatch.egress.allowed-private-cidrs=127.0.0.0/8`, el uso para el que existe la propiedad.
-  - Arquitectura: la regla ArchUnit.
+  - Arquitectura: la regla ArchUnit, y un test que comprueba que una clase de `monitoring` (`HandMadeHttpClient`, en los tests) la incumple.
+  - Quitando `EgressRequestGuard` de la cadena, fallan los seis tests de URL y headers (comprobado).
 - **Security considerations:** T-20, T-21 y T-23. Un proxy del entorno saltaría el resolver: por eso se desactivan las propiedades del sistema. Si una versión futura del cliente dejara de pasar por el resolver, el test de la IP literal lo detecta. Volver a validar al enviar lo que se validó al guardar no es redundante: las reglas cambian entre versiones, y la base se puede tocar por fuera de la API.
 - **Dependencies:** OW-020, OW-022.
 - **Definition of Done:** el documento de SSRF coincide con la implementación.
@@ -663,22 +675,23 @@ Refinada el 2026-10-03 contra lo que dejó construido la v0.2.0:
 ### OW-025 · `HttpMonitorClient` con Apache HttpClient 5
 `feature` `security` · P1 · Milestone: v0.3.0 — Motor de monitoreo · **Ready**
 
-- **Context:** separar observar de juzgar ([motor](../architecture/monitoring-engine.md#5-httpmonitorclient)). Los headers llegan descifrados por `MonitorHeaders` (OW-022) como `RequestHeader` de `egress`.
+- **Context:** separar observar de juzgar ([motor](../architecture/monitoring-engine.md#5-httpmonitorclient)). Los headers llegan descifrados por `MonitorHeaders` (OW-022) como `RequestHeader` de `egress`. De OW-024 llega `EgressHttpClients`: el cliente ya comprueba la URL y los headers de cada petición antes de salir, y resuelve con el resolver protegido.
 - **Objective:** `ApacheHttpMonitorClient` con deadline total, redirects manuales y clasificación de fallos.
 - **Tasks:**
   - [ ] `ProbeRequest`, con `List<RequestHeader>` y un `toString()` sin valores, y `HttpObservation` (sealed).
   - [ ] `FailureReason` en el paquete raíz de `monitoring`: aparece en la firma de `MonitorWentDown` ([eventos](../architecture/events.md#2-catálogo)).
-  - [ ] Deadline total con `cancel()` programado: `timeoutMs` más `opswatch.monitoring.engine.deadline-grace` (200 ms).
+  - [ ] Un cliente de `EgressHttpClients` (`TargetKind.MONITOR`, `max-concurrent-checks` conexiones, el timeout máximo de un monitor) creado una vez y cerrado al apagar.
+  - [ ] Deadline total con `cancel()` programado: `timeoutMs` más `opswatch.monitoring.engine.deadline-grace` (200 ms). También acota la conexión, cuyo timeout no se puede fijar por petición (OW-024).
   - [ ] Redirects manuales:
-    - `validateSyntax` y `HeaderPolicy` en cada salto, y la IP en el resolver al conectar;
+    - cada salto es una petición nueva del mismo cliente, así que `EgressRequestGuard` y el resolver protegido lo comprueban sin nada más;
     - cambio de método según el código;
     - headers solo al mismo origen;
     - `opswatch.monitoring.engine.max-redirects` (5) como máximo y detección de bucles.
-  - [ ] Mapeo de excepción a `FailureReason`; `BlockedTargetException` → `TARGET_BLOCKED`.
+  - [ ] Mapeo de excepción a `FailureReason`: `BlockedTargetException` → `TARGET_BLOCKED`, y también la `ClientProtocolException` con la que el cliente rechaza un esquema o unas credenciales en la URL (solo pueden venir de la base tocada por fuera de la API).
   - [ ] Cierre de la conexión tras recibir los headers: el cuerpo no se lee.
   - [ ] `User-Agent` de `opswatch.monitoring.engine.user-agent`.
 - **Acceptance Criteria:**
-  - Los casos 18, 19 y 22 de la tabla de SSRF.
+  - Los casos 18, 19 y 22 de la tabla de SSRF; el 22 con un destino que gotea bytes (un servidor de sockets en el test: WireMock no gotea headers).
   - Un destino que tarda más que `timeoutMs` devuelve `TIMEOUT` en menos de `timeoutMs` + 500 ms.
   - Cada fila de la [tabla de clasificación](../architecture/monitoring-engine.md#8-clasificación-de-fallos) produce su `FailureReason`.
   - `error_detail` es siempre un texto propio y genérico.
@@ -687,7 +700,7 @@ Refinada el 2026-10-03 contra lo que dejó construido la v0.2.0:
   - Seguridad:
     - redirect a otro origen sin `Authorization`;
     - redirect hacia `169.254.169.254`;
-    - redirect a un puerto o esquema que `validateSyntax` rechaza.
+    - redirect a un puerto o un esquema que el cliente rechaza.
 - **Security considerations:** T-22 (redirect hacia la red interna), T-27 (credenciales reenviadas a otro host) y T-28 (el cuerpo no se guarda ni se muestra). Disponibilidad: el deadline impide que un destino hostil retenga un permiso más de `timeoutMs`.
 - **Dependencies:** OW-024.
 - **Definition of Done:** la tabla de clasificación del documento del motor está verificada por los tests.
