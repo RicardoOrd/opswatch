@@ -285,14 +285,15 @@ Con el perfil `production`, la aplicación **se niega a arrancar** si detecta:
 
 - la lista de redes privadas permitidas en `egress` no vacía (`opswatch.egress.allowed-private-cidrs`);
 - CORS con `*`;
-- claves de desarrollo o ausentes (JWT o cifrado);
 - `spring.jpa.hibernate.ddl-auto` distinto de `validate` o `none`;
 - un coste de bcrypt menor que 12 (el de los tests es 4);
 - Swagger UI activado sin autenticación, salvo que se haya permitido de forma explícita.
 
+En **cualquier** perfil, también en local, no arranca sin la clave JWT ni la de cifrado, ni con una clave RSA de menos de 2048 bits o una clave AES que no mida 32 bytes. No hay una lista de huellas de claves de desarrollo: no existe ninguna clave de desarrollo compartida que reconocer, porque cada máquina genera las suyas y ninguna puede llegar al repositorio ni a la imagen. El porqué está en [Entornos](../devops/environments.md#por-qué-no-se-comprueba-la-huella-de-una-clave-de-desarrollo).
+
 La lista completa y exacta, que incluye `staging`, está en [Entornos](../devops/environments.md#salvaguardas-de-arranque).
 
-Es un `ApplicationListener<ApplicationReadyEvent>`, o un validador de `@ConfigurationProperties`, con tests.
+Las reglas de los entornos desplegados están en `DeploymentGuardrails` (`SmartInitializingSingleton`, con `DeploymentGuardrailsTest`). Las de las claves, que valen en todos los perfiles, en `JwtProperties`, `JwtKeys` y `SecretCipher`, con sus tests de arranque.
 
 ## 14. Pruebas de seguridad
 
