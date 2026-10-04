@@ -1,6 +1,6 @@
 # Roadmap
 
-Estado: diseño inicial · Última revisión: 2026-10-02
+Estado: diseño inicial · Última revisión: 2026-10-03
 
 Sin fechas: es un proyecto personal y el ritmo es variable. El orden y los criterios de salida sí son firmes. Cada fase cumple la [Definition of Done global](definition-of-done.md) además de la suya.
 
@@ -161,7 +161,7 @@ flowchart LR
 - **Objetivo:** V1 pública, desplegada y recuperable.
 - **Funcionalidades:** VPS con Caddy y TLS; staging y producción; workflow de release (staging automático, producción con aprobación); copias de seguridad cifradas; firewall de salida (capa 6 de SSRF); monitor externo del propio OpsWatch; SBOM.
 - **Dependencias:** Fase 5. Decisión del proveedor de hosting ([decisiones abiertas](../architecture/open-decisions.md)).
-- **Definition of Done:** despliegue reproducible con un tag; rollback probado; **restauración de una copia de seguridad probada**; runbook de operación en `docs/devops/`.
+- **Definition of Done:** despliegue reproducible con un tag; rollback probado; **restauración de una copia de seguridad probada**; runbook de operación en `docs/devops/`. El runbook genera las claves JWT y de cifrado en el propio servidor, distintas en `staging` y en `production`, y nunca las copia de `secrets/` de una máquina de desarrollo. Sustituye a una comprobación de huellas de claves de desarrollo que no tiene sentido ([entornos](../devops/environments.md#por-qué-no-se-comprueba-la-huella-de-una-clave-de-desarrollo)).
 - **Criterios de aceptación:**
   - Un tag `v1.0.0` termina en producción sin pasos manuales salvo la aprobación.
   - Redesplegar `v0.9.x` (rollback) funciona con el esquema de `v1.0.0`.
