@@ -74,3 +74,9 @@ logging:
   pattern:
     # El requestId (RequestIdFilter) aparece en cada línea de log de una petición
     correlation: "[%X{requestId:-}] "
+
+opswatch:
+  monitoring:
+    engine:
+      # Cada check se identifica, para que el destino sepa quién llama y pueda bloquearlo. Maven pone la versión del pom
+      user-agent: "OpsWatch-Monitor/@project.version@ (+https://github.com/RicardoOrd/opswatch)"

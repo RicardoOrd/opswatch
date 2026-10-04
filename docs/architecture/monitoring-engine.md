@@ -262,18 +262,17 @@ Ventajas de esta frontera:
 | Resolución DNS | `GuardedDnsResolver` de `egress`, que resuelve con el `HostResolver` inyectable de OW-020 | Filtra las IP bloqueadas y fija la IP de conexión ([SSRF](../security/ssrf-protection.md#capa-2-resolución-dns-con-fijación-de-ip)). En los tests, `FakeHostResolver` decide qué devuelve cada nombre |
 | Proxy | Ninguno. **No** se usan las propiedades del sistema | Un proxy heredado del entorno saltaría el filtro de IP |
 | Timeout de conexión | El máximo de un monitor (30 s), en el cliente: httpclient5 5.x no deja fijarlo por petición sin una API deprecada (OW-024) | El deadline total corta cada check a su `timeoutMs` |
-| Timeout de lectura (socket) | `timeoutMs` | Cubre también el handshake TLS |
-| Timeout de respuesta | `timeoutMs` | |
-| **Deadline total** | `timeoutMs` más 200 ms. Una tarea programada llama a `cancel()` sobre la petición | Ningún check dura más que su timeout aunque el destino gotee bytes (slowloris) |
+| Timeout de lectura (socket), del handshake TLS y de respuesta | También el máximo de un monitor (30 s), en el cliente. Las peticiones no lo bajan: un `RequestConfig` por petición sustituye entero al del cliente de `egress`, y con él la espera máxima del pool (OW-025) | El deadline total corta cada check a su `timeoutMs` |
+| **Deadline total** | `timeoutMs` más 200 ms, sobre el check entero, redirects incluidos. Una tarea programada llama a `cancel()` sobre la petición en vuelo, que cierra el socket en el acto, también a mitad de la conexión | Ningún check dura más que su timeout aunque el destino gotee bytes (slowloris). Es el único plazo de cada check |
 | Reintentos automáticos | **Desactivados** (`disableAutomaticRetries`) | HttpClient reintenta por defecto las peticiones idempotentes, lo que falsearía la latencia y los fallos |
 | Redirects automáticos | **Desactivados**. Se siguen manualmente | Cada salto tiene que volver a validarse ([sección 7](#7-redirects)) |
 | Reutilización de conexiones | **Desactivada**: conexión nueva por check | La latencia siempre incluye DNS, TCP y TLS, así que las mediciones son comparables. Además, cada check vuelve a validar el DNS. Con intervalos de 30 s o más, la reutilización casi nunca ocurriría. El costo (más handshakes TLS y más sockets en `TIME_WAIT`) se mide en los benchmarks |
 | Cookies | Desactivadas | Un check no tiene sesión |
 | Compresión | Desactivada: no se envía `Accept-Encoding` y no se descomprime | Evita bombas de descompresión y trabajo inútil |
 | Límites de headers de respuesta | Línea máxima de 8 KiB y como mucho 100 headers | Un destino hostil no puede agotar la memoria con headers |
-| Cuerpo de la respuesta | **No se lee.** Al recibir los headers se toma la latencia y se aborta la conexión | V1 no inspecciona el cuerpo. Cuando existan aserciones de contenido, se leerán como mucho 64 KiB |
+| Cuerpo de la respuesta | **No se lee.** Al recibir los headers se toma la latencia y se cancela la petición, que cierra el socket: cerrar la respuesta leería el cuerpo hasta el final | V1 no inspecciona el cuerpo. Cuando existan aserciones de contenido, se leerán como mucho 64 KiB |
 | TLS | Truststore de la JVM, verificación de hostname, TLS 1.2 o superior | No existe la opción de "ignorar errores de TLS" en V1 |
-| User-Agent | `OpsWatch-Monitor/<versión> (+<url pública de ayuda>)` | Buen ciudadano: el destino puede identificarnos y bloquearnos |
+| User-Agent | `OpsWatch-Monitor/<versión del pom> (+https://github.com/RicardoOrd/opswatch)`, en `application.yml` | Buen ciudadano: el destino puede identificarnos y bloquearnos |
 | Pool | `maxTotal = maxConcurrentChecks`, `maxPerRoute = maxConcurrentChecks` y un lease timeout de 1 s | El semáforo ya limita, así que el pool nunca hace esperar. Si lo hiciera, sería un fallo interno y no se atribuiría al destino |
 
 ### DNS
@@ -291,12 +290,12 @@ Ventajas de esta frontera:
 
 Con `followRedirects = true`:
 
-1. Si la respuesta es `301`, `302`, `303`, `307` o `308` y trae `Location`, se resuelve la URL relativa contra la actual.
+1. Si la respuesta es `301`, `302`, `303`, `307` o `308` y trae `Location`, se resuelve la URL relativa contra la actual segÃºn la RFC 3986 (`URIUtils.resolve` de httpclient5: `URI.resolve` no la sigue con una referencia que solo trae query) y se quita el fragmento, que nunca se envÃ­a.
 2. El salto es una petición nueva del mismo cliente de `egress`, así que pasa por lo mismo que el primero (OW-024): `EgressRequestGuard` comprueba la URL con las reglas de la capa 1 que no necesitan DNS (esquema, forma del host, puerto y credenciales) y los headers que se reenvían con `HeaderPolicy`, antes de resolver y de conectar; la IP se valida al conectar a través del `GuardedDnsResolver`.
-3. `301`, `302` y `303` se siguen con `GET` (`HEAD` se mantiene como `HEAD`). `307` y `308` conservan el método.
-4. **Los headers configurados solo se reenvían si el salto es al mismo origen** (esquema, host y puerto). A un origen distinto se quitan, para que un redirect no filtre un `Authorization` a otro host. Es lo mismo que hacen los navegadores y curl.
-5. Como mucho 5 saltos. Si se supera el límite o se repite una URL, el resultado es `TOO_MANY_REDIRECTS`.
-6. Un `Location` ausente o malformado da `PROTOCOL_ERROR`.
+3. `301`, `302` y `303` se siguen con `GET` (`HEAD` se mantiene como `HEAD`). `307` y `308` conservan el método. Con `GET` y `HEAD`, los únicos métodos de un check, el método nunca cambia.
+4. **Los headers configurados solo se reenvían si el salto es al mismo origen** (esquema, host y puerto) que la URL del monitor. A un origen distinto se quitan, para que un redirect no filtre un `Authorization` a otro host. Es lo mismo que hacen los navegadores y curl.
+5. Como mucho 5 saltos (`opswatch.monitoring.engine.max-redirects`). Si se supera el límite o se repite una URL, el resultado es `TOO_MANY_REDIRECTS`.
+6. Un `Location` ausente, repetido o malformado da `PROTOCOL_ERROR`.
 
 Con `followRedirects = false`, la respuesta `3xx` es la final y se evalúa contra el rango esperado. El usuario puede esperar un `301`.
 
@@ -304,17 +303,17 @@ Con `followRedirects = false`, la respuesta `3xx` es la final y se evalúa contr
 
 | Excepción o condición | `FailureReason` |
 |---|---|
-| `BlockedTargetException` (lanzada por `GuardedDnsResolver` o por `EgressRequestGuard`, que comprueba URL y headers antes de salir), y la `ClientProtocolException` con la que el cliente rechaza un esquema o credenciales en la URL | `TARGET_BLOCKED` |
+| `BlockedTargetException` (lanzada por `GuardedDnsResolver` o por `EgressRequestGuard`, que comprueba URL y headers antes de salir), y una URL que el cliente rechazarÃ­a por su cuenta: esquema que no es http ni https, sin host o con credenciales. `ApacheHttpMonitorClient` la reconoce antes de enviarla, porque la `ClientProtocolException` del cliente es la misma que para una respuesta que no puede leer (OW-025) | `TARGET_BLOCKED` |
 | `UnknownHostException` | `DNS_FAILURE` |
-| `ConnectTimeoutException`, `SocketTimeoutException`, cancelación por deadline | `TIMEOUT` |
+| `ConnectTimeoutException`, `SocketTimeoutException`, y cualquier excepción una vez vencido el deadline (el socket cerrado, la petición abortada) | `TIMEOUT` |
 | `HttpHostConnectException`, `ConnectException`, `NoRouteToHostException`, conexión reseteada | `CONNECTION_FAILED` |
 | `SSLException` y subclases | `TLS_FAILURE` |
 | Límite de redirects o bucle | `TOO_MANY_REDIRECTS` |
-| `ProtocolException`, `NoHttpResponseException`, headers fuera de límite, `Location` inválido | `PROTOCOL_ERROR` |
+| `ClientProtocolException` (envuelve la `ProtocolException` de una respuesta que el cliente no puede leer), `NoHttpResponseException`, headers fuera de límite (`MessageConstraintException`), `Location` inválido | `PROTOCOL_ERROR` |
 | Otra `IOException` | `CONNECTION_FAILED` |
 | `RuntimeException` (bug propio), o `DecryptionFailedException` al descifrar los headers | **No es un check.** Métrica `outcome="ERROR"`, log de error con el id del monitor y el estado no cambia |
 
-`error_detail` guarda un texto corto y genérico ("connection refused", "certificate expired"). Nunca guarda el cuerpo de la respuesta ni mensajes crudos de la excepción que puedan incluir datos internos.
+`error_detail` guarda un texto corto y genérico ("could not connect", "certificate expired"): las constantes de `Failures`, en `monitoring.engine.http`. Nunca guarda el cuerpo de la respuesta ni mensajes crudos de la excepción que puedan incluir datos internos.
 
 ## 9. Persistencia del resultado
 

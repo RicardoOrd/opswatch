@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.ricardoord.opswatch.PostgresTestcontainer;
 import io.github.ricardoord.opswatch.TestEncryptionKeys;
+import io.github.ricardoord.opswatch.egress.EgressHttpClients;
 import io.github.ricardoord.opswatch.egress.TargetPolicy;
 import io.github.ricardoord.opswatch.organization.AccessControl;
 import io.github.ricardoord.opswatch.organization.ProjectDeleted;
@@ -13,6 +14,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.mockito.Answers;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -43,6 +45,10 @@ class MonitoringModuleIT {
 
     @MockitoBean
     private TargetPolicy targets;
+
+    /** A mock client from {@code create}, so that the client of the checks starts and closes. */
+    @MockitoBean(answers = Answers.RETURNS_MOCKS)
+    private EgressHttpClients clients;
 
     @Autowired
     private JdbcTemplate jdbc;
