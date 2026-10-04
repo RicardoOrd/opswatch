@@ -31,6 +31,8 @@
         <jacoco.version>0.8.15</jacoco.version>
         <!-- No lo gestiona Boot: versión confirmada con Ricardo en OW-015 -->
         <bucket4j.version>8.20.0</bucket4j.version>
+        <!-- No lo gestiona Boot: la última estable, confirmada con Ricardo al refinar la v0.3.0 (la 4.0 sigue en beta) -->
+        <wiremock.version>3.13.2</wiremock.version>
 
         <!-- Parches de seguridad por encima de lo que gestiona Spring Boot 4.1.1 (Trivy, OW-010): Tomcat
              CVE-2026-65182, CVE-2026-65905 y CVE-2026-68525; jackson-databind CVE-2026-68497. Misma minor que Boot.
@@ -130,6 +132,14 @@
             <artifactId>caffeine</artifactId>
         </dependency>
 
+        <!-- Cliente HTTP saliente de egress: el único que puede conectar a URL de usuarios, porque deja inyectar el
+             resolver DNS que valida y fija las IP (docs/architecture/monitoring-engine.md#6-cliente-http). Versión
+             gestionada por Spring Boot -->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+        </dependency>
+
         <!-- OpenAPI generado desde el código -->
         <dependency>
             <groupId>org.springdoc</groupId>
@@ -182,6 +192,14 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>testcontainers-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Destinos HTTP simulados para el cliente saliente. El artefacto standalone trae Jetty y Jackson sombreados:
+             no chocan con Tomcat 11 ni con Jackson 3 -->
+        <dependency>
+            <groupId>org.wiremock</groupId>
+            <artifactId>wiremock-standalone</artifactId>
+            <version>${wiremock.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

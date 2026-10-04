@@ -76,35 +76,39 @@ flowchart TB
 
 Es la defensa principal contra el DNS rebinding. Apache HttpClient 5 permite sustituir su `DnsResolver`, y **conecta exactamente a las direcciones que devuelve el resolver**. Si el resolver filtra, no existe una segunda resolución que un atacante pueda manipular entre la comprobación y la conexión.
 
+Así es `egress.internal.GuardedDnsResolver` (OW-024):
+
 ```java
 final class GuardedDnsResolver implements DnsResolver {
 
-    private final HostResolver delegate;   // el de OW-020: el del sistema, o FakeHostResolver en los tests
+    private final HostResolver resolver;   // el de OW-020: el del sistema, o FakeHostResolver en los tests
     private final IpRangeClassifier classifier;
 
     @Override
     public InetAddress[] resolve(String host) throws UnknownHostException {
-        InetAddress[] addresses = delegate.resolve(host).toArray(InetAddress[]::new);   // también para IP literales
-        for (InetAddress address : addresses) {
-            if (!classifier.isAllowed(address)) {
-                // Si UNA dirección está bloqueada, se rechaza el host entero:
-                // no se elige "la buena" de un conjunto mezclado.
-                throw new BlockedTargetException(host, classifier.reasonFor(address));
-            }
+        // Una dirección literal se clasifica tal cual: ningún resolver puede hacerle decir otra cosa
+        Optional<InetAddress> literal = IpLiterals.parse(withoutBrackets(host));
+        List<InetAddress> addresses = literal.isPresent() ? List.of(literal.get()) : resolver.resolve(host);
+        // Si UNA dirección está bloqueada, se rechaza el host entero:
+        // no se elige "la buena" de un conjunto mezclado
+        if (!addresses.stream().allMatch(classifier::isAllowed)) {
+            throw new BlockedTargetException(host, BLOCKED_ADDRESS);   // la regla, nunca la IP
         }
-        return addresses;   // el cliente conecta a estas IP y a ninguna otra
+        return addresses.toArray(InetAddress[]::new);   // el cliente conecta a estas IP y a ninguna otra
     }
 
     @Override
-    public String resolveCanonicalHostname(String host) throws UnknownHostException {
-        return delegate.resolveCanonicalHostname(host);
+    public String resolveCanonicalHostname(String host) {
+        return host;   // sin búsqueda inversa
     }
 }
 ```
 
 - `BlockedTargetException` extiende `UnknownHostException` para atravesar la API del cliente sin envoltorios, y el motor la clasifica como `TARGET_BLOCKED`.
 - Se aplica en **cada conexión**: en cada check, en cada salto de redirect y en cada envío de webhook.
-- Antes de cada petición y en cada salto, el cliente vuelve a aplicar las reglas de la capa 1 que no necesitan DNS (`TargetPolicy.validateSyntax`: esquema, forma del host, puerto y credenciales) y la capa 4 de los headers (`HeaderPolicy`). Una URL o un header guardados antes de que existiera una regla, o escritos en la base por fuera de la API, dan `TARGET_BLOCKED` y nunca salen (OW-024).
+- Antes de cada petición y de cada salto, y antes de resolver y de conectar, `EgressRequestGuard` (el primer eslabón de la cadena de ejecución del cliente) vuelve a aplicar las reglas de la capa 1 que no necesitan DNS (esquema, forma del host, puerto y credenciales) y la capa 4 de los headers (`HeaderPolicy`). Una URL o un header guardados antes de que existiera una regla, o escritos en la base por fuera de la API, dan `TARGET_BLOCKED` y nunca salen (OW-024).
+  - Tiene que ser un interceptor de la cadena: los `HttpRequestInterceptor` de httpclient5 5.x se ejecutan después de conectar.
+  - Un esquema que no es http ni https, o credenciales en la URL, los rechaza el propio cliente antes de la cadena (`ClientProtocolException`).
 - **Test obligatorio:** comprobar que las URL con IP literal también pasan por `resolve()`. Si una versión futura del cliente se saltara el resolver para las IP literales, este test fallaría y la capa 1 seguiría rechazándolas.
 - Hay que verificar que ningún otro camino del cliente resuelve nombres por su cuenta (proxies, rutas precalculadas). Por eso la capa 4 desactiva los proxies.
 
