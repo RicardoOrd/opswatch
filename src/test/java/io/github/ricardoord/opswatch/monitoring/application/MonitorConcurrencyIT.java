@@ -17,6 +17,7 @@ import io.github.ricardoord.opswatch.shared.web.PatchField;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -27,14 +28,16 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.IntFunction;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Monitors against simultaneous requests, with PostgreSQL: the quota of the organization and the unique name hold, and
- * a monitor is never born in a project whose deletion has gone through.
+ * Monitors against simultaneous requests, with PostgreSQL: the quota of the organization and the unique name hold, no
+ * monitor is left alive in a deleted project, and a {@code PATCH} never revives one that its cleanup deleted.
  */
 @IntegrationTest
 class MonitorConcurrencyIT {
@@ -44,6 +47,8 @@ class MonitorConcurrencyIT {
     private static final int RACES = 20;
     /** How long a blocked request is given to show it is really waiting. */
     private static final Duration STILL_WAITING = Duration.ofMillis(500);
+    /** How long the asynchronous cleanup of a deleted project is given. */
+    private static final Duration CLEANUP = Duration.ofSeconds(10);
 
     private static final String HEALTH = "https://" + TestHostResolver.PUBLIC_HOST + "/health";
     private static final SettingsChanges DEFAULTS =
@@ -117,40 +122,113 @@ class MonitorConcurrencyIT {
 
     /**
      * A creation against the deletion of its project: either the creation gets a 404, or the monitor was committed
-     * before the deletion, so that whatever reacts to {@code ProjectDeleted} after its commit sees it (OW-044 deletes
-     * it). Never a monitor that appears in a project already deleted.
+     * before the deletion, and the cleanup that runs after its commit deletes it. Never a monitor left alive in a
+     * deleted project.
      */
     @Test
-    void aMonitorIsNeverBornInAProjectWhoseDeletionWentThrough() throws Exception {
+    void aMonitorIsNeverLeftAliveInADeletedProject() throws Exception {
         for (int race = 0; race < RACES; race++) {
             UUID owner = newUser();
             UUID project = projectOf(organizationOf(owner), "Production");
 
-            try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
-                CountDownLatch start = new CountDownLatch(1);
-                Future<Boolean> creation = executor.submit(() -> {
-                    start.await();
-                    try {
-                        service.create(owner, project, "Racer", HEALTH, DEFAULTS, List.of());
-                        return true;
-                    } catch (ResourceNotFoundException ex) {
-                        return false;
-                    }
-                });
-                Future<Long> seenByTheDeletion = executor.submit(() -> {
-                    start.await();
-                    projects.delete(owner, project);
-                    // Right after its commit, as a listener of ProjectDeleted would look
-                    return aliveMonitorsOf(project);
-                });
-                start.countDown();
+            race(
+                    () -> {
+                        try {
+                            service.create(owner, project, "Racer", HEALTH, DEFAULTS, List.of());
+                        } catch (ResourceNotFoundException ex) {
+                            // The deletion got in first
+                        }
+                    },
+                    () -> projects.delete(owner, project));
 
-                boolean created = creation.get(30, TimeUnit.SECONDS);
-                assertThat(seenByTheDeletion.get(30, TimeUnit.SECONDS))
-                        .as("race %d: monitors the deletion saw after its commit, the creation %s", race, created)
-                        .isEqualTo(created ? 1L : 0L);
-            }
+            int round = race;
+            Awaitility.await()
+                    .atMost(CLEANUP)
+                    .untilAsserted(() -> assertThat(aliveMonitorsOf(project))
+                            .as("race %d", round)
+                            .isZero());
         }
+    }
+
+    /**
+     * A {@code PATCH} against the cleanup of the project: it either commits before and the cleanup deletes the monitor
+     * after, or it fails on the version the cleanup wrote. It never writes {@code deleted_at = NULL} back over the
+     * deletion, which a bulk {@code UPDATE} without a new version would allow.
+     */
+    @Test
+    void aPatchAgainstTheCleanupNeverRevivesTheMonitor() throws Exception {
+        for (int race = 0; race < RACES; race++) {
+            UUID owner = newUser();
+            UUID project = projectOf(organizationOf(owner), "Production");
+            UUID monitor = service.create(owner, project, "Payments API", HEALTH, DEFAULTS, List.of())
+                    .monitor()
+                    .id();
+
+            race(
+                    () -> {
+                        try {
+                            service.update(owner, monitor, "Renamed " + UUID.randomUUID(), null, DEFAULTS, null, null);
+                        } catch (ResourceNotFoundException | OptimisticLockingFailureException ex) {
+                            // After the deletion of the project, or on the version the cleanup wrote
+                        }
+                    },
+                    () -> projects.delete(owner, project));
+
+            int round = race;
+            Awaitility.await()
+                    .atMost(CLEANUP)
+                    .untilAsserted(() -> assertThat(aliveMonitorsOf(project))
+                            .as("race %d", round)
+                            .isZero());
+        }
+    }
+
+    /** At-least-once delivery: a second {@code ProjectDeleted} finds nothing left to delete, and changes nothing. */
+    @Test
+    void aRepeatedCleanupDoesNothingMore() {
+        UUID owner = newUser();
+        UUID project = projectOf(organizationOf(owner), "Production");
+        UUID first = service.create(owner, project, "Payments API", HEALTH, DEFAULTS, List.of())
+                .monitor()
+                .id();
+        UUID second = service.create(owner, project, "Donations API", HEALTH, DEFAULTS, List.of())
+                .monitor()
+                .id();
+        projects.delete(owner, project);
+        Awaitility.await()
+                .atMost(CLEANUP)
+                .untilAsserted(() -> assertThat(aliveMonitorsOf(project)).isZero());
+        List<Map<String, Object>> before = rowsOf(project);
+
+        transactions.executeWithoutResult(tx -> service.deleteAllOf(project, UUID.randomUUID()));
+
+        assertThat(rowsOf(project)).isEqualTo(before).hasSize(2);
+        assertThat(before).extracting(row -> row.get("id")).containsExactlyInAnyOrder(first, second);
+    }
+
+    /** Runs both at once, from the same start, and waits for both. */
+    private static void race(Runnable one, Runnable other) throws Exception {
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            CountDownLatch start = new CountDownLatch(1);
+            Future<?> first = executor.submit(() -> {
+                await(start);
+                one.run();
+            });
+            Future<?> second = executor.submit(() -> {
+                await(start);
+                other.run();
+            });
+            start.countDown();
+            first.get(30, TimeUnit.SECONDS);
+            second.get(30, TimeUnit.SECONDS);
+        }
+    }
+
+    private List<Map<String, Object>> rowsOf(UUID project) {
+        return jdbc.queryForList("""
+                SELECT m.id, m.version, m.updated_at, s.updated_at AS state_updated_at
+                FROM monitors m JOIN monitor_state s ON s.monitor_id = m.id
+                WHERE m.project_id = ? ORDER BY m.id""", project);
     }
 
     /** Creations in one organization take turns on its advisory lock, whatever their project. */

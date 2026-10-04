@@ -58,7 +58,7 @@ Cada monitor hace algo como `GET https://api.example.com/health` cada 60 segundo
 | Organizaciones con roles por organización (`OWNER`, `ADMIN`, `MEMBER`, `VIEWER`) y control de acceso | **Implemented** | 1 |
 | Gestión de miembros y roles, con al menos un `OWNER` siempre | **Implemented** | 1 |
 | Proyectos dentro de cada organización | **Implemented** | 2 |
-| Monitores HTTP/HTTPS configurables | Planned | 2 |
+| Monitores HTTP/HTTPS configurables, con headers cifrados, pausa y reanudación | **Implemented** | 2 |
 | Motor de health checks periódicos con protección contra SSRF | Planned | 3 |
 | Historial de checks, uptime y percentiles de latencia | Planned | 3 |
 | Incidentes automáticos con reconocimiento (acknowledge) y resolución | Planned | 4 |

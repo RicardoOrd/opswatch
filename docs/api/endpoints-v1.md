@@ -153,9 +153,9 @@ V1 solo añade usuarios que ya tienen cuenta. El `404` revela si el email está 
 | `GET` | `/api/v1/projects/{projectId}/monitors/summary` | `MONITOR_READ` | `200`: monitores del proyecto por estado | — | 2 |
 | `GET` | `/api/v1/monitors/{monitorId}` | `MONITOR_READ` | `200` y `ETag` | — | 2 |
 | `PATCH` | `/api/v1/monitors/{monitorId}` | `MONITOR_WRITE` | `200` y `ETag` nuevo | `400`, `403`, `409` (nombre duplicado o cambio concurrente), `412`, `422 target-not-allowed` | 2 |
-| `POST` | `/api/v1/monitors/{monitorId}/pause` | `MONITOR_WRITE` | `200` (desde OW-032, resuelve el incidente activo) | `403`, `409` (ya pausado) | 2 |
-| `POST` | `/api/v1/monitors/{monitorId}/resume` | `MONITOR_WRITE` | `200` | `403`, `409` (no estaba pausado) | 2 |
-| `DELETE` | `/api/v1/monitors/{monitorId}` | `MONITOR_WRITE` | `204` | `403` | 2 |
+| `POST` | `/api/v1/monitors/{monitorId}/pause` | `MONITOR_WRITE` | `200` con el monitor y su `ETag` (desde OW-032, resuelve el incidente activo) | `403`, `409` (ya pausado) | 2 |
+| `POST` | `/api/v1/monitors/{monitorId}/resume` | `MONITOR_WRITE` | `200` con el monitor y su `ETag` | `403`, `409` (no estaba pausado) | 2 |
+| `DELETE` | `/api/v1/monitors/{monitorId}` | `MONITOR_WRITE` | `204` | `403`, `409` (cambio concurrente) | 2 |
 
 ```jsonc
 // POST /api/v1/projects/{projectId}/monitors

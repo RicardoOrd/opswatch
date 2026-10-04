@@ -87,8 +87,8 @@ public record OrganizationDeleted(UUID organizationId, Instant occurredAt) {}
 |---|---|---|---|---|
 | `MonitorWentDown` | `monitoring` | `incident` | **Síncrono, misma transacción** | Invariante: estado `DOWN` ⇔ incidente activo |
 | `MonitorRecovered` | `monitoring` | `incident` | **Síncrono, misma transacción** | Ídem |
-| `MonitorPaused` | `monitoring` | `incident` | **Síncrono, misma transacción** | Resolver el incidente activo al pausar |
-| `MonitorDeleted` | `monitoring` | `incident` | **Síncrono, misma transacción** | Ídem al borrar |
+| `MonitorPaused` | `monitoring` | `incident` | **Síncrono, misma transacción** | Resolver el incidente activo al pausar. Se publica desde OW-044; su listener llega con OW-032 |
+| `MonitorDeleted` | `monitoring` | `incident` | **Síncrono, misma transacción** | Ídem al borrar, también cuando lo borra la limpieza de un proyecto. Se publica desde OW-044; su listener llega con OW-032 |
 | `IncidentOpened` | `incident` | `notification` | **Asíncrono, después del commit, con registro** | Efecto lateral con I/O externo y reintentos |
 | `IncidentResolved` | `incident` | `notification` | **Asíncrono, después del commit, con registro** | Ídem |
 | `IncidentAcknowledged` | `incident` | — (Fase 8: tiempo real) | — | Se publica ya por consistencia del catálogo |
@@ -145,7 +145,12 @@ class IncidentEventsListener {
 - Enviar un email o un webhook es I/O externo, lento y falible. Dentro de la transacción del check, bloquearía una conexión a la base de datos durante segundos y un SMTP caído revertiría incidentes.
 - Solo debe notificarse lo que **se confirmó**: si la transacción que abre el incidente hace rollback, no se avisa de un incidente que no existe. Eso es lo que da `AFTER_COMMIT`.
 
-**Garantía:** Spring Modulith guarda la publicación en `event_publication` **dentro de la transacción del publicador** (patrón transactional outbox). Si la aplicación cae entre el commit y la ejecución del listener, la publicación sigue pendiente y se vuelve a enviar al reiniciar (`spring.modulith.events.republish-outstanding-events-on-restart=true`). El primer listener que lo usa es el de `ProjectDeleted` en `monitoring` (OW-044).
+**Garantía:** Spring Modulith guarda la publicación en `event_publication` **dentro de la transacción del publicador** (patrón transactional outbox). Si la aplicación cae entre el commit y la ejecución del listener, la publicación sigue pendiente y se vuelve a enviar al reiniciar (`spring.modulith.events.republish-outstanding-events-on-restart=true`). El primer listener que lo usa es el de `ProjectDeleted` en `monitoring` (OW-044):
+
+- **Listener:** `ProjectDeletedListener` llama a `MonitorService.deleteAllOf`. Esta lista los ids de los monitores no borrados del proyecto y borra cada uno por el camino de `DELETE`: bloquea su estado, lo lee bloqueado, lo borra y publica su `MonitorDeleted` con el `deletedBy` del proyecto.
+- **Idempotente:** un `ProjectDeleted` repetido no encuentra nada que borrar.
+- **Pruebas:** `ProjectCleanupRestartIT` lo comprueba con dos contextos, dejando en el primero la publicación pendiente como la dejaría una caída. `MonitoringModuleIT` lo comprueba con `@ApplicationModuleTest` y `Scenario`.
+- **Cuidado al renombrar:** la clase o el método del listener forman su `listener_id`, y renombrarlos con publicaciones pendientes las deja `FAILED`.
 
 **Registro (OW-034):** JDBC (`spring-modulith-starter-jdbc`), con el esquema v2 de Spring Modulith 2.1.1 en la migración `V4__modulith_create_event_publication` (`spring.modulith.events.jdbc.schema-initialization.enabled=false`: Flyway es el dueño del esquema, y una versión de Spring Modulith que lo cambie necesita una migración nueva). Con `spring.modulith.events.completion-mode=archive`, una publicación completada pasa a `event_publication_archive` en lugar de borrarse: queda rastro de qué se entregó durante `opswatch.retention.event-publications` (7 días).
 

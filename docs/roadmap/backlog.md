@@ -580,28 +580,29 @@ Orden: OW-034 → OW-019 → OW-020 → OW-021 → OW-022 → OW-044. OW-034 va 
 - **Definition of Done:** la sección de cifrado de la [arquitectura de seguridad](../security/security-architecture.md#cifrado-de-datos-sensibles-en-la-base-de-datos) coincide con la implementación; el ejemplo de CharityLink del README se puede crear con headers.
 
 ### OW-044 · Monitores: pausar, reanudar, borrar y limpieza por `ProjectDeleted`
-`feature` · P2 · Milestone: v0.2.0 — Proyectos y monitores · **Ready**
+`feature` · P2 · Milestone: v0.2.0 — Proyectos y monitores · **Hecha**
 
 - **Context:** acciones de ciclo de vida del monitor, separadas de OW-021 para que ninguna de las dos issues sea demasiado grande. Es el primer listener asíncrono entre módulos, y usa el registro de OW-034.
 - **Objective:** `POST /api/v1/monitors/{monitorId}/pause`, `POST /api/v1/monitors/{monitorId}/resume`, `DELETE /api/v1/monitors/{monitorId}` y el borrado de monitores cuando se borra su proyecto.
 - **Tasks:**
-  - [ ] Pausa: `PAUSED`, `next_check_at = NULL` y contadores a cero; evento `MonitorPaused`.
-  - [ ] Reanudación: `PENDING`, `next_check_at` con jitter y contadores a cero.
-  - [ ] Borrado lógico: `deleted_at`, estado como en la pausa; evento `MonitorDeleted`.
-  - [ ] Las tres bloquean la fila de `monitor_state` (`FOR UPDATE`) antes de escribir. El borrado cambia la fila de `monitors`, así que su `version` sube y un `PATCH` concurrente falla con `409`.
-  - [ ] Listener asíncrono de `ProjectDeleted` (`@ApplicationModuleListener`, con el registro de OW-034): borra cada monitor no borrado del proyecto por el mismo camino que `DELETE`, uno a uno. Así cada uno publica su `MonitorDeleted` (en OW-032, `incident` resolverá sus incidentes activos) y su `version` sube. **Nada de un `UPDATE` masivo**: no incrementaría `version`, y un `PATCH` concurrente reescribiría todas las columnas del monitor cargado, `deleted_at = NULL` incluido, y lo resucitaría.
-  - [ ] `MonitorDeleted.deletedBy` es quien borró el monitor o, en la limpieza, el `deletedBy` de `ProjectDeleted`.
+  - [x] Pausa: `PAUSED`, `next_check_at = NULL` y contadores a cero; evento `MonitorPaused`.
+  - [x] Reanudación: `PENDING`, `next_check_at` con jitter y contadores a cero.
+  - [x] Borrado lógico: `deleted_at`, estado como en la pausa; evento `MonitorDeleted`.
+  - [x] Las tres bloquean la fila de `monitor_state` (`FOR UPDATE`) antes de escribir. El borrado cambia la fila de `monitors`, así que su `version` sube y un `PATCH` concurrente falla con `409`. **Añadido durante la implementación:** las tres autorizan antes de bloquear (alguien ajeno no retiene el bloqueo) y vuelven a leer el monitor con el bloqueo tomado, así que una reanudación que llega justo después de un borrado da `404` en vez de programar un monitor borrado. El borrado lee además el monitor con `FOR UPDATE`, siempre después del estado: ve la versión que acaba de confirmar un `PATCH` y no falla por ella.
+  - [x] Listener asíncrono de `ProjectDeleted` (`@ApplicationModuleListener`, con el registro de OW-034): borra cada monitor no borrado del proyecto por el mismo camino que `DELETE`, uno a uno. Así cada uno publica su `MonitorDeleted` (en OW-032, `incident` resolverá sus incidentes activos) y su `version` sube. **Nada de un `UPDATE` masivo**: no incrementaría `version`, y un `PATCH` concurrente reescribiría todas las columnas del monitor cargado, `deleted_at = NULL` incluido, y lo resucitaría. Es `ProjectDeletedListener` → `MonitorService.deleteAllOf`, que lista solo los ids (`findActiveIdsOfProject`) para no cargar copias que luego estarían viejas en el contexto de persistencia.
+  - [x] `MonitorDeleted.deletedBy` es quien borró el monitor o, en la limpieza, el `deletedBy` de `ProjectDeleted`.
+  - [x] Añadido durante la implementación: `InitialJitter` usa el bean `RandomGenerator` de `ClockConfiguration`, como pide la estrategia de tests, en lugar de crear el suyo. El bean pasa a ser `java.util.Random`: lo comparten todos los hilos, y `RandomGenerator.getDefault()` no es seguro entre hilos.
 - **Acceptance Criteria:**
   - Pausar un monitor pausado → `409`; reanudar uno activo → `409`; un `VIEWER` → `403`.
   - Al borrar un proyecto, todos sus monitores quedan borrados y sin programar, también si la aplicación se reinicia entre el commit y el listener.
   - Un `ProjectDeleted` duplicado no hace nada más.
   - Un `PATCH` concurrente con la limpieza nunca resucita el monitor: o falla con `409`, o el monitor acaba borrado.
 - **Testing:**
-  - Unitarios: transiciones de pausa y reanudación.
-  - Módulo: `@ApplicationModuleTest` con `Scenario`: `ProjectDeleted` → monitores borrados y un `MonitorDeleted` por cada uno.
-  - Integración: reinicio entre el commit y el listener (con la infraestructura de `EventPublicationRegistryIT`); `PATCH` concurrente con la limpieza (20 repeticiones).
-  - API y seguridad: endpoints por rol e IDOR.
-- **Security considerations:** integridad: un monitor borrado o pausado no debe seguir haciendo peticiones (`next_check_at = NULL` y la restricción `ck_monitor_state_paused`). El listener es idempotente: solo toca monitores no borrados, así que un `ProjectDeleted` duplicado no hace nada. Entre el borrado del proyecto y la limpieza (normalmente milisegundos) sus monitores siguen visibles por id: es aceptable, porque la limpieza está garantizada por el registro.
+  - Unitarios: transiciones de pausa y reanudación (`MonitorStateTest`, `MonitorTest`).
+  - Módulo: `@ApplicationModuleTest` con `Scenario`: `ProjectDeleted` → monitores borrados y un `MonitorDeleted` por cada uno. Es `MonitoringModuleIT`, con `extraIncludes = "shared"`, porque Spring Modulith filtra las clases de otros módulos aunque se importen una a una. También comprueba un `ProjectDeleted` repetido.
+  - Integración: reinicio entre el commit y el listener (con la infraestructura de `EventPublicationRegistryIT`); `PATCH` concurrente con la limpieza (20 repeticiones). El reinicio es `ProjectCleanupRestartIT`: el primer contexto deja el proyecto borrado y su publicación como la escribe Spring Modulith al publicar, y el segundo la ejecuta al arrancar. La carrera está en `MonitorConcurrencyIT`: cambiando la limpieza por un `UPDATE` masivo, el monitor resucita y el test falla (comprobado). La carrera de crear un monitor contra el borrado de su proyecto ahora espera a la limpieza y exige que no quede ningún monitor vivo.
+  - API y seguridad: endpoints por rol e IDOR (`MonitorLifecycleApiIT` y tres filas de la matriz, con un monitor pausado en el `Fixture` para `resume`).
+- **Security considerations:** integridad: un monitor borrado o pausado no debe seguir haciendo peticiones (`next_check_at = NULL` y la restricción `ck_monitor_state_paused`). El listener es idempotente: solo toca monitores no borrados, así que un `ProjectDeleted` duplicado no hace nada. Entre el borrado del proyecto y la limpieza (normalmente milisegundos) sus monitores siguen en la base sin borrar, pero la API ya da `404` para ellos (desde OW-021 un monitor se autoriza sobre su proyecto) y la limpieza está garantizada por el registro.
 - **Dependencies:** OW-021, OW-034.
 - **Definition of Done:** los eventos `MonitorPaused` y `MonitorDeleted` están documentados; sus listeners en `incident` llegan en OW-032.
 

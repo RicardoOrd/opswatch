@@ -27,6 +27,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,7 +39,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Monitors: created, listed and summed up under their project, read and changed by their own id. Someone who is not a
+ * Monitors: created, listed and summed up under their project, read, changed, paused, resumed and deleted by their own
+ * id. Someone who is not a
  * member of the organization gets {@code 404} for any of them (docs/security/authorization-model.md).
  */
 @RestController
@@ -275,6 +277,98 @@ class MonitorController {
                 request.settings(),
                 request.requestHeaders(),
                 ifMatch));
+    }
+
+    @PostMapping("/monitors/{monitorId}/pause")
+    @Operation(
+            summary = "Pause a monitor",
+            description = "Needs MONITOR_WRITE in the organization of its project. It is not checked until resumed")
+    @ApiResponse(responseCode = "200", description = "The monitor, PAUSED and unscheduled")
+    @ApiResponse(
+            responseCode = "403",
+            description = "The caller's role does not allow it",
+            content =
+                    @Content(
+                            mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                            schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(
+            responseCode = "404",
+            description = "It does not exist, it is deleted or the caller is not a member of its organization",
+            content =
+                    @Content(
+                            mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                            schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(
+            responseCode = "409",
+            description = "It is already paused",
+            content =
+                    @Content(
+                            mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                            schema = @Schema(implementation = ProblemDetail.class)))
+    ResponseEntity<MonitorResponse> pause(CurrentUser user, @PathVariable UUID monitorId) {
+        return withETag(monitors.pause(user.id(), monitorId));
+    }
+
+    @PostMapping("/monitors/{monitorId}/resume")
+    @Operation(
+            summary = "Resume a paused monitor",
+            description = "Needs MONITOR_WRITE in the organization of its project. It starts PENDING again, with its"
+                    + " first check within 30 s")
+    @ApiResponse(responseCode = "200", description = "The monitor, PENDING and scheduled")
+    @ApiResponse(
+            responseCode = "403",
+            description = "The caller's role does not allow it",
+            content =
+                    @Content(
+                            mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                            schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(
+            responseCode = "404",
+            description = "It does not exist, it is deleted or the caller is not a member of its organization",
+            content =
+                    @Content(
+                            mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                            schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(
+            responseCode = "409",
+            description = "It is not paused",
+            content =
+                    @Content(
+                            mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                            schema = @Schema(implementation = ProblemDetail.class)))
+    ResponseEntity<MonitorResponse> resume(CurrentUser user, @PathVariable UUID monitorId) {
+        return withETag(monitors.resume(user.id(), monitorId));
+    }
+
+    @DeleteMapping("/monitors/{monitorId}")
+    @Operation(
+            summary = "Delete a monitor",
+            description = "Needs MONITOR_WRITE in the organization of its project. Its history stays")
+    @ApiResponse(responseCode = "204", description = "Deleted")
+    @ApiResponse(
+            responseCode = "403",
+            description = "The caller's role does not allow it",
+            content =
+                    @Content(
+                            mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                            schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(
+            responseCode = "404",
+            description = "It does not exist, it is already deleted or the caller is not a member of its organization",
+            content =
+                    @Content(
+                            mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                            schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(
+            responseCode = "409",
+            description = "Another request changed it at the same time",
+            content =
+                    @Content(
+                            mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                            schema = @Schema(implementation = ProblemDetail.class)))
+    ResponseEntity<Void> delete(CurrentUser user, @PathVariable UUID monitorId) {
+        monitors.delete(user.id(), monitorId);
+        return ResponseEntity.noContent().build();
     }
 
     private static ResponseEntity<MonitorResponse> withETag(MonitorView monitor) {

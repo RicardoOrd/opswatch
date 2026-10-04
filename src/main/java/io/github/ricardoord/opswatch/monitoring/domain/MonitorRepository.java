@@ -1,5 +1,6 @@
 package io.github.ricardoord.opswatch.monitoring.domain;
 
+import jakarta.persistence.LockModeType;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -7,6 +8,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
 /** Every business query filters out the deleted monitors explicitly (docs/database/database-design.md). */
@@ -19,6 +21,21 @@ public interface MonitorRepository extends JpaRepository<Monitor, UUID> {
     char LIKE_ESCAPE = '\\';
 
     Optional<Monitor> findByIdAndDeletedAtIsNull(UUID id);
+
+    /**
+     * Locks the row ({@code SELECT … FOR UPDATE}) and reads it as last committed: a deletion that waited here for a
+     * {@code PATCH} sees the version that {@code PATCH} wrote, and does not fail on it.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT m FROM Monitor m WHERE m.id = :id AND m.deletedAt IS NULL")
+    Optional<Monitor> findActiveByIdForUpdate(UUID id);
+
+    /**
+     * Ids and not entities: whoever loads each one afterwards, locked, must not get a stale copy from the persistence
+     * context.
+     */
+    @Query("SELECT m.id FROM Monitor m WHERE m.projectId = :projectId AND m.deletedAt IS NULL ORDER BY m.id")
+    List<UUID> findActiveIdsOfProject(UUID projectId);
 
     /** Paused ones included: the quota counts every monitor not deleted. */
     long countByOrganizationIdAndDeletedAtIsNull(UUID organizationId);

@@ -158,6 +158,19 @@ public class Monitor {
         this.updatedAt = now(clock);
     }
 
+    /**
+     * Logical: the row stays for the history of its checks and incidents. It changes the row, so the version goes up and
+     * a {@code PATCH} that read it before fails instead of writing {@code deleted_at = NULL} back. Deleting what is
+     * already deleted changes nothing.
+     */
+    public void delete(Clock clock) {
+        if (deletedAt == null) {
+            Instant now = now(clock);
+            this.deletedAt = now;
+            this.updatedAt = now;
+        }
+    }
+
     /** Replaces every setting at once: {@link MonitorSettings} has already checked them against each other. */
     public void reconfigure(MonitorSettings settings, Clock clock) {
         if (!settings.equals(settings())) {

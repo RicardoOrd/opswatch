@@ -1,7 +1,6 @@
 package io.github.ricardoord.opswatch.monitoring.application;
 
 import java.time.Duration;
-import java.util.Random;
 import java.util.random.RandomGenerator;
 import org.springframework.stereotype.Component;
 
@@ -17,11 +16,7 @@ public class InitialJitter {
 
     private final RandomGenerator random;
 
-    /** {@link Random} is safe to share between threads, and the jitter needs no secure randomness. */
-    InitialJitter() {
-        this(new Random());
-    }
-
+    /** @param random the bean of {@code ClockConfiguration}, which the tests replace with a fixed one */
     InitialJitter(RandomGenerator random) {
         this.random = random;
     }
