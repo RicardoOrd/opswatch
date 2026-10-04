@@ -159,10 +159,11 @@ src/main/java/io/github/ricardoord/opswatch/
 │   │   MonitorPaused.java, MonitorDeleted.java          ← eventos publicados
 │   ├── FailureReason.java                               ← tipo de la firma de MonitorWentDown
 │   ├── MonitorDirectory.java, MonitorSummary.java       ← API pública
-│   ├── domain/       Monitor, MonitorState, MonitorCheck, MonitorStatus, CheckStatus,
-│   │                 CheckEvaluator, StateTransition, repositorios
+│   ├── domain/       Monitor, MonitorState, MonitorStatus, MonitorSettings, MonitorSnapshot,
+│   │                 CheckStatus, CheckOutcome, StateTransition, StateChange,
+│   │                 repositorios (MonitorCheckRepository, con JDBC)
 │   ├── application/  MonitorService, CheckResultRecorder, MonitorStatsQueries, RetentionJob
-│   ├── engine/       CheckDispatcher, CheckClaimer, HttpMonitorClient, ProbeRequest, HttpObservation,
+│   ├── engine/       CheckDispatcher, CheckClaimer, HttpMonitorClient, ProbeRequest, HttpObservation, CheckEvaluator,
 │   │                 MonitoringEngineProperties
 │   │   └── http/     ApacheHttpMonitorClient, Deadline, Redirects, Failures
 │   └── web/          MonitorController, CheckController, DTOs

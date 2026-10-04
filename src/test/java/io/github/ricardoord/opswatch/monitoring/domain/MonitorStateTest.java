@@ -3,6 +3,8 @@ package io.github.ricardoord.opswatch.monitoring.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.github.ricardoord.opswatch.monitoring.FailureReason;
+import io.github.ricardoord.opswatch.monitoring.domain.StateChange.Transition;
 import io.github.ricardoord.opswatch.shared.error.ConflictException;
 import java.time.Clock;
 import java.time.Duration;
@@ -131,6 +133,101 @@ class MonitorStateTest {
         }
         assertThat(paused.statusChangedAt()).isEqualTo(NOW_IN_MICROS);
         assertThat(running.statusChangedAt()).isEqualTo(LATER.instant());
+    }
+
+    @Test
+    void aCheckBecomesTheLastResultAndMovesTheStatus() {
+        MonitorState state = MonitorState.pending(UUID.randomUUID(), Duration.ZERO, CLOCK);
+        Instant checkedAt = NOW_IN_MICROS.plusSeconds(30);
+
+        Transition transition = state.record(
+                CheckOutcome.down(FailureReason.TIMEOUT, null, null, "no response within the timeout"),
+                thresholds(1, 1),
+                checkedAt,
+                LATER);
+
+        assertThat(transition).isEqualTo(Transition.WENT_DOWN);
+        assertThat(state.status()).isEqualTo(MonitorStatus.DOWN);
+        assertThat(state.statusChangedAt()).isEqualTo(checkedAt);
+        assertThat(state.consecutiveFailures()).isEqualTo(1);
+        assertThat(state.lastCheckedAt()).isEqualTo(checkedAt);
+        assertThat(state.lastCheckStatus()).isEqualTo(CheckStatus.DOWN);
+        assertThat(state.lastFailureReason()).isEqualTo(FailureReason.TIMEOUT);
+        assertThat(state.lastHttpStatus()).isNull();
+        assertThat(state.lastResponseTimeMs()).isNull();
+        assertThat(state.updatedAt()).isEqualTo(LATER.instant());
+        assertThat(state.nextCheckAt()).isEqualTo(NOW_IN_MICROS);
+    }
+
+    /** The status began with the check that changed it, not with the last one. */
+    @Test
+    void aCheckThatKeepsTheStatusKeepsWhenItBegan() {
+        MonitorState state = MonitorState.pending(UUID.randomUUID(), Duration.ZERO, CLOCK);
+        Instant first = NOW_IN_MICROS.plusSeconds(30);
+        Instant second = first.plusSeconds(60);
+
+        state.record(CheckOutcome.up(200, Duration.ofMillis(143)), thresholds(3, 2), first, LATER);
+        state.record(CheckOutcome.up(204, Duration.ofMillis(87)), thresholds(3, 2), second, LATER);
+
+        assertThat(state.status()).isEqualTo(MonitorStatus.UP);
+        assertThat(state.statusChangedAt()).isEqualTo(first);
+        assertThat(state.consecutiveSuccesses()).isEqualTo(2);
+        assertThat(state.lastCheckedAt()).isEqualTo(second);
+        assertThat(state.lastHttpStatus()).isEqualTo(204);
+        assertThat(state.lastResponseTimeMs()).isEqualTo(87);
+        assertThat(state.lastFailureReason()).isNull();
+    }
+
+    /** The check was in flight when the monitor was paused, or deleted. */
+    @ParameterizedTest
+    @EnumSource(CheckStatus.class)
+    void theResultOfAPausedMonitorChangesNothing(CheckStatus result) {
+        MonitorState state = MonitorState.pending(UUID.randomUUID(), Duration.ZERO, CLOCK);
+        state.pause(LATER);
+
+        Transition transition =
+                state.record(outcome(result), thresholds(1, 1), LATER.instant().plusSeconds(1), LATER);
+
+        assertThat(transition).isEqualTo(Transition.NONE);
+        assertThat(state.status()).isEqualTo(MonitorStatus.PAUSED);
+        assertThat(state.consecutiveFailures()).isZero();
+        assertThat(state.consecutiveSuccesses()).isZero();
+        assertThat(state.lastCheckedAt()).isNull();
+    }
+
+    /**
+     * Paused and resumed while a check was in flight: its result belongs to the monitor before the resume, and with a
+     * threshold of 1 it would open an incident for a monitor that has not been checked since.
+     */
+    @Test
+    void aCheckThatStartedBeforeAResumeChangesNothing() {
+        MonitorState state = MonitorState.pending(UUID.randomUUID(), Duration.ZERO, CLOCK);
+        Instant inFlightSince = LATER.instant().minusSeconds(5);
+        state.pause(LATER);
+        state.resume(Duration.ofSeconds(10), Clock.offset(LATER, Duration.ofSeconds(2)));
+
+        Transition transition = state.record(
+                CheckOutcome.down(FailureReason.CONNECTION_FAILED, null, null, "could not connect"),
+                thresholds(1, 1),
+                inFlightSince,
+                Clock.offset(LATER, Duration.ofSeconds(3)));
+
+        assertThat(transition).isEqualTo(Transition.NONE);
+        assertThat(state.status()).isEqualTo(MonitorStatus.PENDING);
+        assertThat(state.consecutiveFailures()).isZero();
+        assertThat(state.lastCheckedAt()).isNull();
+    }
+
+    private static CheckOutcome outcome(CheckStatus status) {
+        return switch (status) {
+            case UP -> CheckOutcome.up(200, Duration.ofMillis(100));
+            case DEGRADED -> CheckOutcome.degraded(200, Duration.ofMillis(2000));
+            case DOWN -> CheckOutcome.down(FailureReason.UNEXPECTED_STATUS, 503, Duration.ofMillis(100), null);
+        };
+    }
+
+    private static MonitorSettings thresholds(int failure, int recovery) {
+        return new MonitorSettings(ProbeMethod.GET, 200, 299, 60, 10_000, null, true, failure, recovery);
     }
 
     /** As the engine would leave it: down after a few failures. */

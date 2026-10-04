@@ -27,7 +27,7 @@ public record MonitorWentDown(
         UUID organizationId,
         UUID projectId,
         String monitorName,
-        Instant occurredAt,          // instante de la transición a DOWN
+        Instant occurredAt,          // instante de la transición a DOWN: el inicio del check que la provoca
         FailureReason cause,         // causa del último check fallido
         @Nullable Integer httpStatus,
         int consecutiveFailures) {}
