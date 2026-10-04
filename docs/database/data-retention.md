@@ -44,10 +44,12 @@ WHERE ctid = ANY (ARRAY(
     FROM monitor_checks
     WHERE checked_at < :cutoff
     LIMIT :batchSize          -- 10 000 por defecto
+    FOR UPDATE SKIP LOCKED    -- otra instancia que purga a la vez se lleva otras filas
 ));
 ```
 
-- Se ejecuta de madrugada (UTC) con `@Scheduled(cron = …)`. Con varias instancias, solo corre en una: el job toma un `pg_try_advisory_lock` de PostgreSQL al empezar, sin dependencias nuevas.
+- Se ejecuta de madrugada (UTC) con `@Scheduled(cron = …)`. **Sin advisory lock** (decisión de Ricardo del 2026-10-03, igual que las purgas de refresh tokens y del archivo de eventos). Borrar es idempotente, y con `SKIP LOCKED` dos instancias que purgan a la vez se reparten las filas sin repetir trabajo ni esperarse. Un lock de sesión obligaría a retener una conexión durante todos los lotes.
+- Después de los checks antiguos, los de los monitores borrados, en lotes, y al final su `monitor_state`. Un check en vuelo que vuelve cuando el estado ya no existe se descarta sin error.
 - Lotes pequeños: no retiene locks largos y el autovacuum puede ir recuperando espacio.
 - El índice BRIN sobre `checked_at` localiza las filas viejas sin recorrer la tabla.
 - Métricas: `opswatch_retention_deleted_rows_total{table}` y `opswatch_retention_duration_seconds{table}`.

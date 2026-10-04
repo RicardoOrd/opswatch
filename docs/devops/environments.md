@@ -111,7 +111,7 @@ Los rangos de validación del dominio (intervalo de 30 a 3600 s, timeout de 1 a 
 
 | Propiedad | Por defecto | Notas |
 |---|---|---|
-| `opswatch.monitoring.engine.enabled` | `true` | `false` en instancias que solo sirven la API |
+| `opswatch.monitoring.engine.enabled` | `true` | `false` en instancias que solo sirven la API y en el perfil `test`: el contexto compartido de los tests haría peticiones reales por cada monitor que crean. Los tests del motor lo activan en su propio contexto (OW-026) |
 | `opswatch.monitoring.engine.dispatch-interval` | `1s` | |
 | `opswatch.monitoring.engine.max-concurrent-checks` | `200` | Tamaño del semáforo y del pool de conexiones HTTP |
 | `opswatch.monitoring.engine.max-batch-size` | `500` | Máximo de monitores reclamados por ciclo |

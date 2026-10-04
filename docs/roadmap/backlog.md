@@ -13,7 +13,7 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 
 **Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
-**Foco actual: refinar la v0.3.0 — Motor de monitoreo** contra lo que dejó construido la v0.2.0 (publicada el 2026-10-03, release #79). Hasta ese refinamiento, sus issues siguen en **Planned** y nada está listo para empezar. La v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
+**Foco actual: v0.3.0 — Motor de monitoreo**, refinada el 2026-10-03 contra lo que dejó construido la v0.2.0 (publicada el 2026-10-03, release #79). Orden: OW-024 → OW-025 → OW-027 → OW-026 → OW-028 → OW-029 → OW-030, las siete en **Ready**. La v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
 
 ## Convenciones
 
@@ -615,130 +615,195 @@ Fusionada en OW-019, OW-021 y OW-044: los tests de IDOR de cada endpoint forman 
 
 ## v0.3.0 — Motor de monitoreo
 
-### OW-024 · `GuardedDnsResolver` y cliente HTTP saliente endurecido
-`security` · P1 · Milestone: v0.3.0 — Motor de monitoreo · **Planned**
+Orden: OW-024 → OW-025 → OW-027 → OW-026 → OW-028 → OW-029 → OW-030. OW-027 va antes que OW-026 (decisión de Ricardo del 2026-10-03): el scheduler es lo último y une el cliente con el registro de resultados, así que en `main` nunca hay un motor que haga peticiones y pierda lo que observa.
 
-- **Context:** capas 2 a 5 de la protección SSRF. Es la defensa contra el DNS rebinding.
+Refinada el 2026-10-03 contra lo que dejó construido la v0.2.0:
+- en `egress`, `TargetPolicy` y `HeaderPolicy`, con `HostResolver` inyectable e `IpRangeClassifier`;
+- `monitor_state` con su orden de bloqueos: la fila del estado antes que la del monitor;
+- `MonitorHeaders` para descifrar los headers;
+- el bean `RandomGenerator` del jitter y el registro de eventos;
+- en los tests, `FakeHostResolver` y `TestHostResolver`.
+
+### OW-024 · `GuardedDnsResolver` y cliente HTTP saliente endurecido
+`security` · P1 · Milestone: v0.3.0 — Motor de monitoreo · **Ready**
+
+- **Context:** capas 2 a 5 de la protección SSRF: la defensa contra el DNS rebinding. Ya existen piezas en las que se apoya:
+  - de OW-020, `HostResolver` (inyectable, con `FakeHostResolver` en los tests), `IpRangeClassifier` con `allowed-private-cidrs` y `TargetUrlParser`;
+  - de OW-022, `HeaderPolicy`, que esta issue vuelve a aplicar al enviar.
 - **Objective:** `EgressHttpClients` construye clientes Apache HttpClient 5 con el resolver protegido y todas las restricciones; nadie más construye clientes HTTP.
 - **Tasks:**
-  - [ ] Dependencia de Apache HttpClient 5.
-  - [ ] `GuardedDnsResolver` y `BlockedTargetException`.
-  - [ ] Cliente sin proxy del entorno, sin reintentos, sin redirects automáticos, sin cookies y sin compresión; límites de línea (8 KiB) y número (100) de headers de respuesta.
-  - [ ] Regla ArchUnit: solo `egress` construye clientes HTTP.
-- **Acceptance Criteria:** los casos 16, 17, 22 y 23 de la [tabla de SSRF](../security/ssrf-protection.md#5-casos-de-prueba-obligatorios); una URL con IP literal pasa por `resolve()` (test); una clase de `monitoring` que instancia `HttpClients` hace fallar el build.
+  - [ ] Dependencia `org.apache.httpcomponents.client5:httpclient5` sin versión propia: la fija el BOM de Spring Boot 4.1.1 (5.6.4). Decisión de Ricardo del 2026-10-03.
+  - [ ] `GuardedDnsResolver` (el `DnsResolver` de HttpClient):
+    - resuelve con el `HostResolver` de OW-020 y clasifica **cada** dirección con `IpRangeClassifier`;
+    - si alguna está bloqueada, lanza `BlockedTargetException`;
+    - devuelve solo direcciones validadas, así que el cliente conecta exactamente a ellas;
+    - sin plazo propio, porque la resolución del sistema no se puede interrumpir (sección DNS del documento del motor).
+  - [ ] `TargetPolicy.validateSyntax(url, kind)`: las reglas de `TargetUrlParser` sin resolver el nombre (esquema, forma del host, puerto y credenciales).
+    - Es lo que comprueba el cliente antes de cada petición y en cada redirect. `validate` resuelve el DNS; aquí la IP la decide el resolver al conectar, y resolver dos veces no aporta nada.
+    - Si una URL la incumple, el resultado es `BlockedTargetException`, no `TargetNotAllowedException`, que es el `422` de la API.
+  - [ ] `HeaderPolicy.check` antes de cada petición: un header guardado antes de que existiera una regla, o escrito en la base por fuera de la API, nunca sale (`BlockedTargetException`).
+  - [ ] Cliente sin proxy del entorno, sin reintentos, sin redirects automáticos, sin cookies, sin compresión y sin reutilizar conexiones; límites de línea (8 KiB) y número (100) de headers de respuesta.
+  - [ ] Regla ArchUnit: solo `egress` construye clientes HTTP (`HttpClients`, `HttpClientBuilder`, `java.net.http.HttpClient`, `RestClient` y `WebClient`).
+  - [ ] Evento de seguridad `egress.target_blocked` en el log, con el host ya validado y nunca la URL completa (la query puede llevar un token). La métrica `opswatch_egress_blocked_total` llega con OW-030.
+- **Acceptance Criteria:**
+  - Los casos 16, 17, 22 y 23 de la [tabla de SSRF](../security/ssrf-protection.md#5-casos-de-prueba-obligatorios).
+  - Una URL con IP literal pasa por `resolve()` (test).
+  - Una clase de `monitoring` que instancia `HttpClients` hace fallar el build.
+  - Un header `Metadata-Flavor` insertado en la base sin pasar por la API no sale.
 - **Testing:**
-  - Unitarios: `GuardedDnsResolver` con un resolver falso (IP mixtas, rebinding).
+  - Unitarios: `GuardedDnsResolver` con `FakeHostResolver` (IP mixtas, y rebinding: pública al guardar y `127.0.0.1` al conectar).
   - Integración: cliente contra WireMock (goteo, headers enormes).
+    - WireMock es `org.wiremock:wiremock-standalone` 3.13.2, solo en test: viene sombreado y no choca con Tomcat 11 (decisión de Ricardo del 2026-10-03).
+    - Escucha en `127.0.0.1`, así que esos tests abren `opswatch.egress.allowed-private-cidrs=127.0.0.0/8`, el uso para el que existe la propiedad.
   - Arquitectura: la regla ArchUnit.
-- **Security considerations:** T-20, T-21 y T-23. Un proxy del entorno saltaría el resolver: por eso se desactivan las propiedades del sistema. Si una versión futura del cliente dejara de pasar por el resolver, el test de la IP literal lo detecta.
-- **Dependencies:** OW-020.
+- **Security considerations:** T-20, T-21 y T-23. Un proxy del entorno saltaría el resolver: por eso se desactivan las propiedades del sistema. Si una versión futura del cliente dejara de pasar por el resolver, el test de la IP literal lo detecta. Volver a validar al enviar lo que se validó al guardar no es redundante: las reglas cambian entre versiones, y la base se puede tocar por fuera de la API.
+- **Dependencies:** OW-020, OW-022.
 - **Definition of Done:** el documento de SSRF coincide con la implementación.
 
 ### OW-025 · `HttpMonitorClient` con Apache HttpClient 5
-`feature` `security` · P1 · Milestone: v0.3.0 — Motor de monitoreo · **Planned**
+`feature` `security` · P1 · Milestone: v0.3.0 — Motor de monitoreo · **Ready**
 
-- **Context:** separar observar de juzgar ([motor](../architecture/monitoring-engine.md#5-httpmonitorclient)).
+- **Context:** separar observar de juzgar ([motor](../architecture/monitoring-engine.md#5-httpmonitorclient)). Los headers llegan descifrados por `MonitorHeaders` (OW-022) como `RequestHeader` de `egress`.
 - **Objective:** `ApacheHttpMonitorClient` con deadline total, redirects manuales y clasificación de fallos.
 - **Tasks:**
-  - [ ] `ProbeRequest` y `HttpObservation` (sealed).
-  - [ ] Deadline total con `cancel()` programado (`timeoutMs` + `deadline-grace`).
-  - [ ] Redirects manuales: revalidación por salto, cambio de método, headers solo al mismo origen, 5 saltos como máximo y detección de bucles.
-  - [ ] Mapeo de excepción a `FailureReason`.
-  - [ ] Cierre de la conexión tras recibir los headers (el cuerpo no se lee).
-- **Acceptance Criteria:** los casos 18, 19 y 22 de la tabla de SSRF; un destino que tarda más que `timeoutMs` devuelve `TIMEOUT` en menos de `timeoutMs` + 500 ms; cada fila de la [tabla de clasificación](../architecture/monitoring-engine.md#8-clasificación-de-fallos) produce su `FailureReason`.
+  - [ ] `ProbeRequest`, con `List<RequestHeader>` y un `toString()` sin valores, y `HttpObservation` (sealed).
+  - [ ] `FailureReason` en el paquete raíz de `monitoring`: aparece en la firma de `MonitorWentDown` ([eventos](../architecture/events.md#2-catálogo)).
+  - [ ] Deadline total con `cancel()` programado: `timeoutMs` más `opswatch.monitoring.engine.deadline-grace` (200 ms).
+  - [ ] Redirects manuales:
+    - `validateSyntax` y `HeaderPolicy` en cada salto, y la IP en el resolver al conectar;
+    - cambio de método según el código;
+    - headers solo al mismo origen;
+    - `opswatch.monitoring.engine.max-redirects` (5) como máximo y detección de bucles.
+  - [ ] Mapeo de excepción a `FailureReason`; `BlockedTargetException` → `TARGET_BLOCKED`.
+  - [ ] Cierre de la conexión tras recibir los headers: el cuerpo no se lee.
+  - [ ] `User-Agent` de `opswatch.monitoring.engine.user-agent`.
+- **Acceptance Criteria:**
+  - Los casos 18, 19 y 22 de la tabla de SSRF.
+  - Un destino que tarda más que `timeoutMs` devuelve `TIMEOUT` en menos de `timeoutMs` + 500 ms.
+  - Cada fila de la [tabla de clasificación](../architecture/monitoring-engine.md#8-clasificación-de-fallos) produce su `FailureReason`.
+  - `error_detail` es siempre un texto propio y genérico.
 - **Testing:**
-  - Integración: `ApacheHttpMonitorClientIT` contra WireMock (códigos, retrasos, redirects, bucles, más de 5 saltos, TLS autofirmado, `Location` inválido).
-  - Seguridad: redirect a otro origen sin `Authorization`; redirect hacia `169.254.169.254`.
-- **Security considerations:** T-22 (redirect hacia la red interna), T-27 (credenciales reenviadas a otro host), T-28 (el cuerpo no se guarda ni se muestra). Disponibilidad: el deadline impide que un destino hostil retenga un permiso más de `timeoutMs`.
+  - Integración: `ApacheHttpMonitorClientIT` contra WireMock en `127.0.0.1` (códigos, retrasos, redirects, bucles, más de 5 saltos, TLS autofirmado, `Location` inválido).
+  - Seguridad:
+    - redirect a otro origen sin `Authorization`;
+    - redirect hacia `169.254.169.254`;
+    - redirect a un puerto o esquema que `validateSyntax` rechaza.
+- **Security considerations:** T-22 (redirect hacia la red interna), T-27 (credenciales reenviadas a otro host) y T-28 (el cuerpo no se guarda ni se muestra). Disponibilidad: el deadline impide que un destino hostil retenga un permiso más de `timeoutMs`.
 - **Dependencies:** OW-024.
 - **Definition of Done:** la tabla de clasificación del documento del motor está verificada por los tests.
 
-### OW-026 · Scheduler con `SKIP LOCKED` y dispatcher con virtual threads
-`feature` `architecture` · P1 · Milestone: v0.3.0 — Motor de monitoreo · **Planned**
-
-- **Context:** [ADR-006](../adr/ADR-006-check-scheduling.md) y [ADR-007](../adr/ADR-007-http-client-and-concurrency.md). Incluye los tests de concurrencia que antes estaban en OW-031.
-- **Objective:** `CheckClaimer` y `CheckDispatcher` con semáforo, sin catch-up y con apagado ordenado.
-- **Tasks:**
-  - [ ] Consulta de claim (CTE con `FOR UPDATE SKIP LOCKED`).
-  - [ ] Dispatcher con `Semaphore` y executor de virtual threads; reclama como mucho los permisos libres.
-  - [ ] `opswatch.monitoring.engine.enabled`.
-  - [ ] Apagado ordenado (`SmartLifecycle`).
-- **Acceptance Criteria:**
-  - 4 claimers en paralelo sobre 1 000 monitores vencidos, 20 rondas: cada monitor reclamado **exactamente una vez** por ronda (0 duplicados, 0 omitidos).
-  - Un monitor atrasado más de un intervalo se ejecuta una vez y salta al siguiente intervalo (sin catch-up).
-  - Con el semáforo lleno no se reclama nada.
-  - El plan de la consulta de claim usa `ix_monitor_state_due`.
-- **Testing:**
-  - Unitarios: cálculo del siguiente `next_check_at` con `Clock` fijo.
-  - Integración (concurrencia): `CheckClaimerConcurrencyIT` con PostgreSQL real.
-  - Integración: dispatcher con un `HttpMonitorClient` falso; `EXPLAIN` del claim.
-- **Security considerations:** una ejecución duplicada no es solo un fallo de correctitud: duplica el tráfico hacia terceros (T-26) y puede abrir incidentes falsos. El semáforo evita agotar hilos y conexiones (R-11, R-12).
-- **Dependencies:** OW-025.
-- **Definition of Done:** el algoritmo del documento del motor coincide con la implementación.
-
 ### OW-027 · Registro de resultados y máquina de estados del monitor
-`feature` · P1 · Milestone: v0.3.0 — Motor de monitoreo · **Planned**
+`feature` · P1 · Milestone: v0.3.0 — Motor de monitoreo · **Ready**
 
 - **Context:** la [tabla de transiciones](../architecture/domain-model.md#monitorstate) es el núcleo de la correctitud. Incluye la carrera de la pausa que antes estaba en OW-031.
+  - De OW-021 y OW-044 ya existen `MonitorState` (con `pause`, `resume` y `stop`), su bloqueo `findByIdForUpdate` y el orden de bloqueos: la fila del estado antes que la del monitor.
+  - Va antes que OW-026 (decisión de Ricardo del 2026-10-03): se puede llamar directamente con un resultado, y el scheduler la usará.
 - **Objective:** `CheckEvaluator`, `StateTransition` y `CheckResultRecorder`, con los eventos `MonitorWentDown` y `MonitorRecovered`.
 - **Tasks:**
-  - [ ] Migración `monitoring_create_monitor_checks`, con PK `(monitor_id, checked_at)` y BRIN.
+  - [ ] Migración `monitoring_create_monitor_checks` (la `V8`), con PK `(monitor_id, checked_at)` y BRIN sobre `checked_at`.
+  - [ ] `MonitorState` mapea las columnas del último resultado que OW-021 dejó sin mapear (`last_check_status` y `last_failure_reason`).
   - [ ] `CheckEvaluator` y `StateTransition` como funciones puras.
-  - [ ] `CheckResultRecorder`: `FOR UPDATE` sobre el estado, inserción con `JdbcClient`, transición y evento.
-  - [ ] Los errores internos no cuentan como check.
+  - [ ] `CheckResultRecorder`:
+    - toma `FOR UPDATE` sobre el estado y nunca sobre la fila de `monitors`: un check no cambia la configuración, ni su versión;
+    - inserta el check con `JdbcClient`, aplica la transición y publica el evento;
+    - con el estado `PAUSED` (también el de un monitor borrado mientras el check estaba en vuelo), guarda el check sin transición.
+  - [ ] `MonitorWentDown` y `MonitorRecovered` en el paquete raíz, con ids y sin datos personales. Nadie los escucha hasta OW-032.
+  - [ ] Los errores internos no cuentan como check: una `RuntimeException` propia, y también una `DecryptionFailedException` al descifrar los headers (una clave retirada antes de tiempo). Dejan un log de error con el id del monitor, sin check y sin transición.
 - **Acceptance Criteria:**
   - 3 fallos consecutivos → `DOWN` y un `MonitorWentDown`; 2 éxitos → `UP` y un `MonitorRecovered`.
   - Pausa concurrente con el registro de un resultado (50 repeticiones): el estado final es siempre `PAUSED` y el check queda guardado.
+  - El resultado de un monitor borrado mientras su check estaba en vuelo se guarda, y el estado sigue `PAUSED` y sin programar.
   - Una `RuntimeException` propia no crea check ni cambia el estado, y cuenta en `outcome="ERROR"`.
 - **Testing:**
   - Unitarios: `StateTransitionTest` con cada fila de la tabla y `CheckEvaluatorTest`.
   - Integración (concurrencia): `CheckResultRecorderIT`, incluida la carrera de la pausa.
 - **Security considerations:** integridad del estado: `FOR UPDATE` serializa las transiciones de cada monitor. `error_detail` es un texto propio, nunca contenido de la respuesta (T-28).
-- **Dependencies:** OW-026, OW-044.
+- **Dependencies:** OW-025, OW-044.
 - **Definition of Done:** cada fila de la tabla de transiciones del modelo de dominio tiene su test.
 
+### OW-026 · Scheduler con `SKIP LOCKED` y dispatcher con virtual threads
+`feature` `architecture` · P1 · Milestone: v0.3.0 — Motor de monitoreo · **Ready**
+
+- **Context:** [ADR-006](../adr/ADR-006-check-scheduling.md) y [ADR-007](../adr/ADR-007-http-client-and-concurrency.md). Une el cliente (OW-025) con el registro (OW-027), por eso va después de los dos. Incluye los tests de concurrencia que antes estaban en OW-031.
+  - El claim toma la fila de `monitor_state` con `FOR UPDATE SKIP LOCKED`: una pausa, una reanudación o un borrado en curso la tienen bloqueada, y el claim la salta.
+  - Después, una pausa o un borrado la dejan sin programar.
+- **Objective:** `CheckClaimer` y `CheckDispatcher` con semáforo, sin catch-up y con apagado ordenado.
+- **Tasks:**
+  - [ ] Consulta de claim (CTE con `FOR UPDATE SKIP LOCKED`). Exige además `monitors.deleted_at IS NULL` como defensa: un monitor borrado ya no está programado.
+  - [ ] En la misma transacción corta, carga de la configuración y descifrado de los headers (`MonitorHeaders`). La petición HTTP ocurre fuera de toda transacción.
+  - [ ] Dispatcher con `Semaphore` y executor de virtual threads; reclama como mucho los permisos libres.
+  - [ ] `opswatch.monitoring.engine.enabled`, `true` por defecto y `false` en el perfil `test`.
+    - Sin eso, el contexto compartido de los `@IntegrationTest` haría peticiones reales a `api.example.com` por cada monitor de los tests (el DNS falso lo resuelve a una IP pública).
+    - Los tests del motor lo activan en su propio contexto.
+  - [ ] Apagado ordenado (`SmartLifecycle`): deja de reclamar y espera como mucho `timeoutMs` más `opswatch.monitoring.engine.shutdown-grace`.
+- **Acceptance Criteria:**
+  - 4 claimers en paralelo sobre 1 000 monitores vencidos, 20 rondas: cada monitor reclamado **exactamente una vez** por ronda (0 duplicados, 0 omitidos).
+  - Un monitor atrasado más de un intervalo se ejecuta una vez y salta al siguiente intervalo (sin catch-up).
+  - Con el semáforo lleno no se reclama nada.
+  - Un monitor pausado o borrado durante el claim no se ejecuta.
+  - El plan de la consulta de claim usa `ix_monitor_state_due`.
+- **Testing:**
+  - Unitarios: cálculo del siguiente `next_check_at` con `Clock` fijo.
+  - Integración (concurrencia): `CheckClaimerConcurrencyIT` con PostgreSQL real.
+  - Integración: dispatcher con un `HttpMonitorClient` falso; `EXPLAIN` del claim.
+- **Security considerations:** una ejecución duplicada no es solo un fallo de correctitud: duplica el tráfico hacia terceros (T-26) y puede abrir incidentes falsos. El semáforo evita agotar hilos y conexiones (R-11, R-12). Los headers descifrados viven solo en memoria durante el check.
+- **Dependencies:** OW-025, OW-027.
+- **Definition of Done:** el algoritmo del documento del motor coincide con la implementación.
+
 ### OW-028 · Consulta de checks (cursor) y estadísticas
-`feature` · P2 · Milestone: v0.3.0 — Motor de monitoreo · **Planned**
+`feature` · P2 · Milestone: v0.3.0 — Motor de monitoreo · **Ready**
 
 - **Context:** historial y uptime por la API.
+  - De la v0.1.0 existen `PageQuery` y `PageResponse` (paginación por offset); el cursor es nuevo.
+  - De OW-021, la autorización de un monitor sobre su proyecto (`404` también para el monitor de un proyecto borrado).
 - **Objective:** `GET /api/v1/monitors/{monitorId}/checks` y `GET /api/v1/monitors/{monitorId}/stats`.
 - **Tasks:**
-  - [ ] `CursorPage` con un cursor opaco validado.
+  - [ ] `CursorPage` en `shared.web`, con un cursor opaco validado.
   - [ ] Consulta de estadísticas (`FILTER` y `percentile_cont`).
-  - [ ] Ventanas `24h`, `7d` y `30d`.
-- **Acceptance Criteria:** con datos conocidos, el uptime y los percentiles coinciden con los calculados a mano; un cursor manipulado → `400`; `limit=201` → `400`.
+  - [ ] Ventanas `24h`, `7d` y `30d`. El uptime solo cuenta los checks hechos, así que el tiempo en pausa no suma ni resta.
+  - [ ] Filas nuevas en la matriz de autorización (`MONITOR_READ`).
+- **Acceptance Criteria:**
+  - Con datos conocidos, el uptime y los percentiles coinciden con los calculados a mano.
+  - Un cursor manipulado → `400`; `limit=201` → `400`; una ventana fuera de la lista → `400 invalid-parameter`.
 - **Testing:**
   - Unitarios: codificación del cursor.
   - Integración: `MonitorStatsIT` con datos sembrados.
   - API y seguridad: IDOR en los dos endpoints.
-- **Security considerations:** un cursor manipulado no puede saltar a datos de otro monitor: el cursor solo contiene una fecha y la consulta siempre filtra por el `monitorId` autorizado. `limit` acotado contra consultas caras (disponibilidad).
+- **Security considerations:** un cursor manipulado no puede saltar a datos de otro monitor, porque solo contiene una fecha y la consulta siempre filtra por el `monitorId` autorizado. `limit` acotado contra consultas caras (disponibilidad).
 - **Dependencies:** OW-027.
 - **Definition of Done:** tiempo de `stats?window=30d` con 86 400 filas anotado.
 
 ### OW-029 · Job de retención
-`feature` `performance` · P2 · Milestone: v0.3.0 — Motor de monitoreo · **Planned**
+`feature` `performance` · P2 · Milestone: v0.3.0 — Motor de monitoreo · **Ready**
 
-- **Context:** crecimiento de `monitor_checks` ([retención](../database/data-retention.md)).
-- **Objective:** purga diaria en lotes, con advisory lock.
+- **Context:** crecimiento de `monitor_checks` ([retención](../database/data-retention.md)). Los refresh tokens ya los purga `RefreshTokenPurgeJob` (OW-014), y el archivo del registro de eventos `EventPublicationPurgeJob` (OW-034): esta issue no los toca.
+- **Objective:** purga diaria en lotes de los checks antiguos, y de los checks y el estado de los monitores borrados.
 - **Tasks:**
-  - [ ] `RetentionJob` para checks, refresh tokens y checks de monitores borrados.
-  - [ ] `pg_try_advisory_lock` para que solo corra en una instancia.
-  - [ ] Métricas de filas borradas y de duración.
-- **Acceptance Criteria:** borra solo lo anterior a la fecha de corte; dos instancias a la vez → solo una purga; lotes de 10 000 filas como máximo por transacción.
+  - [ ] `CheckRetentionJob` con `opswatch.retention.cron`, `opswatch.retention.checks` (30 días) y lotes de `opswatch.retention.batch-size` (10 000).
+  - [ ] **Sin advisory lock** (decisión de Ricardo del 2026-10-03, coherente con OW-014 y OW-034): cada lote elige sus filas con `FOR UPDATE SKIP LOCKED`. Dos instancias se reparten el trabajo sin repetirlo ni esperarse, y ninguna retiene una conexión durante toda la purga.
+  - [ ] Checks de los monitores borrados en lotes, y después su `monitor_state`. La fila de `monitors` se queda: la referenciarán los incidentes desde la v0.4.0.
+  - [ ] Si el estado de un monitor borrado ya no existe cuando vuelve un check en vuelo, el registro descarta el resultado sin error.
+  - [ ] Métricas de filas borradas y de duración (`opswatch_retention_deleted_rows_total{table}` y `opswatch_retention_duration_seconds{table}`).
+- **Acceptance Criteria:**
+  - Borra solo lo anterior a la fecha de corte.
+  - Dos instancias a la vez no borran dos veces la misma fila ni se esperan.
+  - Lotes de 10 000 filas como máximo por transacción.
+  - El estado de un monitor borrado desaparece solo después de sus checks.
 - **Testing:**
-  - Integración: `RetentionJobIT`, incluido el caso de dos instancias.
+  - Integración: `CheckRetentionJobIT`, incluidas dos ejecuciones simultáneas.
 - **Security considerations:** integridad y disponibilidad: un error en la fecha de corte borraría historial válido (el test lo cubre), y un `DELETE` masivo sin lotes bloquearía la tabla. Sin dato sensible nuevo.
 - **Dependencies:** OW-027.
-- **Definition of Done:** propiedades de retención en el catálogo.
+- **Definition of Done:** propiedades de retención en el catálogo y en [retención](../database/data-retention.md).
 
 ### OW-030 · Métricas del motor con Micrometer
-`devops` `performance` · P2 · Milestone: v0.3.0 — Motor de monitoreo · **Planned**
+`devops` `performance` · P2 · Milestone: v0.3.0 — Motor de monitoreo · **Ready**
 
-- **Context:** sin métricas no hay evidencia para las decisiones de las Fases 7 a 10.
+- **Context:** sin métricas no hay evidencia para las decisiones de las Fases 7 a 10. El gauge `opswatch_event_publications_incomplete` (OW-034) ya existe y se exporta con lo demás.
 - **Objective:** las métricas de la Fase 3 de [observabilidad](../devops/observability.md#métricas-propias) en `/actuator/prometheus`.
 - **Tasks:**
-  - [ ] Registro de Prometheus de Micrometer.
-  - [ ] Contadores, histogramas con buckets explícitos y gauges recalculados de forma periódica.
+  - [ ] `io.micrometer:micrometer-registry-prometheus` sin versión propia: la fija el BOM (1.17.1). Decisión de Ricardo del 2026-10-03.
+  - [ ] `prometheus` en `management.endpoints.web.exposure.include`, solo en el puerto de management (8081), que no se publica.
+  - [ ] Contadores, histogramas con buckets explícitos y gauges recalculados de forma periódica, nunca en el scrape. Incluye `opswatch_egress_blocked_total{reason}`.
   - [ ] Test de que ninguna métrica lleva etiquetas de alta cardinalidad.
   - [ ] Medición informal con 100 y 1 000 monitores contra un destino local.
 - **Acceptance Criteria:** después de ejecutar checks, las métricas aparecen con los valores esperados; ninguna etiqueta tiene `monitorId`, `organizationId` ni URL.

@@ -79,12 +79,12 @@ Es la defensa principal contra el DNS rebinding. Apache HttpClient 5 permite sus
 ```java
 final class GuardedDnsResolver implements DnsResolver {
 
-    private final DnsResolver delegate = SystemDefaultDnsResolver.INSTANCE;
+    private final HostResolver delegate;   // el de OW-020: el del sistema, o FakeHostResolver en los tests
     private final IpRangeClassifier classifier;
 
     @Override
     public InetAddress[] resolve(String host) throws UnknownHostException {
-        InetAddress[] addresses = delegate.resolve(host);   // también para IP literales
+        InetAddress[] addresses = delegate.resolve(host).toArray(InetAddress[]::new);   // también para IP literales
         for (InetAddress address : addresses) {
             if (!classifier.isAllowed(address)) {
                 // Si UNA dirección está bloqueada, se rechaza el host entero:
@@ -104,6 +104,7 @@ final class GuardedDnsResolver implements DnsResolver {
 
 - `BlockedTargetException` extiende `UnknownHostException` para atravesar la API del cliente sin envoltorios, y el motor la clasifica como `TARGET_BLOCKED`.
 - Se aplica en **cada conexión**: en cada check, en cada salto de redirect y en cada envío de webhook.
+- Antes de cada petición y en cada salto, el cliente vuelve a aplicar las reglas de la capa 1 que no necesitan DNS (`TargetPolicy.validateSyntax`: esquema, forma del host, puerto y credenciales) y la capa 4 de los headers (`HeaderPolicy`). Una URL o un header guardados antes de que existiera una regla, o escritos en la base por fuera de la API, dan `TARGET_BLOCKED` y nunca salen (OW-024).
 - **Test obligatorio:** comprobar que las URL con IP literal también pasan por `resolve()`. Si una versión futura del cliente se saltara el resolver para las IP literales, este test fallaría y la capa 1 seguiría rechazándolas.
 - Hay que verificar que ningún otro camino del cliente resuelve nombres por su cuenta (proxies, rutas precalculadas). Por eso la capa 4 desactiva los proxies.
 

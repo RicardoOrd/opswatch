@@ -1,6 +1,6 @@
 # Motor de monitoreo
 
-Estado: diseño inicial · Última revisión: 2026-09-28 · Decisiones: [ADR-006](../adr/ADR-006-check-scheduling.md), [ADR-007](../adr/ADR-007-http-client-and-concurrency.md), [ADR-008](../adr/ADR-008-check-results-storage.md)
+Estado: diseño inicial · Última revisión: 2026-10-03 (refinamiento de la v0.3.0) · Decisiones: [ADR-006](../adr/ADR-006-check-scheduling.md), [ADR-007](../adr/ADR-007-http-client-and-concurrency.md), [ADR-008](../adr/ADR-008-check-results-storage.md)
 
 Es la pieza central de OpsWatch y la que decide si el producto es correcto. Este documento cubre la programación, la concurrencia, el cliente HTTP, la evaluación, la persistencia, la presión de carga y los modos de fallo.
 
@@ -202,7 +202,7 @@ public interface HttpMonitorClient {
 public record ProbeRequest(
         URI url,
         ProbeMethod method,              // GET o HEAD
-        List<Header> headers,            // ya descifrados, validados al guardar
+        List<RequestHeader> headers,     // descifrados por MonitorHeaders; HeaderPolicy los vuelve a comprobar al enviar
         Duration timeout,
         boolean followRedirects) {}
 
@@ -259,7 +259,7 @@ Ventajas de esta frontera:
 
 | Aspecto | Configuración | Motivo |
 |---|---|---|
-| Resolución DNS | `GuardedDnsResolver` de `egress` | Filtra las IP bloqueadas y fija la IP de conexión ([SSRF](../security/ssrf-protection.md#capa-2-resolución-dns-con-fijación-de-ip)) |
+| Resolución DNS | `GuardedDnsResolver` de `egress`, que resuelve con el `HostResolver` inyectable de OW-020 | Filtra las IP bloqueadas y fija la IP de conexión ([SSRF](../security/ssrf-protection.md#capa-2-resolución-dns-con-fijación-de-ip)). En los tests, `FakeHostResolver` decide qué devuelve cada nombre |
 | Proxy | Ninguno. **No** se usan las propiedades del sistema | Un proxy heredado del entorno saltaría el filtro de IP |
 | Timeout de conexión | `timeoutMs` | |
 | Timeout de lectura (socket) | `timeoutMs` | Cubre también el handshake TLS |
@@ -292,7 +292,7 @@ Ventajas de esta frontera:
 Con `followRedirects = true`:
 
 1. Si la respuesta es `301`, `302`, `303`, `307` o `308` y trae `Location`, se resuelve la URL relativa contra la actual.
-2. La nueva URL pasa `TargetPolicy` (esquema, forma del host y puerto). La IP se valida al conectar a través del `GuardedDnsResolver`, igual que en el primer salto.
+2. La nueva URL pasa `TargetPolicy.validateSyntax` (esquema, forma del host, puerto y credenciales, sin resolver el nombre), y los headers que se reenvían, `HeaderPolicy`. La IP se valida al conectar a través del `GuardedDnsResolver`, igual que en el primer salto, que también pasa por `validateSyntax` y `HeaderPolicy` antes de cada petición.
 3. `301`, `302` y `303` se siguen con `GET` (`HEAD` se mantiene como `HEAD`). `307` y `308` conservan el método.
 4. **Los headers configurados solo se reenvían si el salto es al mismo origen** (esquema, host y puerto). A un origen distinto se quitan, para que un redirect no filtre un `Authorization` a otro host. Es lo mismo que hacen los navegadores y curl.
 5. Como mucho 5 saltos. Si se supera el límite o se repite una URL, el resultado es `TOO_MANY_REDIRECTS`.
@@ -304,7 +304,7 @@ Con `followRedirects = false`, la respuesta `3xx` es la final y se evalúa contr
 
 | Excepción o condición | `FailureReason` |
 |---|---|
-| `BlockedTargetException` (lanzada por `GuardedDnsResolver` o `TargetPolicy`) | `TARGET_BLOCKED` |
+| `BlockedTargetException` (lanzada por `GuardedDnsResolver`, `TargetPolicy.validateSyntax` o `HeaderPolicy` al enviar) | `TARGET_BLOCKED` |
 | `UnknownHostException` | `DNS_FAILURE` |
 | `ConnectTimeoutException`, `SocketTimeoutException`, cancelación por deadline | `TIMEOUT` |
 | `HttpHostConnectException`, `ConnectException`, `NoRouteToHostException`, conexión reseteada | `CONNECTION_FAILED` |
@@ -312,7 +312,7 @@ Con `followRedirects = false`, la respuesta `3xx` es la final y se evalúa contr
 | Límite de redirects o bucle | `TOO_MANY_REDIRECTS` |
 | `ProtocolException`, `NoHttpResponseException`, headers fuera de límite, `Location` inválido | `PROTOCOL_ERROR` |
 | Otra `IOException` | `CONNECTION_FAILED` |
-| `RuntimeException` (bug propio) | **No es un check.** Métrica `outcome="ERROR"`, log de error y el estado no cambia |
+| `RuntimeException` (bug propio), o `DecryptionFailedException` al descifrar los headers | **No es un check.** Métrica `outcome="ERROR"`, log de error con el id del monitor y el estado no cambia |
 
 `error_detail` guarda un texto corto y genérico ("connection refused", "certificate expired"). Nunca guarda el cuerpo de la respuesta ni mensajes crudos de la excepción que puedan incluir datos internos.
 
@@ -360,7 +360,7 @@ Reglas:
 
 - Al recibir `SIGTERM`: el dispatcher deja de reclamar, se espera a los checks en vuelo hasta `timeoutMs` máximo más 5 s y los que queden se cancelan. Sus monitores se ejecutan en el siguiente intervalo.
 - `server.shutdown=graceful` y `spring.lifecycle.timeout-per-shutdown-phase=35s`.
-- El motor se puede desactivar por instancia con `opswatch.monitoring.engine.enabled=false` (instancias que solo sirven la API).
+- El motor se puede desactivar por instancia con `opswatch.monitoring.engine.enabled=false` (instancias que solo sirven la API). Está desactivado en el perfil `test`: el contexto compartido de los tests haría peticiones reales por cada monitor que crean. Los tests del motor lo activan en su propio contexto, contra WireMock en `127.0.0.1`.
 
 ## 13. Flujo completo de un check
 
