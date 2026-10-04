@@ -13,7 +13,7 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 
 **Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
-**Foco actual: v0.3.0 — Motor de monitoreo**, refinada el 2026-10-03 contra lo que dejó construido la v0.2.0 (publicada el 2026-10-03, release #79). Orden: OW-024 → OW-025 → OW-027 → OW-026 → OW-028 → OW-029 → OW-030, las siete en **Ready**. La v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
+**Foco actual: v0.3.0 — Motor de monitoreo**, refinada el 2026-10-03 contra lo que dejó construido la v0.2.0 (publicada el 2026-10-03, release #79). Orden: OW-024 → OW-025 → OW-027 → OW-026 → OW-028 → OW-029 → OW-030. OW-024 y OW-025 están **Hechas**; las demás, en **Ready**. La v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
 
 ## Convenciones
 
@@ -673,34 +673,49 @@ Refinada el 2026-10-03 contra lo que dejó construido la v0.2.0:
 - **Definition of Done:** el documento de SSRF coincide con la implementación.
 
 ### OW-025 · `HttpMonitorClient` con Apache HttpClient 5
-`feature` `security` · P1 · Milestone: v0.3.0 — Motor de monitoreo · **Ready**
+`feature` `security` · P1 · Milestone: v0.3.0 — Motor de monitoreo · **Hecha**
 
 - **Context:** separar observar de juzgar ([motor](../architecture/monitoring-engine.md#5-httpmonitorclient)). Los headers llegan descifrados por `MonitorHeaders` (OW-022) como `RequestHeader` de `egress`. De OW-024 llega `EgressHttpClients`: el cliente ya comprueba la URL y los headers de cada petición antes de salir, y resuelve con el resolver protegido.
 - **Objective:** `ApacheHttpMonitorClient` con deadline total, redirects manuales y clasificación de fallos.
 - **Tasks:**
-  - [ ] `ProbeRequest`, con `List<RequestHeader>` y un `toString()` sin valores, y `HttpObservation` (sealed).
-  - [ ] `FailureReason` en el paquete raíz de `monitoring`: aparece en la firma de `MonitorWentDown` ([eventos](../architecture/events.md#2-catálogo)).
-  - [ ] Un cliente de `EgressHttpClients` (`TargetKind.MONITOR`, `max-concurrent-checks` conexiones, el timeout máximo de un monitor) creado una vez y cerrado al apagar.
-  - [ ] Deadline total con `cancel()` programado: `timeoutMs` más `opswatch.monitoring.engine.deadline-grace` (200 ms). También acota la conexión, cuyo timeout no se puede fijar por petición (OW-024).
-  - [ ] Redirects manuales:
+  - [x] `ProbeRequest`, con `List<RequestHeader>` y un `toString()` sin valores, y `HttpObservation` (sealed).
+    - **Añadido durante la implementación:** el `toString()` tampoco imprime las credenciales ni la query de la URL, que puede llevar un token.
+  - [x] `FailureReason` en el paquete raíz de `monitoring`: aparece en la firma de `MonitorWentDown` ([eventos](../architecture/events.md#2-catálogo)).
+  - [x] Un cliente de `EgressHttpClients` (`TargetKind.MONITOR`, `max-concurrent-checks` conexiones, el timeout máximo de un monitor) creado una vez y cerrado al apagar.
+    - `MonitoringEngineProperties` (`opswatch.monitoring.engine`) nace aquí con `max-concurrent-checks`, `max-redirects`, `deadline-grace` y `user-agent`. Las demás propiedades del motor llegan con OW-026.
+  - [x] Deadline total con `cancel()` programado: `timeoutMs` más `opswatch.monitoring.engine.deadline-grace` (200 ms). También acota la conexión, cuyo timeout no se puede fijar por petición (OW-024).
+    - Un hilo de plataforma (`check-deadline`) programa el corte de todos los checks. `cancel()` cierra el socket en el acto, también a mitad de un `connect`: httpclient5 5.6.4 ata el socket a la conexión antes de conectar (comprobado en su bytecode). Ese caso no tiene test: un `connect` que no termina no se simula igual en Windows y en Linux.
+    - **Cambiado durante la implementación:** las peticiones no bajan el timeout de respuesta. Un `RequestConfig` por petición sustituye entero al del cliente de `egress`, y con él la espera máxima del pool. El deadline es el único plazo de cada check.
+  - [x] Redirects manuales:
     - cada salto es una petición nueva del mismo cliente, así que `EgressRequestGuard` y el resolver protegido lo comprueban sin nada más;
-    - cambio de método según el código;
-    - headers solo al mismo origen;
-    - `opswatch.monitoring.engine.max-redirects` (5) como máximo y detección de bucles.
-  - [ ] Mapeo de excepción a `FailureReason`: `BlockedTargetException` → `TARGET_BLOCKED`, y también la `ClientProtocolException` con la que el cliente rechaza un esquema o unas credenciales en la URL (solo pueden venir de la base tocada por fuera de la API).
-  - [ ] Cierre de la conexión tras recibir los headers: el cuerpo no se lee.
-  - [ ] `User-Agent` de `opswatch.monitoring.engine.user-agent`.
+    - cambio de método según el código. **Cambiado durante la implementación:** con `GET` y `HEAD` el método nunca cambia (`301`, `302` y `303` pasan a `GET` todo menos `HEAD`, y `307` y `308` lo conservan), así que no hay código que lo cambie;
+    - headers solo al mismo origen (esquema, host y puerto) que la URL del monitor;
+    - `opswatch.monitoring.engine.max-redirects` (5) como máximo y detección de bucles;
+    - el `Location` se resuelve con `URIUtils.resolve` de httpclient5, que sigue la RFC 3986 (`URI.resolve` no lo hace con una referencia que solo trae query), y sin fragmento.
+  - [x] Mapeo de excepción a `FailureReason`: `BlockedTargetException` → `TARGET_BLOCKED`, y también la `ClientProtocolException` con la que el cliente rechaza un esquema o unas credenciales en la URL (solo pueden venir de la base tocada por fuera de la API).
+    - **Cambiado durante la implementación:** `ClientProtocolException` no basta para distinguirlas. El cliente también la usa para una respuesta que no puede leer (un header sin `:`, `HTTP/2.0` en la línea de estado). `ApacheHttpMonitorClient` reconoce antes de enviar lo que el cliente rechazaría (esquema, URL sin host, credenciales) y lo clasifica `TARGET_BLOCKED`; el resto de `ClientProtocolException` es `PROTOCOL_ERROR`. Sin ese paso, esas URL tampoco salen, pero contarían como un fallo del destino.
+    - Una vez vencido el deadline, cualquier excepción del cliente es el corte: `TIMEOUT`.
+  - [x] Cierre de la conexión tras recibir los headers: el cuerpo no se lee.
+    - Cerrar la respuesta leería el cuerpo hasta el final, así que antes se cancela la petición, que cierra el socket.
+  - [x] `User-Agent` de `opswatch.monitoring.engine.user-agent`.
+    - El valor por defecto vive en `application.yml`, con la versión del pom que pone Maven al copiar los recursos (hoy `0.1.0-SNAPSHOT`).
 - **Acceptance Criteria:**
   - Los casos 18, 19 y 22 de la tabla de SSRF; el 22 con un destino que gotea bytes (un servidor de sockets en el test: WireMock no gotea headers).
   - Un destino que tarda más que `timeoutMs` devuelve `TIMEOUT` en menos de `timeoutMs` + 500 ms.
   - Cada fila de la [tabla de clasificación](../architecture/monitoring-engine.md#8-clasificación-de-fallos) produce su `FailureReason`.
-  - `error_detail` es siempre un texto propio y genérico.
+  - `error_detail` es siempre un texto propio y genérico: las constantes de `Failures`.
 - **Testing:**
-  - Integración: `ApacheHttpMonitorClientIT` contra WireMock en `127.0.0.1` (códigos, retrasos, redirects, bucles, más de 5 saltos, TLS autofirmado, `Location` inválido).
+  - Integración: `ApacheHttpMonitorClientTest` contra WireMock en `127.0.0.1` (códigos, retrasos, redirects, bucles, más de 5 saltos, TLS autofirmado, `Location` inválido).
+    - **Cambiado durante la implementación:** se llama `*Test` y no `*IT`, como `EgressHttpClientsTest`: WireMock corre dentro del proceso y no necesita Docker.
+    - Desde `monitoring`, el `EgressHttpClients` real lo da `TestEgressHttpClients` (tests, `egress.internal`).
+    - El caso 22 usa un servidor de sockets propio que manda un byte de header cada 100 ms.
   - Seguridad:
     - redirect a otro origen sin `Authorization`;
     - redirect hacia `169.254.169.254`;
     - redirect a un puerto o un esquema que el cliente rechaza.
+  - Unitarios: `FailuresTest` con cada fila de la tabla, también las que un destino simulado no produce de forma fiable (sin ruta, certificado caducado), y comprobando que el detalle nunca repite el mensaje de la excepción; `RedirectsTest`, `DeadlineTest`, `ProbeRequestTest` y `MonitoringEnginePropertiesTest`.
+  - Comprobado que los tests detectan el fallo: sin el deadline, sin el reconocimiento de lo que rechaza el cliente o sin la regla del mismo origen, fallan.
+  - `MonitoringModuleIT` (`@ApplicationModuleTest`, sin el módulo `egress`) simula `EgressHttpClients` con `@MockitoBean(answers = RETURNS_MOCKS)`: `create()` devuelve un cliente simulado, y `ApacheHttpMonitorClient` arranca y se cierra sin red.
 - **Security considerations:** T-22 (redirect hacia la red interna), T-27 (credenciales reenviadas a otro host) y T-28 (el cuerpo no se guarda ni se muestra). Disponibilidad: el deadline impide que un destino hostil retenga un permiso más de `timeoutMs`.
 - **Dependencies:** OW-024.
 - **Definition of Done:** la tabla de clasificación del documento del motor está verificada por los tests.
@@ -749,6 +764,7 @@ Refinada el 2026-10-03 contra lo que dejó construido la v0.2.0:
     - Sin eso, el contexto compartido de los `@IntegrationTest` haría peticiones reales a `api.example.com` por cada monitor de los tests (el DNS falso lo resuelve a una IP pública).
     - Los tests del motor lo activan en su propio contexto.
   - [ ] Apagado ordenado (`SmartLifecycle`): deja de reclamar y espera como mucho `timeoutMs` más `opswatch.monitoring.engine.shutdown-grace`.
+    - Lo que siga en vuelo después no se guarda. `ApacheHttpMonitorClient` cierra su cliente al apagarse (OW-025), y una petición cortada así llegaría como `CONNECTION_FAILED`: un fallo propio contado como del destino, que podría abrir un incidente falso.
 - **Acceptance Criteria:**
   - 4 claimers en paralelo sobre 1 000 monitores vencidos, 20 rondas: cada monitor reclamado **exactamente una vez** por ronda (0 duplicados, 0 omitidos).
   - Un monitor atrasado más de un intervalo se ejecuta una vez y salta al siguiente intervalo (sin catch-up).

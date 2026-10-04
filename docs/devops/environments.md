@@ -119,7 +119,7 @@ Los rangos de validación del dominio (intervalo de 30 a 3600 s, timeout de 1 a 
 | `opswatch.monitoring.engine.deadline-grace` | `200ms` | Margen sobre `timeoutMs` para cortar la petición |
 | `opswatch.monitoring.engine.overdue-threshold` | `5s` | Para la métrica de vencidos |
 | `opswatch.monitoring.engine.shutdown-grace` | `5s` | Espera extra en el apagado |
-| `opswatch.monitoring.engine.user-agent` | `OpsWatch-Monitor/${version} (+<url de ayuda>)` | |
+| `opswatch.monitoring.engine.user-agent` | `OpsWatch-Monitor/<versión del pom> (+https://github.com/RicardoOrd/opswatch)` | En `application.yml`: Maven pone la versión al copiar los recursos. No puede quedar vacío |
 
 ### Egress
 

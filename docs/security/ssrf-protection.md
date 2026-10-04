@@ -108,7 +108,7 @@ final class GuardedDnsResolver implements DnsResolver {
 - Se aplica en **cada conexión**: en cada check, en cada salto de redirect y en cada envío de webhook.
 - Antes de cada petición y de cada salto, y antes de resolver y de conectar, `EgressRequestGuard` (el primer eslabón de la cadena de ejecución del cliente) vuelve a aplicar las reglas de la capa 1 que no necesitan DNS (esquema, forma del host, puerto y credenciales) y la capa 4 de los headers (`HeaderPolicy`). Una URL o un header guardados antes de que existiera una regla, o escritos en la base por fuera de la API, dan `TARGET_BLOCKED` y nunca salen (OW-024).
   - Tiene que ser un interceptor de la cadena: los `HttpRequestInterceptor` de httpclient5 5.x se ejecutan después de conectar.
-  - Un esquema que no es http ni https, o credenciales en la URL, los rechaza el propio cliente antes de la cadena (`ClientProtocolException`).
+  - Un esquema que no es http ni https, o credenciales en la URL, los rechaza el propio cliente antes de la cadena (`ClientProtocolException`). Como esa excepción es la misma que para una respuesta que el cliente no puede leer, `ApacheHttpMonitorClient` reconoce esas URL antes de enviarlas y las clasifica como `TARGET_BLOCKED`, no como un error de protocolo del destino (OW-025).
 - **Test obligatorio:** comprobar que las URL con IP literal también pasan por `resolve()`. Si una versión futura del cliente se saltara el resolver para las IP literales, este test fallaría y la capa 1 seguiría rechazándolas.
 - Hay que verificar que ningún otro camino del cliente resuelve nombres por su cuenta (proxies, rutas precalculadas). Por eso la capa 4 desactiva los proxies.
 
