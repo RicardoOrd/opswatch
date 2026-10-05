@@ -25,5 +25,7 @@ public class OpenApiConfiguration {
         SpringDocUtils.getConfig().addRequestWrapperToIgnore(CurrentUser.class);
         // Read from page, size and sort by PageQueryArgumentResolver; each list documents those three itself
         SpringDocUtils.getConfig().addRequestWrapperToIgnore(PageQuery.class);
+        // Read from limit and cursor by CursorQueryArgumentResolver; each list documents those two itself
+        SpringDocUtils.getConfig().addRequestWrapperToIgnore(CursorQuery.class);
     }
 }

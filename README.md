@@ -34,9 +34,10 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | Headers de monitor cifrados con AES-256-GCM y de solo escritura (OW-022) | **Implemented** |
 | Pausa, reanudación, borrado y limpieza de monitores al borrar su proyecto (OW-044) | **Implemented** |
 | Motor de checks: claim con `SKIP LOCKED` sin duplicados entre instancias, virtual threads con semáforo, cliente HTTP endurecido contra SSRF, registro de resultados y estado del monitor (OW-024 a OW-027) | **Implemented** |
+| Historial de checks por cursor y estadísticas de 24 h, 7 d y 30 d: uptime, percentiles y fallos por causa (OW-028) | **Implemented** |
 | Resto de funcionalidades de producto | Planned |
 
-**Qué se hace ahora:** el milestone [v0.3.0 — Motor de monitoreo](https://github.com/RicardoOrd/opswatch/milestone/4). El motor ya ejecuta los checks; quedan la consulta del historial y las estadísticas (OW-028), la retención (OW-029) y las métricas (OW-030). Siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
+**Qué se hace ahora:** el milestone [v0.3.0 — Motor de monitoreo](https://github.com/RicardoOrd/opswatch/milestone/4). El motor ya ejecuta los checks y la API da su historial y sus estadísticas; quedan la retención (OW-029) y las métricas (OW-030). Siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
 
 ---
 
@@ -67,7 +68,7 @@ Cada monitor hace algo como `GET https://api.example.com/health` cada 60 segundo
 | Proyectos dentro de cada organización | **Implemented** | 2 |
 | Monitores HTTP/HTTPS configurables, con headers cifrados, pausa y reanudación | **Implemented** | 2 |
 | Motor de health checks periódicos con protección contra SSRF | **Implemented** | 3 |
-| Historial de checks, uptime y percentiles de latencia | Planned | 3 |
+| Historial de checks, uptime y percentiles de latencia | **Implemented** | 3 |
 | Incidentes automáticos con reconocimiento (acknowledge) y resolución | Planned | 4 |
 | Notificaciones por email y por webhook firmado con HMAC | Planned | 4 |
 | Despliegue público en un VPS con CI/CD | Planned | 6 |

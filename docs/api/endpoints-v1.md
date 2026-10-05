@@ -236,7 +236,7 @@ Validaciones: ver el [modelo de dominio](../architecture/domain-model.md#monitor
 }
 ```
 
-`uptimePercent` = `(up + degraded) / totalChecks × 100` sobre los checks de la ventana, con 3 decimales. Si no hay checks, `null`. Los percentiles solo cuentan los checks con respuesta. La definición está en el [glosario](../architecture/domain-model.md#1-glosario).
+`uptimePercent` = `(up + degraded) / totalChecks × 100` sobre los checks de la ventana, con 3 decimales. Si no hay checks, `null`. Los percentiles solo cuentan los checks con respuesta, se redondean a milisegundos enteros y son `null` si ninguno la tuvo. La ventana termina ahora; sin `window`, `24h`. En el historial, `status` admite varios valores separados por comas, `from` es inclusivo y `to` exclusivo, y `from` que no es anterior a `to` da `400 invalid-parameter` (OW-028). La definición está en el [glosario](../architecture/domain-model.md#1-glosario).
 
 ## Incidentes (`incident`)
 

@@ -129,7 +129,7 @@ src/main/java/io/github/ricardoord/opswatch/
 ├── OpsWatchApplication.java
 ├── shared/                          (módulo abierto)
 │   ├── error/        DomainException, NotFoundException, ConflictException, ProblemDetailsHandler
-│   ├── web/          RequestIdFilter, PageResponse, CursorPage
+│   ├── web/          RequestIdFilter, PageResponse, PageQuery, CursorPage, CursorQuery
 │   ├── security/     CurrentUser, CurrentUserArgumentResolver
 │   ├── crypto/       SecretCipher (AES-256-GCM con key id)
 │   ├── events/       EventPublicationPurgeJob, IncompleteEventPublicationsMonitor
@@ -162,7 +162,7 @@ src/main/java/io/github/ricardoord/opswatch/
 │   ├── domain/       Monitor, MonitorState, MonitorStatus, MonitorSettings, MonitorSnapshot,
 │   │                 CheckStatus, CheckOutcome, StateTransition, StateChange,
 │   │                 repositorios (MonitorCheckRepository, con JDBC)
-│   ├── application/  MonitorService, CheckResultRecorder, MonitorStatsQueries, RetentionJob
+│   ├── application/  MonitorService, MonitorAccess, CheckResultRecorder, MonitorStatsQueries, RetentionJob
 │   ├── engine/       CheckDispatcher, CheckClaimer, ClaimedCheck, HttpMonitorClient, ProbeRequest, HttpObservation, CheckEvaluator,
 │   │                 MonitoringEngineProperties
 │   │   └── http/     ApacheHttpMonitorClient, Deadline, Redirects, Failures

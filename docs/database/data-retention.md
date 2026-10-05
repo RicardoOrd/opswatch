@@ -72,7 +72,7 @@ WHERE monitor_id = :monitorId
   AND checked_at <  :to;
 ```
 
-Para 30 días de un monitor a 30 s son unas 86 400 filas contiguas en el índice. Se espera que tarde decenas de milisegundos y se mide en la Fase 7. Las ventanas disponibles están limitadas por la retención: no se ofrece uptime de 90 días con 30 días de datos crudos.
+Para 30 días de un monitor a 30 s son unas 86 400 filas contiguas en el índice. **Medido el 2026-10-05 (OW-028):** con 86 400 filas, la consulta de totales y percentiles tarda 20,6 ms y la de fallos por causa 3,6 ms (`EXPLAIN ANALYZE`); el caso de uso entero, autorización incluida, 27 a 33 ms en 20 llamadas. Local, Windows con Docker Desktop, PostgreSQL 18.6, caché caliente y una tabla con un solo monitor: el benchmark B9 de la Fase 7 lo repite con 1 000 monitores. Las ventanas disponibles están limitadas por la retención: no se ofrece uptime de 90 días con 30 días de datos crudos.
 
 ## Estrategia futura
 

@@ -81,6 +81,8 @@ class EndpointAuthorizationMatrixIT {
             POST   /api/v1/monitors/{monitorId}/pause               200 200 200 403 404 401
             POST   /api/v1/monitors/{monitorId}/resume              200 200 200 403 404 401
             DELETE /api/v1/monitors/{monitorId}                     204 204 204 403 404 401
+            GET    /api/v1/monitors/{monitorId}/checks              200 200 200 200 404 401
+            GET    /api/v1/monitors/{monitorId}/stats               200 200 200 200 404 401
             """;
 
     private static final Pattern ROW = Pattern.compile("(GET|POST|PATCH|DELETE)\\s+(\\S+)((?:\\s+\\d{3}){6})");
@@ -286,6 +288,12 @@ class EndpointAuthorizationMatrixIT {
         requests.put(
                 "DELETE /api/v1/monitors/{monitorId}",
                 (mvc, fixture) -> mvc.delete().uri("/api/v1/monitors/{monitorId}", fixture.monitor()));
+        requests.put(
+                "GET /api/v1/monitors/{monitorId}/checks",
+                (mvc, fixture) -> mvc.get().uri("/api/v1/monitors/{monitorId}/checks", fixture.monitor()));
+        requests.put(
+                "GET /api/v1/monitors/{monitorId}/stats",
+                (mvc, fixture) -> mvc.get().uri("/api/v1/monitors/{monitorId}/stats", fixture.monitor()));
         return requests;
     }
 
