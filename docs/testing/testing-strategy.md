@@ -52,7 +52,7 @@ La lógica pura, sin Spring, sin base de datos y sin red:
 | Cálculo de `next_check_at` y del jitter | Con `Clock` fijo y `RandomGenerator` inyectado |
 | `SecretCipher` | Ida y vuelta, detección de manipulación (tag GCM), dato asociado de otra entidad, `keyId` desconocido |
 | Refresh tokens | Rotación, reutilización y caducidad de la familia (lógica aislada del repositorio) |
-| Cursor de paginación | Codificación, decodificación y rechazo de cursores manipulados |
+| Cursor de paginación | Codificación, decodificación y rechazo de cursores manipulados (`CursorPageTest`, OW-028) |
 
 ### Integración (Testcontainers)
 

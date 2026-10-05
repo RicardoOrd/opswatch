@@ -183,8 +183,10 @@ GET /api/v1/monitors/{monitorId}/checks?limit=50&cursor=eyJjIjoiMjAyNi0wOS0yOFQx
 
 - Orden fijo: `checkedAt` descendente.
 - `limit` vale 50 por defecto y 200 como máximo.
-- El cursor es **opaco** (Base64URL de un JSON interno). El cliente no lo interpreta ni lo construye. Si está manipulado → `400`.
+- El cursor es **opaco** (Base64URL de un JSON interno). El cliente no lo interpreta ni lo construye. Si está manipulado → `400 invalid-parameter`.
 - `nextCursor` es `null` cuando no hay más.
+- `limit` fuera de rango → `400 invalid-parameter`, como `size` en el offset.
+- En el código, el controlador declara un parámetro `CursorQuery` (OW-028): `CursorQueryArgumentResolver` lee y comprueba `limit` y `cursor`, y entrega el cursor ya decodificado. El cursor de una serie temporal (`TimeCursor`) solo lleva el instante del último elemento devuelto, `{"c":"<instante>"}`: como la consulta siempre filtra por el recurso autorizado, uno cambiado a mano no llega a datos de otro. La respuesta es `CursorPage<T>`, que se construye pidiendo `limit + 1` filas: la de más solo dice que hay otra página.
 
 ## 10. Ordenación
 

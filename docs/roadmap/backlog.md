@@ -13,7 +13,7 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 
 **Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
-**Foco actual: v0.3.0 — Motor de monitoreo**, refinada el 2026-10-03 contra lo que dejó construido la v0.2.0 (publicada el 2026-10-03, release #79). Orden: OW-024 → OW-025 → OW-027 → OW-026 → OW-028 → OW-029 → OW-030. OW-024, OW-025, OW-027 y OW-026 están **Hechas**; las demás, en **Ready**. La v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
+**Foco actual: v0.3.0 — Motor de monitoreo**, refinada el 2026-10-03 contra lo que dejó construido la v0.2.0 (publicada el 2026-10-03, release #79). Orden: OW-024 → OW-025 → OW-027 → OW-026 → OW-028 → OW-029 → OW-030. OW-024, OW-025, OW-027, OW-026 y OW-028 están **Hechas**; las demás, en **Ready**. La v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
 
 ## Convenciones
 
@@ -803,27 +803,34 @@ Refinada el 2026-10-03 contra lo que dejó construido la v0.2.0:
 - **Definition of Done:** el algoritmo del documento del motor coincide con la implementación.
 
 ### OW-028 · Consulta de checks (cursor) y estadísticas
-`feature` · P2 · Milestone: v0.3.0 — Motor de monitoreo · **Ready**
+`feature` · P2 · Milestone: v0.3.0 — Motor de monitoreo · **Hecha**
 
 - **Context:** historial y uptime por la API.
   - De la v0.1.0 existen `PageQuery` y `PageResponse` (paginación por offset); el cursor es nuevo.
   - De OW-021, la autorización de un monitor sobre su proyecto (`404` también para el monitor de un proyecto borrado).
 - **Objective:** `GET /api/v1/monitors/{monitorId}/checks` y `GET /api/v1/monitors/{monitorId}/stats`.
 - **Tasks:**
-  - [ ] `CursorPage` en `shared.web`, con un cursor opaco validado.
-  - [ ] Consulta de estadísticas (`FILTER` y `percentile_cont`).
-  - [ ] Ventanas `24h`, `7d` y `30d`. El uptime solo cuenta los checks hechos, así que el tiempo en pausa no suma ni resta.
-  - [ ] Filas nuevas en la matriz de autorización (`MONITOR_READ`).
+  - [x] `CursorPage` en `shared.web`, con un cursor opaco validado.
+    - **Añadido durante la implementación:** `CursorQuery` y su `CursorQueryArgumentResolver`, como `PageQuery`: leen `limit` (50 por defecto, de 1 a 200) y `cursor`, y dan `400 invalid-parameter` si no valen. El cursor (`TimeCursor`) es Base64URL de `{"c":"<instante>"}` y solo se acepta exactamente lo que se escribe. La consulta pide `limit + 1` filas: la de más solo dice que hay otra página, y `nextCursor` es `null` en la última.
+    - Filtros del historial: `status` (varios separados por comas), `from` (inclusivo) y `to` (exclusivo). `from` que no es anterior a `to` → `400 invalid-parameter`.
+  - [x] Consulta de estadísticas (`FILTER` y `percentile_cont`).
+    - **Cambiado durante la implementación:** dos consultas (los totales y los fallos por causa) en una transacción `REPEATABLE READ`, para que un check registrado entre las dos no cuente en una sí y en la otra no. Los tiempos (`avg`, `p50`, `p95` y `p99`) se redondean a milisegundos enteros en PostgreSQL y son `null` si ningún check tuvo respuesta.
+  - [x] Ventanas `24h`, `7d` y `30d`. El uptime solo cuenta los checks hechos, así que el tiempo en pausa no suma ni resta.
+    - **Añadido durante la implementación:** sin `window`, `24h`.
+  - [x] Filas nuevas en la matriz de autorización (`MONITOR_READ`).
+    - **Cambiado durante la implementación:** la autorización de un monitor por su id sale de `MonitorService` a `MonitorAccess`, que usan también `MonitorStatsQueries`: un solo sitio decide el `404` que habla del monitor.
 - **Acceptance Criteria:**
   - Con datos conocidos, el uptime y los percentiles coinciden con los calculados a mano.
   - Un cursor manipulado → `400`; `limit=201` → `400`; una ventana fuera de la lista → `400 invalid-parameter`.
 - **Testing:**
-  - Unitarios: codificación del cursor.
-  - Integración: `MonitorStatsIT` con datos sembrados.
-  - API y seguridad: IDOR en los dos endpoints.
+  - Unitarios: codificación del cursor (`CursorPageTest`).
+  - Integración: `MonitorStatsIT` con datos sembrados, incluidos 30 días a 30 s (86 400 filas).
+  - API y seguridad: IDOR en los dos endpoints (`CheckApiIT`). Un cursor del monitor de otra organización, usado en el propio, solo devuelve checks del propio.
+  - Comprobado que los tests detectan el fallo: con el cursor ignorado, con `to` inclusivo o sin autorizar, fallan.
 - **Security considerations:** un cursor manipulado no puede saltar a datos de otro monitor, porque solo contiene una fecha y la consulta siempre filtra por el `monitorId` autorizado. `limit` acotado contra consultas caras (disponibilidad).
 - **Dependencies:** OW-027.
 - **Definition of Done:** tiempo de `stats?window=30d` con 86 400 filas anotado.
+  - **Medido el 2026-10-05** (local, Windows con Docker Desktop, PostgreSQL 18.6 de Testcontainers, caché caliente, una sola tabla con ese monitor): `statsOf` completo, autorización incluida, 27 a 33 ms en 20 llamadas (mediana 31 ms); la consulta de totales y percentiles, 20,6 ms (`EXPLAIN ANALYZE`), y la de fallos por causa, 3,6 ms. Anotado en [retención](../database/data-retention.md#cálculo-del-uptime-en-v1).
 
 ### OW-029 · Job de retención
 `feature` `performance` · P2 · Milestone: v0.3.0 — Motor de monitoreo · **Ready**

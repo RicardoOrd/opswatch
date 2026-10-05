@@ -68,6 +68,7 @@ public class MonitorService {
     private final MonitorRepository monitors;
     private final MonitorStateRepository states;
     private final AccessControl access;
+    private final MonitorAccess monitorAccess;
     private final ProjectDirectory projects;
     private final TargetPolicy targets;
     private final AdvisoryLocks locks;
@@ -83,6 +84,7 @@ public class MonitorService {
             MonitorRepository monitors,
             MonitorStateRepository states,
             AccessControl access,
+            MonitorAccess monitorAccess,
             ProjectDirectory projects,
             TargetPolicy targets,
             AdvisoryLocks locks,
@@ -96,6 +98,7 @@ public class MonitorService {
         this.monitors = monitors;
         this.states = states;
         this.access = access;
+        this.monitorAccess = monitorAccess;
         this.projects = projects;
         this.targets = targets;
         this.locks = locks;
@@ -335,22 +338,12 @@ public class MonitorService {
                 .orElseThrow(() -> new ResourceNotFoundException("monitor", monitorId));
     }
 
-    /**
-     * Authorized on its project, which must not be deleted either. A non-member gets the 404 of a missing monitor,
-     * never one that names its project.
-     */
     private Monitor authorized(UUID userId, UUID monitorId, Permission permission) {
-        return authorize(userId, monitorId, permission, monitors.findByIdAndDeletedAtIsNull(monitorId));
+        return monitorAccess.require(userId, monitorId, permission);
     }
 
     private Monitor authorize(UUID userId, UUID monitorId, Permission permission, Optional<Monitor> found) {
-        Monitor monitor = found.orElseThrow(() -> new ResourceNotFoundException("monitor", monitorId));
-        try {
-            access.requireForProject(userId, monitor.projectId(), permission);
-        } catch (ResourceNotFoundException ex) {
-            throw new ResourceNotFoundException("monitor", monitorId);
-        }
-        return monitor;
+        return monitorAccess.require(userId, monitorId, permission, found);
     }
 
     private MonitorView view(Monitor monitor, MonitorState state) {
