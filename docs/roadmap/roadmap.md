@@ -8,7 +8,7 @@ Sin fechas: es un proyecto personal y el ritmo es variable. El orden y los crite
 
 | | |
 |---|---|
-| **Ahora** | **v0.3.0 — Motor de monitoreo**, refinada el 2026-10-03 ([backlog](backlog.md#v030--motor-de-monitoreo)) contra lo que dejó construido la v0.2.0: el cliente vuelve a aplicar `TargetPolicy` y `HeaderPolicy` en cada petición, el motor sigue el orden de bloqueos de `monitor_state` y está desactivado en el perfil `test` |
+| **Ahora** | **v0.3.0 — Motor de monitoreo**, refinada el 2026-10-03 ([backlog](backlog.md#v030--motor-de-monitoreo)) contra lo que dejó construido la v0.2.0: el cliente vuelve a aplicar `TargetPolicy` y `HeaderPolicy` en cada petición, el motor sigue el orden de bloqueos de `monitor_state` y está desactivado en el perfil `test`. Hechas OW-024, OW-025, OW-027 y OW-026: el motor ya ejecuta los checks. Quedan OW-028, OW-029 y OW-030 |
 | **Hecho** | v0.2.0 — Proyectos y monitores, publicada el 2026-10-03 (release #79). v0.1.0 — Identity y organizaciones, publicada el 2026-09-29 (release #69). Sprint 0 cerrado el 2026-09-28 |
 | **Orden** | OW-024 (`GuardedDnsResolver` y cliente endurecido) → OW-025 (`HttpMonitorClient`) → OW-027 (registro de resultados) → OW-026 (scheduler) → OW-028 (checks y estadísticas) → OW-029 (retención) → OW-030 (métricas) |
 | **Fuera de foco** | Todo lo de V2 a V5 (Redis, broker, microservicios, tiempo real). Vive en este roadmap y en los ADR propuestos, no en issues |

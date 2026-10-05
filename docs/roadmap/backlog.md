@@ -13,7 +13,7 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 
 **Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
-**Foco actual: v0.3.0 — Motor de monitoreo**, refinada el 2026-10-03 contra lo que dejó construido la v0.2.0 (publicada el 2026-10-03, release #79). Orden: OW-024 → OW-025 → OW-027 → OW-026 → OW-028 → OW-029 → OW-030. OW-024, OW-025 y OW-027 están **Hechas**; las demás, en **Ready**. La v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
+**Foco actual: v0.3.0 — Motor de monitoreo**, refinada el 2026-10-03 contra lo que dejó construido la v0.2.0 (publicada el 2026-10-03, release #79). Orden: OW-024 → OW-025 → OW-027 → OW-026 → OW-028 → OW-029 → OW-030. OW-024, OW-025, OW-027 y OW-026 están **Hechas**; las demás, en **Ready**. La v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
 
 ## Convenciones
 
@@ -761,23 +761,29 @@ Refinada el 2026-10-03 contra lo que dejó construido la v0.2.0:
 - **Definition of Done:** cada fila de la tabla de transiciones del modelo de dominio tiene su test.
 
 ### OW-026 · Scheduler con `SKIP LOCKED` y dispatcher con virtual threads
-`feature` `architecture` · P1 · Milestone: v0.3.0 — Motor de monitoreo · **Ready**
+`feature` `architecture` · P1 · Milestone: v0.3.0 — Motor de monitoreo · **Hecha**
 
 - **Context:** [ADR-006](../adr/ADR-006-check-scheduling.md) y [ADR-007](../adr/ADR-007-http-client-and-concurrency.md). Une el cliente (OW-025) con el registro (OW-027), por eso va después de los dos. Incluye los tests de concurrencia que antes estaban en OW-031.
   - El claim toma la fila de `monitor_state` con `FOR UPDATE SKIP LOCKED`: una pausa, una reanudación o un borrado en curso la tienen bloqueada, y el claim la salta.
   - Después, una pausa o un borrado la dejan sin programar.
 - **Objective:** `CheckClaimer` y `CheckDispatcher` con semáforo, sin catch-up y con apagado ordenado.
 - **Tasks:**
-  - [ ] Consulta de claim (CTE con `FOR UPDATE SKIP LOCKED`). Exige además `monitors.deleted_at IS NULL` como defensa: un monitor borrado ya no está programado.
-  - [ ] En la misma transacción corta, carga de la configuración y descifrado de los headers (`MonitorHeaders`). La petición HTTP ocurre fuera de toda transacción.
-  - [ ] Dispatcher con `Semaphore` y executor de virtual threads; reclama como mucho los permisos libres.
-  - [ ] Ejecución de cada check (de OW-025 y OW-027): el claim construye un `MonitorSnapshot` y el `ProbeRequest`; el hilo hace `HttpMonitorClient.probe`, `CheckEvaluator.evaluate` y `CheckResultRecorder.record`.
+  - [x] Consulta de claim (CTE con `FOR UPDATE SKIP LOCKED`). Exige además `monitors.deleted_at IS NULL` como defensa: un monitor borrado ya no está programado.
+    - **Cambiado durante la implementación:** el CTE une `monitors` para el filtro y el intervalo, así que el bloqueo es `FOR UPDATE OF s SKIP LOCKED`, solo sobre la fila del estado. Sin el `OF s` bloquearía también la fila del monitor, y un `PATCH` esperaría al claim. La fila del monitor se lee sin bloquear: todo el que cambia su configuración bloquea antes la del estado, y el claim la salta.
+  - [x] En la misma transacción corta, carga de la configuración y descifrado de los headers (`MonitorHeaders`). La petición HTTP ocurre fuera de toda transacción.
+    - `MonitorHeaders` y su `unseal` pasan a ser públicos: los usa `monitoring.engine`.
+  - [x] Dispatcher con `Semaphore` y executor de virtual threads; reclama como mucho los permisos libres.
+    - Sin permisos libres no llama al claim. Un claim que falla (la base de datos) deja un log de error y el siguiente dispatch lo intenta de nuevo.
+  - [x] Ejecución de cada check (de OW-025 y OW-027): el claim construye un `MonitorSnapshot` y el `ProbeRequest`; el hilo hace `HttpMonitorClient.probe`, `CheckEvaluator.evaluate` y `CheckResultRecorder.record`.
     - Una `RuntimeException` de la petición, o una `DecryptionFailedException` al descifrar los headers de un monitor, no es un check: log de error con el id del monitor y `opswatch.monitor.checks{outcome="ERROR"}`, el mismo contador que usa `CheckResultRecorder`. Un fallo de descifrado afecta a ese monitor, nunca al lote reclamado.
-  - [ ] `opswatch.monitoring.engine.enabled`, `true` por defecto y `false` en el perfil `test`.
+    - **Cambiado durante la implementación:** el log y el contador viven en `CheckResultRecorder.recordError`, que también usa su propio `record`. El claim trata igual cualquier `RuntimeException` al construir la petición de un monitor (no solo el descifrado), y la cuenta después del commit: un claim revertido no reclamó nada. El monitor queda reclamado, así que espera a su siguiente intervalo.
+  - [x] `opswatch.monitoring.engine.enabled`, `true` por defecto y `false` en el perfil `test`.
     - Sin eso, el contexto compartido de los `@IntegrationTest` haría peticiones reales a `api.example.com` por cada monitor de los tests (el DNS falso lo resuelve a una IP pública).
     - Los tests del motor lo activan en su propio contexto.
-  - [ ] Apagado ordenado (`SmartLifecycle`): deja de reclamar y espera como mucho `timeoutMs` más `opswatch.monitoring.engine.shutdown-grace`.
+    - Con él llegan `dispatch-interval`, `max-batch-size` y `shutdown-grace`, con los valores del catálogo. `overdue-threshold` llega con sus métricas (OW-030).
+  - [x] Apagado ordenado (`SmartLifecycle`): deja de reclamar y espera como mucho `timeoutMs` más `opswatch.monitoring.engine.shutdown-grace`.
     - Lo que siga en vuelo después no se guarda. `ApacheHttpMonitorClient` cierra su cliente al apagarse (OW-025), y una petición cortada así llegaría como `CONNECTION_FAILED`: un fallo propio contado como del destino, que podría abrir un incidente falso.
+    - **Concretado durante la implementación:** espera hasta el deadline más lejano de los checks en vuelo (`timeoutMs` más `deadline-grace` desde que se lanzaron) más `shutdown-grace`, en un hilo propio. Va en la fase del apagado ordenado del servidor web, así los dos esperan a la vez dentro de los 35 s de `timeout-per-shutdown-phase` y de los 40 s de `stop_grace_period`. Un check abandonado se reconoce porque su executor está cerrado; si la fase se agota antes, el `destroy` del dispatcher lo cierra, y Spring lo destruye antes que al cliente, del que depende.
 - **Acceptance Criteria:**
   - 4 claimers en paralelo sobre 1 000 monitores vencidos, 20 rondas: cada monitor reclamado **exactamente una vez** por ronda (0 duplicados, 0 omitidos).
   - Un monitor atrasado más de un intervalo se ejecuta una vez y salta al siguiente intervalo (sin catch-up).
@@ -786,8 +792,12 @@ Refinada el 2026-10-03 contra lo que dejó construido la v0.2.0:
   - El plan de la consulta de claim usa `ix_monitor_state_due`.
 - **Testing:**
   - Unitarios: cálculo del siguiente `next_check_at` con `Clock` fijo.
+    - **Cambiado durante la implementación:** el cálculo vive en la consulta de claim, así que se prueba en `CheckClaimerIT` con el instante del claim fijado. `CheckDispatcherTest` (unitario, con el claim simulado) prueba cuánto pide el dispatcher y cuándo no pide nada.
   - Integración (concurrencia): `CheckClaimerConcurrencyIT` con PostgreSQL real.
   - Integración: dispatcher con un `HttpMonitorClient` falso; `EXPLAIN` del claim.
+    - `CheckDispatcherIT` construye cada dispatcher en el test, con el claim y el registro reales, y llama a `dispatch()`. `MonitoringEngineIT` activa el motor en su propio contexto (`@DirtiesContext`) y comprueba que un monitor vencido se ejecuta solo.
+    - **Añadido durante la implementación:** los tests del motor reclaman en 2001 (`PastSchedule`). Comparten la base con todos los demás, que programan sus monitores a la hora real, y así solo ven los suyos; antes y después de cada test se desprograma todo lo anterior a 2002.
+  - Comprobado que los tests detectan el fallo: sin el `FOR UPDATE` hay duplicados; sin `SKIP LOCKED` el claim espera a la pausa; con catch-up, sin el filtro de borrados o sin descartar los checks abandonados, fallan.
 - **Security considerations:** una ejecución duplicada no es solo un fallo de correctitud: duplica el tráfico hacia terceros (T-26) y puede abrir incidentes falsos. El semáforo evita agotar hilos y conexiones (R-11, R-12). Los headers descifrados viven solo en memoria durante el check.
 - **Dependencies:** OW-025, OW-027.
 - **Definition of Done:** el algoritmo del documento del motor coincide con la implementación.

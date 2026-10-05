@@ -13,3 +13,8 @@ opswatch:
       login-per-email: 100000/1m
       register-per-ip: 100000/1m
       refresh-per-ip: 100000/1m
+  monitoring:
+    engine:
+      # Sin motor en el contexto compartido: haría peticiones reales por cada monitor que crean los tests (el DNS falso
+      # resuelve api.example.com a una IP pública). Los tests del motor lo activan en su propio contexto (OW-026)
+      enabled: false

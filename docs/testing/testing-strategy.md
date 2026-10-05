@@ -60,7 +60,8 @@ La lógica pura, sin Spring, sin base de datos y sin red:
 |---|---|
 | Migraciones | Arranque desde cero con `ddl-auto=validate`: esquema y entidades coinciden |
 | Repositorios | Consultas propias, índices parciales únicos (dos incidentes activos → violación), FK compuestas, borrado lógico, keyset |
-| Claim del scheduler | `SKIP LOCKED`, avance de `next_check_at` y ausencia de catch-up |
+| Claim del scheduler | `SKIP LOCKED`, avance de `next_check_at`, ausencia de catch-up y plan con el índice parcial (`CheckClaimerIT`). Los tests del motor reclaman en 2001 (`PastSchedule`): la base es compartida y los demás tests programan sus monitores a la hora real, así que solo ven los suyos. Antes y después de cada test se desprograma todo lo anterior a 2002 |
+| Dispatcher | Con un `HttpMonitorClient` falso y lo demás real: permisos, errores propios y apagado (`CheckDispatcherIT`). `MonitoringEngineIT` activa el motor en su propio contexto, cerrado con `@DirtiesContext`: mientras está abierto comprueba todos los monitores vencidos de la base compartida |
 | Retención | Purga en lotes: borra solo lo viejo |
 | `ApacheHttpMonitorClient` contra WireMock | Códigos, retrasos (timeout y deadline), redirects (mismo origen, otro origen, bucle, más de 5 saltos), headers enormes, `Location` inválido, TLS autofirmado |
 | `GuardedDnsResolver` | Resolver falso: IP mixtas, rebinding, IP literales que pasan por el resolver |
@@ -128,7 +129,7 @@ La última regla convierte una decisión de seguridad (todo el tráfico saliente
 
 | Escenario | Cómo |
 |---|---|
-| Dos dispatchers reclamando a la vez | Dos hilos con `CheckClaimer` contra el mismo PostgreSQL y N monitores vencidos. Ningún monitor reclamado dos veces por intervalo |
+| Varias instancias reclamando a la vez | `CheckClaimerConcurrencyIT`: cuatro hilos con `CheckClaimer` contra el mismo PostgreSQL, 1 000 monitores vencidos y 20 rondas. Cada monitor reclamado exactamente una vez por ronda |
 | Dos `OWNER` que se degradan a la vez | Dos transacciones sincronizadas con un `CountDownLatch`. Queda al menos un `OWNER` |
 | Pausa con un check en vuelo | Se reclama, se pausa y se registra el resultado: el estado sigue en `PAUSED` |
 | Acknowledge y recuperación a la vez | Una de las dos falla con conflicto y el estado final es coherente |

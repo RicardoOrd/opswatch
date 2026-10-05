@@ -117,8 +117,8 @@ Los rangos de validación del dominio (intervalo de 30 a 3600 s, timeout de 1 a 
 | `opswatch.monitoring.engine.max-batch-size` | `500` | Máximo de monitores reclamados por ciclo |
 | `opswatch.monitoring.engine.max-redirects` | `5` | |
 | `opswatch.monitoring.engine.deadline-grace` | `200ms` | Margen sobre `timeoutMs` para cortar la petición |
-| `opswatch.monitoring.engine.overdue-threshold` | `5s` | Para la métrica de vencidos |
-| `opswatch.monitoring.engine.shutdown-grace` | `5s` | Espera extra en el apagado |
+| `opswatch.monitoring.engine.overdue-threshold` | `5s` | Para la métrica de vencidos. Llega con OW-030 |
+| `opswatch.monitoring.engine.shutdown-grace` | `5s` | En el apagado, lo que se espera a los checks en vuelo después del deadline más lejano de ellos. Lo que siga en vuelo se abandona sin guardar su resultado (OW-026) |
 | `opswatch.monitoring.engine.user-agent` | `OpsWatch-Monitor/<versión del pom> (+https://github.com/RicardoOrd/opswatch)` | En `application.yml`: Maven pone la versión al copiar los recursos. No puede quedar vacío |
 
 ### Egress

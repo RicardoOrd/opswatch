@@ -67,7 +67,15 @@ class ApacheHttpMonitorClientTest {
             new FakeHostResolver().with(HOST, "127.0.0.1").with(OTHER_HOST, "127.0.0.1");
     private final ApacheHttpMonitorClient client = new ApacheHttpMonitorClient(
             TestEgressHttpClients.resolvingWith(names, "127.0.0.0/8"),
-            new MonitoringEngineProperties(10, 5, Duration.ofMillis(200), USER_AGENT));
+            new MonitoringEngineProperties(
+                    true,
+                    Duration.ofSeconds(1),
+                    10,
+                    500,
+                    5,
+                    Duration.ofMillis(200),
+                    Duration.ofSeconds(5),
+                    USER_AGENT));
 
     @AfterEach
     void closeTheClient() throws IOException {
