@@ -29,7 +29,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.web.FilterChainProxy;
 
 /** The whole application on real ports against PostgreSQL: what a deployment would run, minus the profile. */
-@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+        webEnvironment = WebEnvironment.RANDOM_PORT,
+        // Without the test profile the engine would run, and keep checking every monitor due in the shared database
+        // for as long as this context stays cached, with the real DNS and the real client (OW-030)
+        properties = "opswatch.monitoring.engine.enabled=false")
 @Import({PostgresTestcontainer.class, TestJwtKeys.class, TestEncryptionKeys.class})
 @ExtendWith(OutputCaptureExtension.class)
 class ApplicationStartupIT {
@@ -81,8 +85,18 @@ class ApplicationStartupIT {
     }
 
     @Test
-    void exposesNoActuatorEndpointBeyondHealthAndInfo() throws Exception {
+    void exposesNoActuatorEndpointBeyondHealthInfoAndPrometheus() throws Exception {
         assertThat(get(managementPort, "/actuator/env", null).statusCode()).isEqualTo(404);
+    }
+
+    /** On the management port, which is never published; on the port of the API there is no actuator at all. */
+    @Test
+    void servesPrometheusOnlyOnTheManagementPort() throws Exception {
+        HttpResponse<String> scrape = get(managementPort, "/actuator/prometheus", null);
+
+        assertThat(scrape.statusCode()).isEqualTo(200);
+        assertThat(scrape.body()).contains("opswatch_monitor_checks_overdue").contains("jvm_memory_used_bytes");
+        assertThat(get(serverPort, "/actuator/prometheus", null).statusCode()).isNotEqualTo(200);
     }
 
     @Test

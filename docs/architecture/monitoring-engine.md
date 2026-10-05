@@ -427,6 +427,8 @@ sequenceDiagram
 
 **Nunca** se etiqueta con `monitorId` ni `organizationId`: con miles de monitores, la cardinalidad haría inservible Prometheus. El detalle por monitor está en `monitor_checks`.
 
+Implementadas en OW-030: los nombres en `EngineMetrics` y los buckets en `application.yml`. `opswatch_monitor_checks_in_flight` existe mientras corre el dispatcher; `opswatch_monitor_checks_overdue` lo recalcula `OverdueChecks` cada 15 s en todas las instancias, también sin motor. `EngineMetricsIT` comprueba que ninguna métrica de la aplicación lleva una etiqueta que identifique un cliente o un destino. Primera medición: [100 y 1 000 monitores](../performance/results/2026-10-05-medicion-informal-motor.md).
+
 ## 15. Modos de fallo
 
 | Fallo | Efecto | Mitigación |

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.ricardoord.opswatch.egress.BlockedTargetException;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
@@ -20,7 +21,10 @@ class GuardedDnsResolverTest {
             .with("mixed.example.com", "93.184.216.34", "10.0.0.5")
             .with("metadata.example.com", "169.254.169.254");
 
-    private final GuardedDnsResolver resolver = new GuardedDnsResolver(names, new IpRangeClassifier(List.of()));
+    private final SimpleMeterRegistry meters = new SimpleMeterRegistry();
+
+    private final GuardedDnsResolver resolver =
+            new GuardedDnsResolver(names, new IpRangeClassifier(List.of()), new BlockedTargets(meters));
 
     @Test
     void returnsEveryAddressOfAPublicHost() throws Exception {
@@ -39,6 +43,7 @@ class GuardedDnsResolverTest {
                     .hasMessageNotContaining("10.0.0.5")
                     .hasMessageNotContaining("169.254");
         }
+        assertThat(blocked(BlockedTargets.Reason.ADDRESS)).isEqualTo(2);
     }
 
     /** Case 16: one blocked address is enough, instead of picking the good one out of a mixed set. */
@@ -68,8 +73,8 @@ class GuardedDnsResolverTest {
 
     @Test
     void anAllowedBlockOpensAPrivateAddressButNeverTheMetadata() throws Exception {
-        GuardedDnsResolver permissive =
-                new GuardedDnsResolver(names, new IpRangeClassifier(List.of(Cidr.parse("0.0.0.0/0"))));
+        GuardedDnsResolver permissive = new GuardedDnsResolver(
+                names, new IpRangeClassifier(List.of(Cidr.parse("0.0.0.0/0"))), new BlockedTargets(meters));
 
         assertThat(permissive.resolve("internal.example.com")).hasSize(1);
         assertThat(permissive.resolve("127.0.0.1")).hasSize(1);
@@ -87,5 +92,9 @@ class GuardedDnsResolverTest {
     void neverLooksTheCanonicalNameUp() {
         assertThat(resolver.resolveCanonicalHostname("api.example.com")).isEqualTo("api.example.com");
         assertThat(names.lookups()).isEmpty();
+    }
+
+    private double blocked(BlockedTargets.Reason reason) {
+        return meters.counter(BlockedTargets.METRIC, "reason", reason.name()).count();
     }
 }

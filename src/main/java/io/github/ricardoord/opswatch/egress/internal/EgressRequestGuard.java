@@ -36,9 +36,11 @@ final class EgressRequestGuard implements ExecChainHandler {
     private static final Logger log = LoggerFactory.getLogger(EgressRequestGuard.class);
 
     private final TargetKind kind;
+    private final BlockedTargets blockedTargets;
 
-    EgressRequestGuard(TargetKind kind) {
+    EgressRequestGuard(TargetKind kind, BlockedTargets blocked) {
         this.kind = kind;
+        this.blockedTargets = blocked;
     }
 
     @Override
@@ -55,6 +57,7 @@ final class EgressRequestGuard implements ExecChainHandler {
         try {
             TargetUrlParser.parse(uri.toString(), kind);
         } catch (TargetNotAllowedException ex) {
+            blockedTargets.count(BlockedTargets.Reason.URL);
             throw blocked(host, ex.getMessage());
         }
         List<RequestHeader> headers = Arrays.stream(request.getHeaders())
@@ -62,6 +65,7 @@ final class EgressRequestGuard implements ExecChainHandler {
                 .toList();
         Optional<HeaderViolation> violation = HeaderPolicy.check(headers);
         if (violation.isPresent()) {
+            blockedTargets.count(BlockedTargets.Reason.HEADER);
             throw blocked(
                     host,
                     "The header " + violation.get().field("headers") + " "
@@ -69,10 +73,11 @@ final class EgressRequestGuard implements ExecChainHandler {
         }
     }
 
-    private static URI uriOf(ClassicHttpRequest request) throws BlockedTargetException {
+    private URI uriOf(ClassicHttpRequest request) throws BlockedTargetException {
         try {
             return request.getUri();
         } catch (URISyntaxException ex) {
+            blockedTargets.count(BlockedTargets.Reason.URL);
             throw blocked("?", "The URL is not valid.");
         }
     }

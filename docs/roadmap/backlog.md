@@ -13,7 +13,7 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 
 **Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
-**Foco actual: v0.3.0 — Motor de monitoreo**, refinada el 2026-10-03 contra lo que dejó construido la v0.2.0 (publicada el 2026-10-03, release #79). Orden: OW-024 → OW-025 → OW-027 → OW-026 → OW-028 → OW-029 → OW-030. OW-024, OW-025, OW-027, OW-026, OW-028 y OW-029 están **Hechas**; OW-030, en **Ready**. La v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
+**Foco actual: v0.3.0 — Motor de monitoreo**, refinada el 2026-10-03 contra lo que dejó construido la v0.2.0 (publicada el 2026-10-03, release #79). Orden: OW-024 → OW-025 → OW-027 → OW-026 → OW-028 → OW-029 → OW-030. Todas sus issues (OW-024 a OW-030) están **Hechas**: falta la release. La v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
 
 ## Convenciones
 
@@ -865,24 +865,36 @@ Refinada el 2026-10-03 contra lo que dejó construido la v0.2.0:
 - **Definition of Done:** propiedades de retención en el catálogo y en [retención](../database/data-retention.md).
 
 ### OW-030 · Métricas del motor con Micrometer
-`devops` `performance` · P2 · Milestone: v0.3.0 — Motor de monitoreo · **Ready**
+`devops` `performance` · P2 · Milestone: v0.3.0 — Motor de monitoreo · **Hecha**
 
 - **Context:** sin métricas no hay evidencia para las decisiones de las Fases 7 a 10. El gauge `opswatch_event_publications_incomplete` (OW-034) ya existe y se exporta con lo demás.
 - **Objective:** las métricas de la Fase 3 de [observabilidad](../devops/observability.md#métricas-propias) en `/actuator/prometheus`.
 - **Tasks:**
-  - [ ] `io.micrometer:micrometer-registry-prometheus` sin versión propia: la fija el BOM (1.17.1). Decisión de Ricardo del 2026-10-03.
-  - [ ] `prometheus` en `management.endpoints.web.exposure.include`, solo en el puerto de management (8081), que no se publica.
-  - [ ] Contadores, histogramas con buckets explícitos y gauges recalculados de forma periódica, nunca en el scrape. Incluye `opswatch_egress_blocked_total{reason}`.
+  - [x] `io.micrometer:micrometer-registry-prometheus` sin versión propia: la fija el BOM (1.17.1). Decisión de Ricardo del 2026-10-03.
+  - [x] `prometheus` en `management.endpoints.web.exposure.include`, solo en el puerto de management (8081), que no se publica.
+  - [x] Contadores, histogramas con buckets explícitos y gauges recalculados de forma periódica, nunca en el scrape. Incluye `opswatch_egress_blocked_total{reason}`.
     - `opswatch_monitor_checks_total{outcome, reason}` ya existe (OW-027, en `CheckResultRecorder`); `reason` es `NONE` cuando no hay `FailureReason`.
-  - [ ] Test de que ninguna métrica lleva etiquetas de alta cardinalidad.
-  - [ ] Medición informal con 100 y 1 000 monitores contra un destino local.
+    - Los nombres viven en `EngineMetrics`, y los buckets de los histogramas en `application.yml` (`management.metrics.distribution.slo`): lag y duración de los checks como en el documento de observabilidad; **añadidos** los del claim (5 ms a 1 s) y los de las purgas de retención (0,1 s a 15 min).
+    - `opswatch_monitor_check_duration_seconds{outcome}` mide la petición; `outcome` es el del check o `ERROR` si la petición lanzó. Un check abandonado al apagar no se mide.
+    - `opswatch_monitor_checks_in_flight` existe mientras el dispatcher corre: se registra al arrancar y se quita al parar.
+    - `opswatch_monitor_checks_overdue` lo recalcula `OverdueChecks` cada 15 s, en todas las instancias, también sin motor. Llega `opswatch.monitoring.engine.overdue-threshold` (5 s).
+    - `opswatch_scheduler_dispatcher_saturated_total` existe desde que arranca el dispatcher, a cero.
+    - `opswatch_egress_blocked_total{reason}`: `ADDRESS`, `URL` o `HEADER`, lo que el cliente de `egress` para al salir. Los rechazos al guardar ya son un `422` y no cuentan.
+  - [x] Test de que ninguna métrica lleva etiquetas de alta cardinalidad.
+  - [x] Medición informal con 100 y 1 000 monitores contra un destino local.
+  - **Añadido durante la implementación:** `ApplicationStartupIT` arrancaba sin el perfil `test`, así que desde OW-026 su contexto tenía el motor activo, con el DNS y el cliente reales, y mientras seguía en la caché de contextos comprobaba los monitores vencidos de la base compartida. Ahora lo desactiva por propiedad.
 - **Acceptance Criteria:** después de ejecutar checks, las métricas aparecen con los valores esperados; ninguna etiqueta tiene `monitorId`, `organizationId` ni URL.
 - **Testing:**
   - Integración: `EngineMetricsIT` y el test de cardinalidad.
+    - `EngineMetricsIT`: lag, duración y claim tras checks reales con un cliente falso, con sus buckets; error de la petición; checks en vuelo y dispatches saturados; vencidos con un reloj de 2001 (`PastSchedule`); el scrape de Prometheus con los nombres del catálogo; y ninguna etiqueta con nombres de identificadores, UUID ni URL en **todas** las métricas de la aplicación.
+    - `ApplicationStartupIT`: `/actuator/prometheus` responde en el puerto de management y no en el de la API.
+    - `GuardedDnsResolverTest` y `EgressHttpClientsTest` cuentan los bloqueos por razón.
   - Rendimiento: la medición informal (no es un benchmark formal).
+  - Comprobado que los tests detectan el fallo: con el id del monitor como etiqueta o sin los buckets, fallan.
 - **Security considerations:** `/actuator/prometheus` solo en el puerto de management, que no se publica; sin identificadores de clientes en las métricas (fuga de información y cardinalidad).
 - **Dependencies:** OW-026, OW-027.
 - **Definition of Done:** resultado de la medición informal en `docs/performance/results/`.
+  - [Medición del 2026-10-05](../performance/results/2026-10-05-medicion-informal-motor.md): con 1 000 monitores a 30 s, 33,1 checks/s de 33,3, lag p95 0,97 s, claim p95 17 ms, 6 % de un núcleo y sin duplicados.
 
 ### OW-031 · Tests de concurrencia del motor
 `testing` · P1 · Milestone: v0.3.0 — Motor de monitoreo · **Cerrada**

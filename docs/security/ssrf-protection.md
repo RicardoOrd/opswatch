@@ -223,7 +223,7 @@ Si todo lo anterior fallara por un bug, la red debería seguir impidiendo lo peo
 
 ### Capa 8: detección
 
-- Métrica `opswatch_egress_blocked_total{reason}` y alerta si crece de forma anómala.
+- Métrica `opswatch_egress_blocked_total{reason}` y alerta si crece de forma anómala. `reason` es `ADDRESS` (capa 2: el nombre resuelve a una dirección no pública, o es una de ellas), `URL` (capa 1 al enviar) o `HEADER` (capa 4 al enviar); cuenta lo que el cliente de `egress` para al salir, no los rechazos al guardar, que ya son un `422` (OW-030).
 - Log de seguridad por cada bloqueo: `monitorId`, organización, host y rango bloqueado, sin la query string.
 - Un monitor que pasa a `TARGET_BLOCKED` después de haber estado `UP` es una señal de DNS rebinding o de un cambio de infraestructura del usuario, y queda visible en su historial.
 

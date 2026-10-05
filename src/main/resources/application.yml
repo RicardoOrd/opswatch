@@ -61,10 +61,19 @@ management:
   server:
     # Puerto separado de la API; nunca se publica fuera del host
     port: 8081
+  metrics:
+    distribution:
+      # Histogramas con buckets explícitos, que se agregan entre instancias en Prometheus
+      # (docs/devops/observability.md#histogramas)
+      slo:
+        "[opswatch.monitor.check.lag]": 100ms, 250ms, 500ms, 1s, 2s, 5s, 10s, 30s, 60s
+        "[opswatch.monitor.check.duration]": 50ms, 100ms, 250ms, 500ms, 1s, 2500ms, 5s, 10s, 30s
+        "[opswatch.scheduler.claim.duration]": 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
+        "[opswatch.retention.duration]": 100ms, 1s, 10s, 1m, 5m, 15m
   endpoints:
     web:
       exposure:
-        include: health, info
+        include: health, info, prometheus
   endpoint:
     health:
       probes:

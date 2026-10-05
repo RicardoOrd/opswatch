@@ -61,7 +61,7 @@ Se registran con `event.category=security` para poder filtrarlos:
 ### Exposición
 
 - `/actuator/prometheus` en el **puerto de management 8081**, que no se publica fuera del host. Prometheus (Fase 7) lo alcanza por la red interna.
-- Endpoints de Actuator expuestos: `health`, `info` y `prometheus`. Nada más (`env`, `heapdump`, `configprops` y el resto, desactivados).
+- Endpoints de Actuator expuestos: `health`, `info` y `prometheus`. Nada más (`env`, `heapdump`, `configprops` y el resto, desactivados). Implementado en OW-030 con `io.micrometer:micrometer-registry-prometheus` (versión del BOM de Boot); `ApplicationStartupIT` comprueba que el puerto de la API no lo sirve.
 
 ### Métricas incluidas por Spring Boot
 
@@ -111,6 +111,10 @@ Se configuran con buckets explícitos (SLO buckets de Micrometer) en lugar de pe
 
 - lag: 0,1 · 0,25 · 0,5 · 1 · 2 · 5 · 10 · 30 · 60 s;
 - duración de los checks: 0,05 · 0,1 · 0,25 · 0,5 · 1 · 2,5 · 5 · 10 · 30 s.
+- claim: 0,005 · 0,01 · 0,025 · 0,05 · 0,1 · 0,25 · 0,5 · 1 s (ADR-006 se reconsidera con un p95 de más de 50 ms);
+- purgas de retención: 0,1 · 1 · 10 · 60 · 300 · 900 s.
+
+Los buckets viven en `application.yml` (`management.metrics.distribution.slo`), no en el código (OW-030).
 
 ## Salud
 

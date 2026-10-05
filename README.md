@@ -36,9 +36,10 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | Motor de checks: claim con `SKIP LOCKED` sin duplicados entre instancias, virtual threads con semáforo, cliente HTTP endurecido contra SSRF, registro de resultados y estado del monitor (OW-024 a OW-027) | **Implemented** |
 | Historial de checks por cursor y estadísticas de 24 h, 7 d y 30 d: uptime, percentiles y fallos por causa (OW-028) | **Implemented** |
 | Retención: purga diaria en lotes de los checks de más de 30 días y de los de monitores borrados, con su estado (OW-029) | **Implemented** |
+| Métricas del motor en `/actuator/prometheus` (solo en el puerto de management): lag, duración, claim, checks en vuelo, vencidos, saturación, bloqueos SSRF y retención (OW-030) | **Implemented** |
 | Resto de funcionalidades de producto | Planned |
 
-**Qué se hace ahora:** el milestone [v0.3.0 — Motor de monitoreo](https://github.com/RicardoOrd/opswatch/milestone/4). El motor ya ejecuta los checks y la API da su historial y sus estadísticas; queda exportar las métricas del motor (OW-030). Siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
+**Qué se hace ahora:** el milestone [v0.3.0 — Motor de monitoreo](https://github.com/RicardoOrd/opswatch/milestone/4). Todas sus issues están hechas, con la [medición informal](docs/performance/results/2026-10-05-medicion-informal-motor.md) de 100 y 1 000 monitores: falta la release. Siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
 
 ---
 

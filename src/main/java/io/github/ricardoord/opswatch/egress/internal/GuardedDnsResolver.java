@@ -27,10 +27,12 @@ final class GuardedDnsResolver implements DnsResolver {
 
     private final HostResolver resolver;
     private final IpRangeClassifier classifier;
+    private final BlockedTargets blocked;
 
-    GuardedDnsResolver(HostResolver resolver, IpRangeClassifier classifier) {
+    GuardedDnsResolver(HostResolver resolver, IpRangeClassifier classifier, BlockedTargets blocked) {
         this.resolver = resolver;
         this.classifier = classifier;
+        this.blocked = blocked;
     }
 
     /**
@@ -50,6 +52,7 @@ final class GuardedDnsResolver implements DnsResolver {
                     .addKeyValue("event.action", "egress.target_blocked")
                     .addKeyValue("url.domain", host)
                     .log("Connection to {} blocked: not a public address", host);
+            blocked.count(BlockedTargets.Reason.ADDRESS);
             throw new BlockedTargetException(host, BLOCKED_ADDRESS);
         }
         return addresses.toArray(InetAddress[]::new);
