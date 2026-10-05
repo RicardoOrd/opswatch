@@ -345,6 +345,7 @@ public void record(MonitorSnapshot monitor, Instant startedAt, CheckOutcome outc
 Reglas:
 
 - **Un check que empezó antes de `status_changed_at` no mueve el estado** (OW-027). Es uno que estuvo en vuelo durante una pausa y una reanudación: pertenece al monitor de antes, y con un umbral de 1 abriría un incidente para un monitor que nadie ha comprobado desde que se reanudó. Se guarda igual que el de un monitor pausado.
+- **Si el estado ya no existe, el resultado se descarta sin error** (OW-029): el monitor se borró con el check en vuelo y la [retención](../database/data-retention.md#job-de-purga-de-checks) purgó su estado antes de que volviera. No se guarda el check ni se cuenta.
 - **`record` nunca lanza.** Si la transacción falla (la base de datos, un listener de `incident` que lanza), se revierte entera, se registra en el log y se cuenta como `outcome="ERROR"`. El siguiente check vuelve a evaluar el estado.
 
 - **Ninguna transacción abierta durante la petición HTTP.** Hay dos transacciones cortas: reclamar y guardar. La petición HTTP ocurre entre ellas, sin conexión a la base de datos. Con 200 checks en vuelo y un pool de 10 conexiones, esto es lo que hace viable el diseño.

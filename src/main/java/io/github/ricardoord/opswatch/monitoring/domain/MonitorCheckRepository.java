@@ -148,6 +148,40 @@ public class MonitorCheckRepository {
                 .single();
     }
 
+    /**
+     * Deletes up to {@code batch} checks that started before {@code cutoff} (docs/database/data-retention.md#job-de-purga-de-checks).
+     * {@code SKIP LOCKED}: another instance purging at the same time takes other rows, and neither waits for the
+     * other. By {@code ctid}, since the table has no single-column key. Run it in a short transaction of its own.
+     *
+     * @return how many it deleted; fewer than {@code batch} when nothing is left
+     */
+    public int deleteOlderThan(Instant cutoff, int batch) {
+        return jdbc.sql("""
+                        DELETE FROM monitor_checks
+                        WHERE ctid = ANY (ARRAY(
+                            SELECT ctid FROM monitor_checks
+                            WHERE checked_at < :cutoff
+                            LIMIT :batch
+                            FOR UPDATE SKIP LOCKED))""").param("cutoff", at(cutoff)).param("batch", batch).update();
+    }
+
+    /**
+     * Deletes up to {@code batch} checks of deleted monitors, whatever their age: nobody can read them any more. As
+     * {@link #deleteOlderThan}, in a short transaction of its own.
+     *
+     * @return how many it deleted; fewer than {@code batch} when nothing is left
+     */
+    public int deleteOfDeletedMonitors(int batch) {
+        return jdbc.sql("""
+                        DELETE FROM monitor_checks
+                        WHERE ctid = ANY (ARRAY(
+                            SELECT c.ctid FROM monitor_checks c
+                            JOIN monitors m ON m.id = c.monitor_id
+                            WHERE m.deleted_at IS NOT NULL
+                            LIMIT :batch
+                            FOR UPDATE OF c SKIP LOCKED))""").param("batch", batch).update();
+    }
+
     /** OffsetDateTime: the JDBC 4.2 type of timestamptz, which the PostgreSQL driver maps both ways. */
     private static OffsetDateTime at(Instant instant) {
         return instant.atOffset(ZoneOffset.UTC);

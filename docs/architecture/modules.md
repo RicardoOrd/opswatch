@@ -162,7 +162,7 @@ src/main/java/io/github/ricardoord/opswatch/
 │   ├── domain/       Monitor, MonitorState, MonitorStatus, MonitorSettings, MonitorSnapshot,
 │   │                 CheckStatus, CheckOutcome, StateTransition, StateChange,
 │   │                 repositorios (MonitorCheckRepository, con JDBC)
-│   ├── application/  MonitorService, MonitorAccess, CheckResultRecorder, MonitorStatsQueries, RetentionJob
+│   ├── application/  MonitorService, MonitorAccess, CheckResultRecorder, MonitorStatsQueries, CheckRetentionJob
 │   ├── engine/       CheckDispatcher, CheckClaimer, ClaimedCheck, HttpMonitorClient, ProbeRequest, HttpObservation, CheckEvaluator,
 │   │                 MonitoringEngineProperties
 │   │   └── http/     ApacheHttpMonitorClient, Deadline, Redirects, Failures

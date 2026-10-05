@@ -13,7 +13,7 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 
 **Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
-**Foco actual: v0.3.0 — Motor de monitoreo**, refinada el 2026-10-03 contra lo que dejó construido la v0.2.0 (publicada el 2026-10-03, release #79). Orden: OW-024 → OW-025 → OW-027 → OW-026 → OW-028 → OW-029 → OW-030. OW-024, OW-025, OW-027, OW-026 y OW-028 están **Hechas**; las demás, en **Ready**. La v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
+**Foco actual: v0.3.0 — Motor de monitoreo**, refinada el 2026-10-03 contra lo que dejó construido la v0.2.0 (publicada el 2026-10-03, release #79). Orden: OW-024 → OW-025 → OW-027 → OW-026 → OW-028 → OW-029 → OW-030. OW-024, OW-025, OW-027, OW-026, OW-028 y OW-029 están **Hechas**; OW-030, en **Ready**. La v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
 
 ## Convenciones
 
@@ -833,16 +833,22 @@ Refinada el 2026-10-03 contra lo que dejó construido la v0.2.0:
   - **Medido el 2026-10-05** (local, Windows con Docker Desktop, PostgreSQL 18.6 de Testcontainers, caché caliente, una sola tabla con ese monitor): `statsOf` completo, autorización incluida, 27 a 33 ms en 20 llamadas (mediana 31 ms); la consulta de totales y percentiles, 20,6 ms (`EXPLAIN ANALYZE`), y la de fallos por causa, 3,6 ms. Anotado en [retención](../database/data-retention.md#cálculo-del-uptime-en-v1).
 
 ### OW-029 · Job de retención
-`feature` `performance` · P2 · Milestone: v0.3.0 — Motor de monitoreo · **Ready**
+`feature` `performance` · P2 · Milestone: v0.3.0 — Motor de monitoreo · **Hecha**
 
 - **Context:** crecimiento de `monitor_checks` ([retención](../database/data-retention.md)). Los refresh tokens ya los purga `RefreshTokenPurgeJob` (OW-014), y el archivo del registro de eventos `EventPublicationPurgeJob` (OW-034): esta issue no los toca.
 - **Objective:** purga diaria en lotes de los checks antiguos, y de los checks y el estado de los monitores borrados.
 - **Tasks:**
-  - [ ] `CheckRetentionJob` con `opswatch.retention.cron`, `opswatch.retention.checks` (30 días) y lotes de `opswatch.retention.batch-size` (10 000).
-  - [ ] **Sin advisory lock** (decisión de Ricardo del 2026-10-03, coherente con OW-014 y OW-034): cada lote elige sus filas con `FOR UPDATE SKIP LOCKED`. Dos instancias se reparten el trabajo sin repetirlo ni esperarse, y ninguna retiene una conexión durante toda la purga.
-  - [ ] Checks de los monitores borrados en lotes, y después su `monitor_state`. La fila de `monitors` se queda: la referenciarán los incidentes desde la v0.4.0.
-  - [ ] Si el estado de un monitor borrado ya no existe cuando vuelve un check en vuelo, el registro descarta el resultado sin error.
-  - [ ] Métricas de filas borradas y de duración (`opswatch_retention_deleted_rows_total{table}` y `opswatch_retention_duration_seconds{table}`).
+  - [x] `CheckRetentionJob` con `opswatch.retention.cron`, `opswatch.retention.checks` (30 días) y lotes de `opswatch.retention.batch-size` (10 000).
+    - `CheckRetentionProperties` valida `checks` (positivo) y `batch-size` (al menos 1): una retención imposible no arranca la aplicación.
+  - [x] **Sin advisory lock** (decisión de Ricardo del 2026-10-03, coherente con OW-014 y OW-034): cada lote elige sus filas con `FOR UPDATE SKIP LOCKED`. Dos instancias se reparten el trabajo sin repetirlo ni esperarse, y ninguna retiene una conexión durante toda la purga.
+    - Cada lote es una transacción propia. Se repite hasta que uno vuelve con menos filas que el lote: lo que quedara lo tiene bloqueado otra instancia, que lo borra.
+  - [x] Checks de los monitores borrados en lotes, y después su `monitor_state`. La fila de `monitors` se queda: la referenciarán los incidentes desde la v0.4.0.
+    - Los checks de un monitor borrado se borran sea cual sea su edad. Su estado, solo cuando ya no le quedan checks (`NOT EXISTS`), con `FOR UPDATE OF s SKIP LOCKED`: un resultado que se está registrando retiene la fila y el monitor espera a la purga siguiente.
+    - **Añadido durante la implementación:** si un resultado se registra justo entre la comprobación de que no quedan checks y el bloqueo del estado, ese check queda sin estado hasta la purga siguiente, que lo borra. No rompe nada: `monitor_checks` referencia a `monitors`, no a `monitor_state`.
+  - [x] Si el estado de un monitor borrado ya no existe cuando vuelve un check en vuelo, el registro descarta el resultado sin error.
+    - `CheckResultRecorder` no guarda el check y no lo cuenta, ni como resultado ni como `ERROR`. Antes lanzaba y contaba un `ERROR`.
+  - [x] Métricas de filas borradas y de duración (`opswatch_retention_deleted_rows_total{table}` y `opswatch_retention_duration_seconds{table}`).
+    - `table` es `monitor_checks` (los checks antiguos y los de monitores borrados) o `monitor_state`. Se exportan a Prometheus con OW-030.
 - **Acceptance Criteria:**
   - Borra solo lo anterior a la fecha de corte.
   - Dos instancias a la vez no borran dos veces la misma fila ni se esperan.
@@ -850,6 +856,10 @@ Refinada el 2026-10-03 contra lo que dejó construido la v0.2.0:
   - El estado de un monitor borrado desaparece solo después de sus checks.
 - **Testing:**
   - Integración: `CheckRetentionJobIT`, incluidas dos ejecuciones simultáneas.
+    - Los checks del test son de 1995, un pasado que no usa ningún otro test: el corte cae entre ellos y después de nada más. El job se construye en el test con un `Clock` fijo.
+    - Las dos ejecuciones: una retiene su lote sin confirmar y la otra borra el resto sin esperarla; entre las dos, cada fila una vez.
+    - El registro de un resultado sin estado está en `CheckResultRecorderIT`, y la validación de las propiedades en `CheckRetentionPropertiesTest`.
+  - Comprobado que los tests detectan el fallo: con el corte inclusivo, sin `SKIP LOCKED` o sin la condición de que no queden checks, fallan.
 - **Security considerations:** integridad y disponibilidad: un error en la fecha de corte borraría historial válido (el test lo cubre), y un `DELETE` masivo sin lotes bloquearía la tabla. Sin dato sensible nuevo.
 - **Dependencies:** OW-027.
 - **Definition of Done:** propiedades de retención en el catálogo y en [retención](../database/data-retention.md).

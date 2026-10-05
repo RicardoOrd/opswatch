@@ -153,12 +153,12 @@ Los rangos de validación del dominio (intervalo de 30 a 3600 s, timeout de 1 a 
 
 | Propiedad | Por defecto |
 |---|---|
-| `opswatch.retention.checks` | `30d` |
+| `opswatch.retention.checks` | `30d` (`CheckRetentionJob`, OW-029: los checks más antiguos se borran; la ventana más larga de las estadísticas mide lo mismo) |
 | `opswatch.retention.deliveries` | `90d` |
 | `opswatch.retention.refresh-tokens-grace` | `7d` |
 | `opswatch.retention.event-publications` | `7d` (solo el archivo de publicaciones completadas) |
-| `opswatch.retention.batch-size` | `10000` |
-| `opswatch.retention.cron` | `0 30 3 * * *` (03:30 UTC) |
+| `opswatch.retention.batch-size` | `10000` (filas por transacción, en todas las purgas) |
+| `opswatch.retention.cron` | `0 30 3 * * *` (03:30 UTC, todas las purgas) |
 
 ### API
 
