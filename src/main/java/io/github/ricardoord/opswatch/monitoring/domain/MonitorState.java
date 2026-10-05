@@ -1,5 +1,7 @@
 package io.github.ricardoord.opswatch.monitoring.domain;
 
+import io.github.ricardoord.opswatch.monitoring.FailureReason;
+import io.github.ricardoord.opswatch.monitoring.domain.StateChange.Transition;
 import io.github.ricardoord.opswatch.shared.error.ConflictException;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -21,8 +23,6 @@ import org.springframework.data.domain.Persistable;
  * The execution state of a monitor (docs/architecture/domain-model.md#monitorstate). Only {@code monitoring} writes it,
  * always with the row locked ({@code SELECT … FOR UPDATE}): there is no version, because the engine writes it on every
  * check and a version would make it fail against every other writer.
- *
- * <p>The columns of the last check result that nothing reads yet arrive with the engine (v0.3.0).
  */
 @Entity
 @Table(name = "monitor_state")
@@ -42,9 +42,15 @@ public class MonitorState implements Persistable<UUID> {
 
     private @Nullable Instant lastCheckedAt;
 
+    @Enumerated(EnumType.STRING)
+    private @Nullable CheckStatus lastCheckStatus;
+
     private @Nullable Short lastHttpStatus;
 
     private @Nullable Integer lastResponseTimeMs;
+
+    @Enumerated(EnumType.STRING)
+    private @Nullable FailureReason lastFailureReason;
 
     /** Null when not scheduled: paused or deleted. */
     private @Nullable Instant nextCheckAt;
@@ -134,6 +140,41 @@ public class MonitorState implements Persistable<UUID> {
         resetCounters(now);
     }
 
+    /**
+     * The result of a check: it becomes the last one, and moves the status with {@link StateTransition}. Two results
+     * change nothing, although they are kept as checks:
+     *
+     * <ul>
+     *   <li>that of a paused or deleted monitor, which was in flight when it stopped;
+     *   <li>that of a check that started before the current status: one in flight across a pause and a resume, which
+     *       belongs to the monitor before it was resumed.
+     * </ul>
+     *
+     * @param checkedAt when the check started
+     * @return what to announce
+     */
+    public Transition record(CheckOutcome outcome, MonitorSettings settings, Instant checkedAt, Clock clock) {
+        if (status == MonitorStatus.PAUSED || checkedAt.isBefore(statusChangedAt)) {
+            return Transition.NONE;
+        }
+        StateChange change =
+                StateTransition.apply(status, consecutiveFailures, consecutiveSuccesses, outcome.status(), settings);
+        if (change.status() != status) {
+            this.status = change.status();
+            this.statusChangedAt = checkedAt;
+        }
+        this.consecutiveFailures = change.consecutiveFailures();
+        this.consecutiveSuccesses = change.consecutiveSuccesses();
+        this.lastCheckedAt = checkedAt;
+        this.lastCheckStatus = outcome.status();
+        this.lastHttpStatus =
+                outcome.httpStatus() == null ? null : outcome.httpStatus().shortValue();
+        this.lastResponseTimeMs = outcome.responseTimeMs();
+        this.lastFailureReason = outcome.failureReason();
+        this.updatedAt = now(clock);
+        return change.transition();
+    }
+
     private void resetCounters(Instant now) {
         this.consecutiveFailures = 0;
         this.consecutiveSuccesses = 0;
@@ -183,6 +224,14 @@ public class MonitorState implements Persistable<UUID> {
 
     public @Nullable Instant lastCheckedAt() {
         return lastCheckedAt;
+    }
+
+    public @Nullable CheckStatus lastCheckStatus() {
+        return lastCheckStatus;
+    }
+
+    public @Nullable FailureReason lastFailureReason() {
+        return lastFailureReason;
     }
 
     public @Nullable Integer lastHttpStatus() {

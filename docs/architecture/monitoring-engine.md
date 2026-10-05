@@ -135,7 +135,7 @@ Propiedades:
 | Cambiar el intervalo | `next_check_at = min(next_check_at, now + nuevo intervalo)`. Si está pausado, sigue en `NULL` |
 | Borrar el proyecto | `monitoring` recibe `ProjectDeleted` y borra sus monitores |
 
-Todas bloquean la fila de `monitor_state` (`FOR UPDATE`) antes de escribir, y leen el monitor después, ya con el bloqueo tomado: un borrado que se adelantó se ve como `404`. El borrado bloquea también la fila de `monitors` (`FOR UPDATE`, siempre después de la de `monitor_state`, el orden que sigue el `PATCH`) y la lee como quedó confirmada, así que no falla por la versión que acaba de escribir un `PATCH` (OW-044). Si hay un check en vuelo cuando se pausa, su resultado se guarda al volver, pero no cambia el estado: la transacción del resultado ve `PAUSED` y no aplica ninguna transición.
+Todas bloquean la fila de `monitor_state` (`FOR UPDATE`) antes de escribir, y leen el monitor después, ya con el bloqueo tomado: un borrado que se adelantó se ve como `404`. El borrado bloquea también la fila de `monitors` (`FOR UPDATE`, siempre después de la de `monitor_state`, el orden que sigue el `PATCH`) y la lee como quedó confirmada, así que no falla por la versión que acaba de escribir un `PATCH` (OW-044). Si hay un check en vuelo cuando se pausa, su resultado se guarda al volver, pero no cambia el estado: la transacción del resultado ve `PAUSED` y no aplica ninguna transición. Si además se reanudó antes de que volviera, tampoco: el check empezó antes de `status_changed_at` (OW-027).
 
 ## 4. Modelo de concurrencia
 
@@ -216,21 +216,22 @@ public sealed interface HttpObservation {
 }
 ```
 
-La evaluación es una función pura, fácil de probar:
+La evaluación es una función pura, fácil de probar. Vive en `monitoring.engine`, junto a `HttpObservation`, porque `domain` no depende del motor (OW-027):
 
 ```java
 public final class CheckEvaluator {
 
-    public static CheckOutcome evaluate(MonitorExpectations expected, HttpObservation observation) {
+    public static CheckOutcome evaluate(MonitorSettings settings, HttpObservation observation) {
         return switch (observation) {
-            case HttpObservation.Failure f ->
-                    CheckOutcome.down(f.reason(), null, null, f.detail());
-            case HttpObservation.Response r when !expected.accepts(r.statusCode()) ->
-                    CheckOutcome.down(FailureReason.UNEXPECTED_STATUS, r.statusCode(), r.responseTime(), null);
-            case HttpObservation.Response r when expected.isDegraded(r.responseTime()) ->
+            case Failure f -> CheckOutcome.down(f.reason(), null, null, f.detail());
+            // Llegó dentro del margen del deadline, pero después de timeoutMs
+            case Response r when isLate(settings, r.responseTime()) ->
+                    CheckOutcome.down(TIMEOUT, r.statusCode(), r.responseTime(), "response after the timeout");
+            case Response r when !isExpected(settings, r.statusCode()) ->
+                    CheckOutcome.down(UNEXPECTED_STATUS, r.statusCode(), r.responseTime(), null);
+            case Response r when isDegraded(settings, r.responseTime()) ->
                     CheckOutcome.degraded(r.statusCode(), r.responseTime());
-            case HttpObservation.Response r ->
-                    CheckOutcome.up(r.statusCode(), r.responseTime());
+            case Response r -> CheckOutcome.up(r.statusCode(), r.responseTime());
         };
     }
 }
@@ -318,20 +319,25 @@ Con `followRedirects = false`, la respuesta `3xx` es la final y se evalúa contr
 ## 9. Persistencia del resultado
 
 ```java
-@Transactional
-public void record(ClaimedCheck check, Instant startedAt, CheckOutcome outcome) {
-    MonitorState state = states.lockById(check.monitorId());          // SELECT … FOR UPDATE
-    checks.insert(MonitorCheck.of(check.monitorId(), startedAt, outcome));
-    if (state.isPaused()) {
-        return;                                                       // se guarda el check, sin transición
+public void record(MonitorSnapshot monitor, Instant startedAt, CheckOutcome outcome) {
+    try {
+        transactions.executeWithoutResult(tx -> {
+            MonitorState state = states.findByIdForUpdate(monitor.monitorId());   // SELECT … FOR UPDATE
+            checks.insert(monitor.monitorId(), checkedAt, outcome);              // siempre se guarda
+            // Sin transición si está PAUSED o si el check empezó antes de status_changed_at
+            Transition transition = state.record(outcome, monitor.settings(), checkedAt, clock);
+            // WENT_DOWN → MonitorWentDown, RECOVERED → MonitorRecovered
+        });
+    } catch (RuntimeException ex) {
+        // Error propio: sin check ni transición; log con el id del monitor y outcome="ERROR"
     }
-    StateChange change = StateTransition.apply(state, outcome, check.thresholds(), startedAt);
-    state.apply(change);
-    change.event().ifPresent(events::publishEvent);                  // MonitorWentDown / MonitorRecovered
 }
 ```
 
 Reglas:
+
+- **Un check que empezó antes de `status_changed_at` no mueve el estado** (OW-027). Es uno que estuvo en vuelo durante una pausa y una reanudación: pertenece al monitor de antes, y con un umbral de 1 abriría un incidente para un monitor que nadie ha comprobado desde que se reanudó. Se guarda igual que el de un monitor pausado.
+- **`record` nunca lanza.** Si la transacción falla (la base de datos, un listener de `incident` que lanza), se revierte entera, se registra en el log y se cuenta como `outcome="ERROR"`. El siguiente check vuelve a evaluar el estado.
 
 - **Ninguna transacción abierta durante la petición HTTP.** Hay dos transacciones cortas: reclamar y guardar. La petición HTTP ocurre entre ellas, sin conexión a la base de datos. Con 200 checks en vuelo y un pool de 10 conexiones, esto es lo que hace viable el diseño.
 - `spring.jpa.open-in-view=false`.
@@ -399,7 +405,7 @@ sequenceDiagram
 
 | Métrica (Prometheus) | Tipo | Etiquetas | Para qué |
 |---|---|---|---|
-| `opswatch_monitor_checks_total` | counter | `outcome` (`UP`, `DEGRADED`, `DOWN`, `ERROR`) y `reason` | Volumen y tasa de fallos. `opswatch_monitor_failures_total` de la especificación inicial equivale a `outcome="DOWN"` y no se duplica |
+| `opswatch_monitor_checks_total` | counter | `outcome` (`UP`, `DEGRADED`, `DOWN`, `ERROR`) y `reason` (`NONE` sin `FailureReason`). Existe desde OW-027 | Volumen y tasa de fallos. `opswatch_monitor_failures_total` de la especificación inicial equivale a `outcome="DOWN"` y no se duplica |
 | `opswatch_monitor_check_duration_seconds` | histogram | `outcome` | Latencia observada de los destinos |
 | `opswatch_monitor_check_lag_seconds` | histogram | — | **Señal principal de saturación** |
 | `opswatch_monitor_checks_in_flight` | gauge | — | Uso del semáforo |

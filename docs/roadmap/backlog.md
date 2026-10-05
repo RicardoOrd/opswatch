@@ -13,7 +13,7 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 
 **Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
-**Foco actual: v0.3.0 — Motor de monitoreo**, refinada el 2026-10-03 contra lo que dejó construido la v0.2.0 (publicada el 2026-10-03, release #79). Orden: OW-024 → OW-025 → OW-027 → OW-026 → OW-028 → OW-029 → OW-030. OW-024 y OW-025 están **Hechas**; las demás, en **Ready**. La v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
+**Foco actual: v0.3.0 — Motor de monitoreo**, refinada el 2026-10-03 contra lo que dejó construido la v0.2.0 (publicada el 2026-10-03, release #79). Orden: OW-024 → OW-025 → OW-027 → OW-026 → OW-028 → OW-029 → OW-030. OW-024, OW-025 y OW-027 están **Hechas**; las demás, en **Ready**. La v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
 
 ## Convenciones
 
@@ -721,30 +721,41 @@ Refinada el 2026-10-03 contra lo que dejó construido la v0.2.0:
 - **Definition of Done:** la tabla de clasificación del documento del motor está verificada por los tests.
 
 ### OW-027 · Registro de resultados y máquina de estados del monitor
-`feature` · P1 · Milestone: v0.3.0 — Motor de monitoreo · **Ready**
+`feature` · P1 · Milestone: v0.3.0 — Motor de monitoreo · **Hecha**
 
 - **Context:** la [tabla de transiciones](../architecture/domain-model.md#monitorstate) es el núcleo de la correctitud. Incluye la carrera de la pausa que antes estaba en OW-031.
   - De OW-021 y OW-044 ya existen `MonitorState` (con `pause`, `resume` y `stop`), su bloqueo `findByIdForUpdate` y el orden de bloqueos: la fila del estado antes que la del monitor.
   - Va antes que OW-026 (decisión de Ricardo del 2026-10-03): se puede llamar directamente con un resultado, y el scheduler la usará.
 - **Objective:** `CheckEvaluator`, `StateTransition` y `CheckResultRecorder`, con los eventos `MonitorWentDown` y `MonitorRecovered`.
 - **Tasks:**
-  - [ ] Migración `monitoring_create_monitor_checks` (la `V8`), con PK `(monitor_id, checked_at)` y BRIN sobre `checked_at`.
-  - [ ] `MonitorState` mapea las columnas del último resultado que OW-021 dejó sin mapear (`last_check_status` y `last_failure_reason`).
-  - [ ] `CheckEvaluator` y `StateTransition` como funciones puras.
-  - [ ] `CheckResultRecorder`:
+  - [x] Migración `monitoring_create_monitor_checks` (la `V8`), con PK `(monitor_id, checked_at)` y BRIN sobre `checked_at`.
+  - [x] `MonitorState` mapea las columnas del último resultado que OW-021 dejó sin mapear (`last_check_status` y `last_failure_reason`).
+  - [x] `CheckEvaluator` y `StateTransition` como funciones puras.
+    - **Cambiado durante la implementación:** `CheckEvaluator` vive en `monitoring.engine`, junto a `HttpObservation`, y no en `domain`, que no depende del motor.
+    - **Añadido durante la implementación:** una respuesta que llega después de `timeoutMs` (dentro del margen del deadline) es `DOWN` por `TIMEOUT`, con su código y su latencia: es lo que dice la definición de `TIMEOUT`.
+  - [x] `CheckResultRecorder`:
     - toma `FOR UPDATE` sobre el estado y nunca sobre la fila de `monitors`: un check no cambia la configuración, ni su versión;
-    - inserta el check con `JdbcClient`, aplica la transición y publica el evento;
-    - con el estado `PAUSED` (también el de un monitor borrado mientras el check estaba en vuelo), guarda el check sin transición.
-  - [ ] `MonitorWentDown` y `MonitorRecovered` en el paquete raíz, con ids y sin datos personales. Nadie los escucha hasta OW-032.
-  - [ ] Los errores internos no cuentan como check: una `RuntimeException` propia, y también una `DecryptionFailedException` al descifrar los headers (una clave retirada antes de tiempo). Dejan un log de error con el id del monitor, sin check y sin transición.
+    - inserta el check con `JdbcClient` (`MonitorCheckRepository`), aplica la transición y publica el evento;
+    - con el estado `PAUSED` (también el de un monitor borrado mientras el check estaba en vuelo), guarda el check sin transición;
+    - **añadido durante la implementación:** tampoco hay transición para un check que empezó antes de `status_changed_at`. Es uno que estuvo en vuelo durante una pausa y una reanudación: pertenece al monitor de antes, y con un umbral de 1 abriría un incidente para un monitor que nadie ha comprobado desde que se reanudó;
+    - el instante de una transición, `checked_at`, `last_checked_at` y el `occurredAt` de los eventos son el inicio del check, truncado a microsegundos.
+    - Recibe un `MonitorSnapshot` (ids, nombre y `MonitorSettings` del monitor, leídos al reclamar el check) que construirá OW-026.
+  - [x] `MonitorWentDown` y `MonitorRecovered` en el paquete raíz, con ids y sin datos personales. Nadie los escucha hasta OW-032.
+  - [x] Los errores internos no cuentan como check: una `RuntimeException` propia, y también una `DecryptionFailedException` al descifrar los headers (una clave retirada antes de tiempo). Dejan un log de error con el id del monitor, sin check y sin transición.
+    - Aquí, los de la transacción del resultado: la base de datos o un listener que lanza. `CheckResultRecorder.record` nunca lanza; lo revierte todo, lo registra en el log y lo cuenta en `opswatch.monitor.checks{outcome="ERROR"}`.
+    - **Cambiado durante la implementación:** los errores de la petición y del descifrado ocurren antes de llegar aquí, y los trata OW-026 con el mismo contador.
+    - El contador `opswatch.monitor.checks` (`opswatch_monitor_checks_total` en Prometheus) nace aquí, con `outcome` y `reason` (`NONE` si no hay `FailureReason`).
 - **Acceptance Criteria:**
   - 3 fallos consecutivos → `DOWN` y un `MonitorWentDown`; 2 éxitos → `UP` y un `MonitorRecovered`.
   - Pausa concurrente con el registro de un resultado (50 repeticiones): el estado final es siempre `PAUSED` y el check queda guardado.
   - El resultado de un monitor borrado mientras su check estaba en vuelo se guarda, y el estado sigue `PAUSED` y sin programar.
   - Una `RuntimeException` propia no crea check ni cambia el estado, y cuenta en `outcome="ERROR"`.
 - **Testing:**
-  - Unitarios: `StateTransitionTest` con cada fila de la tabla y `CheckEvaluatorTest`.
+  - Unitarios: `StateTransitionTest` con cada fila de la tabla y `CheckEvaluatorTest`; también `CheckOutcomeTest` y los casos nuevos de `MonitorStateTest`.
   - Integración (concurrencia): `CheckResultRecorderIT`, incluida la carrera de la pausa.
+    - **Añadido durante la implementación:** la carrera de 50 repeticiones no detecta que falte el `FOR UPDATE` (comprobado quitándolo): la ventana de la actualización perdida es muy estrecha. Un segundo test la fuerza: una pausa retiene la fila, el resultado tiene que esperarla y no cambia nada.
+    - El error interno se provoca con un listener que lanza en `MonitorWentDown`, añadido y quitado en el mismo test sobre el contexto compartido.
+  - Comprobado que los tests detectan el fallo: sin el `FOR UPDATE` o sin la regla del check anterior a la reanudación, fallan.
 - **Security considerations:** integridad del estado: `FOR UPDATE` serializa las transiciones de cada monitor. `error_detail` es un texto propio, nunca contenido de la respuesta (T-28).
 - **Dependencies:** OW-025, OW-044.
 - **Definition of Done:** cada fila de la tabla de transiciones del modelo de dominio tiene su test.
@@ -760,6 +771,8 @@ Refinada el 2026-10-03 contra lo que dejó construido la v0.2.0:
   - [ ] Consulta de claim (CTE con `FOR UPDATE SKIP LOCKED`). Exige además `monitors.deleted_at IS NULL` como defensa: un monitor borrado ya no está programado.
   - [ ] En la misma transacción corta, carga de la configuración y descifrado de los headers (`MonitorHeaders`). La petición HTTP ocurre fuera de toda transacción.
   - [ ] Dispatcher con `Semaphore` y executor de virtual threads; reclama como mucho los permisos libres.
+  - [ ] Ejecución de cada check (de OW-025 y OW-027): el claim construye un `MonitorSnapshot` y el `ProbeRequest`; el hilo hace `HttpMonitorClient.probe`, `CheckEvaluator.evaluate` y `CheckResultRecorder.record`.
+    - Una `RuntimeException` de la petición, o una `DecryptionFailedException` al descifrar los headers de un monitor, no es un check: log de error con el id del monitor y `opswatch.monitor.checks{outcome="ERROR"}`, el mismo contador que usa `CheckResultRecorder`. Un fallo de descifrado afecta a ese monitor, nunca al lote reclamado.
   - [ ] `opswatch.monitoring.engine.enabled`, `true` por defecto y `false` en el perfil `test`.
     - Sin eso, el contexto compartido de los `@IntegrationTest` haría peticiones reales a `api.example.com` por cada monitor de los tests (el DNS falso lo resuelve a una IP pública).
     - Los tests del motor lo activan en su propio contexto.
@@ -833,6 +846,7 @@ Refinada el 2026-10-03 contra lo que dejó construido la v0.2.0:
   - [ ] `io.micrometer:micrometer-registry-prometheus` sin versión propia: la fija el BOM (1.17.1). Decisión de Ricardo del 2026-10-03.
   - [ ] `prometheus` en `management.endpoints.web.exposure.include`, solo en el puerto de management (8081), que no se publica.
   - [ ] Contadores, histogramas con buckets explícitos y gauges recalculados de forma periódica, nunca en el scrape. Incluye `opswatch_egress_blocked_total{reason}`.
+    - `opswatch_monitor_checks_total{outcome, reason}` ya existe (OW-027, en `CheckResultRecorder`); `reason` es `NONE` cuando no hay `FailureReason`.
   - [ ] Test de que ninguna métrica lleva etiquetas de alta cardinalidad.
   - [ ] Medición informal con 100 y 1 000 monitores contra un destino local.
 - **Acceptance Criteria:** después de ejecutar checks, las métricas aparecen con los valores esperados; ninguna etiqueta tiene `monitorId`, `organizationId` ni URL.

@@ -361,12 +361,14 @@ stateDiagram-v2
 | `DOWN` | `UP` o `DEGRADED` | `consecutive_successes ≥ recovery_threshold` | `UP` o `DEGRADED` | `MonitorRecovered` |
 | cualquiera | pause | — | `PAUSED` | `MonitorPaused` |
 | `PAUSED` | resultado de un check que ya estaba en vuelo | — | `PAUSED` | — (el check se guarda y el estado no cambia) |
+| cualquiera | resultado de un check que empezó antes de `status_changed_at` | en vuelo durante una pausa y una reanudación | sin cambio | — (el check se guarda; pertenece al monitor de antes de reanudarlo) |
 
 Notas:
 - `UP` ↔ `DEGRADED` cambia de inmediato y no genera incidentes. La degradación se ve en el dashboard pero no despierta a nadie en V1.
 - Un monitor nuevo que falla sus primeros checks pasa de `PENDING` a `DOWN` y abre un incidente. Es intencional: una URL mal escrita es un problema que el usuario tiene que ver.
 - La comparación usa `≥`: si se baja el umbral mientras el monitor está fallando, la transición ocurre en el siguiente check.
-- Esta lógica es una función pura (`StateTransition.apply(state, outcome, thresholds)`), probada con tests unitarios exhaustivos.
+- Esta lógica es una función pura (`StateTransition.apply(status, failures, successes, result, settings)`), probada con tests unitarios exhaustivos.
+- El instante de una transición (`status_changed_at`) es el inicio del check que la provoca, igual que `checked_at` y `last_checked_at`.
 
 ### MonitorCheck
 
