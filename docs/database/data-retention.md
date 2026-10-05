@@ -1,6 +1,6 @@
 # Retención y crecimiento de datos
 
-Estado: diseño inicial · Última revisión: 2026-10-02 · Decisión: [ADR-008](../adr/ADR-008-check-results-storage.md)
+Estado: diseño inicial · Última revisión: 2026-10-05 (OW-029) · Decisión: [ADR-008](../adr/ADR-008-check-results-storage.md)
 
 ## Crecimiento esperado de `monitor_checks`
 
@@ -49,7 +49,9 @@ WHERE ctid = ANY (ARRAY(
 ```
 
 - Se ejecuta de madrugada (UTC) con `@Scheduled(cron = …)`. **Sin advisory lock** (decisión de Ricardo del 2026-10-03, igual que las purgas de refresh tokens y del archivo de eventos). Borrar es idempotente, y con `SKIP LOCKED` dos instancias que purgan a la vez se reparten las filas sin repetir trabajo ni esperarse. Un lock de sesión obligaría a retener una conexión durante todos los lotes.
-- Después de los checks antiguos, los de los monitores borrados, en lotes, y al final su `monitor_state`. Un check en vuelo que vuelve cuando el estado ya no existe se descarta sin error.
+- Después de los checks antiguos, los de los monitores borrados, sea cual sea su edad, en lotes, y al final su `monitor_state`: solo el de un monitor borrado al que ya no le quedan checks (`NOT EXISTS`), con `FOR UPDATE OF s SKIP LOCKED`. La fila de `monitors` se queda. Un check en vuelo que vuelve cuando el estado ya no existe se descarta sin error: `CheckResultRecorder` no encuentra el estado, no guarda nada y no lo cuenta como `ERROR` (OW-029).
+- Si un resultado se registra justo entre la comprobación de que no quedan checks y el bloqueo del estado, ese check queda sin estado hasta la purga siguiente, que lo borra como check de un monitor borrado. No rompe nada: `monitor_checks` referencia a `monitors`, no a `monitor_state`.
+- Implementado en `CheckRetentionJob` (OW-029), con `opswatch.retention.checks`, `opswatch.retention.batch-size` y `opswatch.retention.cron`. Cada lote es una transacción propia, y se repite hasta que uno vuelve con menos filas que el lote: lo que quedara lo tiene bloqueado otra instancia, que lo borra.
 - Lotes pequeños: no retiene locks largos y el autovacuum puede ir recuperando espacio.
 - El índice BRIN sobre `checked_at` localiza las filas viejas sin recorrer la tabla.
 - Métricas: `opswatch_retention_deleted_rows_total{table}` y `opswatch_retention_duration_seconds{table}`.

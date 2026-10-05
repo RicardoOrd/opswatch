@@ -13,6 +13,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,10 +72,15 @@ public class CheckResultRecorder {
     public void record(MonitorSnapshot monitor, Instant startedAt, CheckOutcome outcome) {
         // PostgreSQL keeps microseconds, and checked_at is part of the primary key
         Instant checkedAt = startedAt.truncatedTo(ChronoUnit.MICROS);
+        boolean recorded;
         try {
-            transactions.executeWithoutResult(transaction -> recordLocked(monitor, checkedAt, outcome));
+            recorded =
+                    Boolean.TRUE.equals(transactions.execute(transaction -> recordLocked(monitor, checkedAt, outcome)));
         } catch (RuntimeException ex) {
             recordError(monitor.monitorId(), ex);
+            return;
+        }
+        if (!recorded) {
             return;
         }
         meters.counter(
@@ -104,10 +110,19 @@ public class CheckResultRecorder {
     /**
      * The row of the state, never that of the monitor: a check changes no setting and no version, and so never fails a
      * {@code PATCH}. Locking it first is the order every writer follows.
+     *
+     * @return false if the state is gone: the retention purged it after the monitor was deleted, while this check was
+     *     in flight (OW-029). Nothing to keep, and nothing went wrong
      */
-    private void recordLocked(MonitorSnapshot monitor, Instant checkedAt, CheckOutcome outcome) {
-        MonitorState state = states.findByIdForUpdate(monitor.monitorId())
-                .orElseThrow(() -> new IllegalStateException("No state for monitor " + monitor.monitorId()));
+    private boolean recordLocked(MonitorSnapshot monitor, Instant checkedAt, CheckOutcome outcome) {
+        Optional<MonitorState> locked = states.findByIdForUpdate(monitor.monitorId());
+        if (locked.isEmpty()) {
+            log.atDebug()
+                    .addKeyValue("monitor.id", monitor.monitorId())
+                    .log("Result of a check of monitor {} dropped: its state was purged", monitor.monitorId());
+            return false;
+        }
+        MonitorState state = locked.get();
         checks.insert(monitor.monitorId(), checkedAt, outcome);
         Instant statusSince = state.statusChangedAt();
         Transition transition = state.record(outcome, monitor.settings(), checkedAt, clock);
@@ -132,5 +147,6 @@ public class CheckResultRecorder {
                         statusSince));
             case NONE -> {}
         }
+        return true;
     }
 }

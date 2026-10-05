@@ -305,6 +305,28 @@ class CheckResultRecorderIT {
         assertThat(checksOf(monitor)).isEqualTo(3);
     }
 
+    /**
+     * A check in flight when its monitor was deleted, that comes back after the retention purged the state: there is
+     * nothing to keep it against, and nothing went wrong (OW-029).
+     */
+    @Test
+    void aResultForAStateAlreadyPurgedIsDroppedWithoutAnError() {
+        UUID owner = newUser();
+        MonitorSnapshot monitor = newMonitor(owner);
+        service.delete(owner, monitor.monitorId());
+        jdbc.update("DELETE FROM monitor_state WHERE monitor_id = ?", monitor.monitorId());
+        double errors = errors();
+        double timeouts = counted("DOWN", "TIMEOUT");
+
+        recorder.record(monitor, clock.instant(), TIMED_OUT);
+
+        assertThat(checksOf(monitor)).isZero();
+        assertThat(errors()).isEqualTo(errors);
+        assertThat(counted("DOWN", "TIMEOUT"))
+                .as("not counted as a check either")
+                .isEqualTo(timeouts);
+    }
+
     @Test
     void countsEveryResultByOutcomeAndReason() {
         MonitorSnapshot monitor = newMonitor(newUser());
