@@ -1,6 +1,6 @@
 # Motor de monitoreo
 
-Estado: diseño inicial · Última revisión: 2026-10-03 (refinamiento de la v0.3.0) · Decisiones: [ADR-006](../adr/ADR-006-check-scheduling.md), [ADR-007](../adr/ADR-007-http-client-and-concurrency.md), [ADR-008](../adr/ADR-008-check-results-storage.md)
+Estado: diseño inicial · Última revisión: 2026-10-05 (OW-026) · Decisiones: [ADR-006](../adr/ADR-006-check-scheduling.md), [ADR-007](../adr/ADR-007-http-client-and-concurrency.md), [ADR-008](../adr/ADR-008-check-results-storage.md)
 
 Es la pieza central de OpsWatch y la que decide si el producto es correcto. Este documento cubre la programación, la concurrencia, el cliente HTTP, la evaluación, la persistencia, la presión de carga y los modos de fallo.
 
@@ -95,31 +95,34 @@ flowchart LR
 
 ```sql
 WITH due AS (
-    SELECT s.monitor_id, s.next_check_at AS scheduled_for
+    SELECT s.monitor_id, s.next_check_at AS scheduled_for, m.interval_seconds
     FROM monitor_state s
+    JOIN monitors m ON m.id = s.monitor_id
     WHERE s.next_check_at <= :now
+        AND m.deleted_at IS NULL
     ORDER BY s.next_check_at
-    LIMIT :batch
-    FOR UPDATE SKIP LOCKED
+    LIMIT :max
+    FOR UPDATE OF s SKIP LOCKED
 )
 UPDATE monitor_state s
 SET next_check_at = CASE
-        WHEN due.scheduled_for + make_interval(secs => m.interval_seconds) > :now
-            THEN due.scheduled_for + make_interval(secs => m.interval_seconds)
-        ELSE :now + make_interval(secs => m.interval_seconds)
+        WHEN due.scheduled_for + make_interval(secs => due.interval_seconds) > :now
+            THEN due.scheduled_for + make_interval(secs => due.interval_seconds)
+        ELSE :now + make_interval(secs => due.interval_seconds)
     END,
     updated_at = :now
 FROM due
-JOIN monitors m ON m.id = due.monitor_id
 WHERE s.monitor_id = due.monitor_id
 RETURNING s.monitor_id, due.scheduled_for;
 ```
 
-4. En esa misma transacción corta se cargan las configuraciones de los monitores reclamados. Se hace commit y los checks se entregan al executor.
+4. En esa misma transacción corta se cargan las configuraciones de los monitores reclamados y se descifran sus headers. Se hace commit y los checks se entregan al executor. Un monitor cuya petición no se puede construir (sus headers no se descifran) queda reclamado y cuenta como error propio (`outcome="ERROR"`), después del commit: espera a su siguiente intervalo y nunca frena al resto del lote (OW-026).
 
 Propiedades:
 
 - **Sin duplicados entre instancias.** `SKIP LOCKED` hace que dos instancias nunca reclamen la misma fila, y al reclamarla `next_check_at` avanza un intervalo completo.
+- **Solo se bloquea la fila del estado** (`FOR UPDATE OF s`). Sin el `OF s`, el claim bloquearía también la fila de `monitors` y un `PATCH` tendría que esperarlo. La del monitor se lee sin bloquear: todo el que cambia su configuración o lo borra bloquea antes la del estado, y el claim la salta.
+- **Un monitor borrado no se reclama** aunque su estado siguiera programado (`deleted_at IS NULL`, como defensa: el borrado ya deja `next_check_at` en `NULL`).
 - **Fixed-rate sin catch-up.** El siguiente check se programa desde el instante programado anterior (`scheduled_for + interval`), no desde que terminó, así que no hay deriva. Si el sistema va retrasado más de un intervalo, **no** se ejecutan los checks perdidos en ráfaga: se salta al siguiente. Recuperar checks del pasado no aporta información y agrava la sobrecarga.
 - **Tolerante a caídas.** Si la instancia muere tras reclamar y antes de ejecutar, ese check se pierde y el monitor se ejecuta en el siguiente intervalo. No hay locks huérfanos que limpiar.
 - **Índice.** `ix_monitor_state_due ON monitor_state (next_check_at) WHERE next_check_at IS NOT NULL`. La consulta solo toca filas vencidas.
@@ -151,36 +154,41 @@ Todas bloquean la fila de `monitor_state` (`FOR UPDATE`) antes de escribir, y le
 
 ### Dispatcher
 
+Simplificado de `CheckDispatcher` (OW-026):
+
 ```java
 @Component
-class CheckDispatcher {
+@ConditionalOnBooleanProperty(name = "opswatch.monitoring.engine.enabled", matchIfMissing = true)
+class CheckDispatcher implements SmartLifecycle, DisposableBean {
 
     private final Semaphore permits;                 // maxConcurrentChecks, 200 por defecto
-    private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+    private ExecutorService checks;                  // virtual threads, uno nuevo en cada start()
 
-    @Scheduled(fixedDelayString = "${opswatch.monitoring.engine.dispatch-interval}")
+    @Scheduled(fixedDelayString = "${opswatch.monitoring.engine.dispatch-interval:1s}")
     void dispatch() {
-        int free = permits.availablePermits();
-        if (free == 0) {
-            metrics.dispatcherSaturated();           // presión de carga: los vencidos esperan en la BD
-            return;
-        }
-        List<ClaimedCheck> claimed = claimer.claim(Math.min(free, maxBatchSize));   // transacción corta
-        for (ClaimedCheck check : claimed) {
-            permits.acquireUninterruptibly();        // no bloquea: solo este hilo adquiere
-            executor.submit(() -> {
-                try {
-                    runner.run(check);
-                } finally {
-                    permits.release();
-                }
-            });
+        synchronized (lock) {                        // el apagado nunca encuentra un dispatch a medias
+            int free = permits.availablePermits();
+            if (!running || free == 0) {
+                return;                              // presión de carga: los vencidos esperan en la BD
+            }
+            List<ClaimedCheck> claimed = claimer.claim(Math.min(free, maxBatchSize));   // transacción corta
+            for (ClaimedCheck check : claimed) {
+                permits.acquireUninterruptibly();    // no bloquea: solo este método adquiere
+                checks.execute(() -> {
+                    try {
+                        run(check);                  // probe → CheckEvaluator → CheckResultRecorder
+                    } finally {
+                        permits.release();
+                    }
+                });
+            }
         }
     }
 }
 ```
 
-- Solo **reclama tantos checks como permisos libres tenga**. Nunca saca de la base de datos trabajo que no pueda empezar ya.
+- Solo **reclama tantos checks como permisos libres tenga**. Nunca saca de la base de datos trabajo que no pueda empezar ya. Sin permisos libres no llama al claim.
+- Una excepción de la petición (o de la evaluación) es un error propio: `CheckResultRecorder.recordError` la registra con el id del monitor y la cuenta como `outcome="ERROR"`, sin check ni transición. Un claim que falla deja un log de error y el siguiente dispatch lo intenta de nuevo.
 - El `Semaphore` es el único límite de concurrencia del motor y se ve en la métrica `opswatch_monitor_checks_in_flight`.
 - El número de hilos no hay que dimensionarlo: los virtual threads son baratos. Lo que se dimensiona es el semáforo.
 
@@ -363,7 +371,9 @@ Reglas:
 
 ## 12. Cancelación y apagado
 
-- Al recibir `SIGTERM`: el dispatcher deja de reclamar, se espera a los checks en vuelo hasta `timeoutMs` máximo más 5 s y los que queden se cancelan. Sus monitores se ejecutan en el siguiente intervalo.
+- Al recibir `SIGTERM`: el dispatcher deja de reclamar y espera a los checks en vuelo hasta el deadline más lejano de ellos (`timeoutMs` más `deadline-grace` desde que se lanzaron) más `shutdown-grace` (5 s). Sus monitores se ejecutan en el siguiente intervalo.
+- **Lo que siga en vuelo después se abandona y su resultado no se guarda.** El cliente HTTP se cierra al apagarse la aplicación, y una petición cortada así llegaría como `CONNECTION_FAILED`: un fallo propio contado como del destino, que podría abrir un incidente falso. Un check abandonado se reconoce porque el executor de su arranque está cerrado. Si la fase de apagado se agota antes de que el dispatcher deje de esperar, su `destroy` cierra el executor; Spring lo destruye antes que al cliente, del que depende (OW-026).
+- El dispatcher se apaga en la misma fase que el apagado ordenado del servidor web (`WebServerApplicationContext.GRACEFUL_SHUTDOWN_PHASE`): los dos esperan a la vez, y el total cabe en los 40 s de `stop_grace_period` ([Docker](../devops/docker.md)).
 - `server.shutdown=graceful` y `spring.lifecycle.timeout-per-shutdown-phase=35s`.
 - El motor se puede desactivar por instancia con `opswatch.monitoring.engine.enabled=false` (instancias que solo sirven la API). Está desactivado en el perfil `test`: el contexto compartido de los tests haría peticiones reales por cada monitor que crean. Los tests del motor lo activan en su propio contexto, contra WireMock en `127.0.0.1`.
 
@@ -436,5 +446,5 @@ Detalle en la [estrategia de testing](../testing/testing-strategy.md). Lo mínim
 - **Unitarias:** `CheckEvaluator` (todas las combinaciones de rango, umbral y fallo), `StateTransition` (la tabla completa del [modelo de dominio](domain-model.md#monitorstate)), cálculo de `next_check_at` y del jitter con `Clock` y `RandomGenerator` inyectados.
 - **Integración con WireMock:** estados, retrasos (timeout), redirects (mismo origen y origen distinto, bucles, más de 5 saltos), headers enormes, TLS autofirmado y `Location` inválido.
 - **SSRF:** resolver falso que devuelve IP privadas o que cambia de IP entre llamadas (rebinding), y redirect hacia `169.254.169.254`.
-- **Concurrencia:** dos dispatchers contra el mismo PostgreSQL de Testcontainers reclamando a la vez: ningún monitor se ejecuta dos veces por intervalo.
+- **Concurrencia:** cuatro claimers contra el mismo PostgreSQL de Testcontainers reclamando a la vez, 1 000 monitores y 20 rondas: ningún monitor se reclama dos veces por intervalo ni se queda sin reclamar (`CheckClaimerConcurrencyIT`, OW-026).
 - **Pausa con un check en vuelo:** el resultado se guarda y el estado sigue en `PAUSED`.

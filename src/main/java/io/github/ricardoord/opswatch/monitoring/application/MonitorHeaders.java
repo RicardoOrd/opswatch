@@ -17,7 +17,7 @@ import tools.jackson.databind.json.JsonMapper;
  * a JPA converter, which on reading would not know the id.
  */
 @Component
-class MonitorHeaders {
+public class MonitorHeaders {
 
     static final String PURPOSE = "monitors.request_headers:";
 
@@ -40,8 +40,12 @@ class MonitorHeaders {
         return cipher.encrypt(JSON.writeValueAsBytes(headers), PURPOSE + monitorId);
     }
 
-    /** @throws DecryptionFailedException if they were not sealed for this monitor, or with a key no longer configured */
-    List<RequestHeader> unseal(Monitor monitor) {
+    /**
+     * For a check (the engine) and for the API.
+     *
+     * @throws DecryptionFailedException if they were not sealed for this monitor, or with a key no longer configured
+     */
+    public List<RequestHeader> unseal(Monitor monitor) {
         byte[] sealed = monitor.requestHeaders();
         if (sealed == null) {
             return List.of();

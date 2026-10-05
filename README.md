@@ -33,9 +33,10 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | Monitores: crear, listar con filtros, resumen por estado y edición, con cuota de 50 por organización (OW-021) | **Implemented** |
 | Headers de monitor cifrados con AES-256-GCM y de solo escritura (OW-022) | **Implemented** |
 | Pausa, reanudación, borrado y limpieza de monitores al borrar su proyecto (OW-044) | **Implemented** |
+| Motor de checks: claim con `SKIP LOCKED` sin duplicados entre instancias, virtual threads con semáforo, cliente HTTP endurecido contra SSRF, registro de resultados y estado del monitor (OW-024 a OW-027) | **Implemented** |
 | Resto de funcionalidades de producto | Planned |
 
-**Qué se hace ahora:** refinar el milestone [v0.3.0 — Motor de monitoreo](https://github.com/RicardoOrd/opswatch/milestone/4) contra lo que dejó construido la v0.2.0. Siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
+**Qué se hace ahora:** el milestone [v0.3.0 — Motor de monitoreo](https://github.com/RicardoOrd/opswatch/milestone/4). El motor ya ejecuta los checks; quedan la consulta del historial y las estadísticas (OW-028), la retención (OW-029) y las métricas (OW-030). Siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
 
 ---
 
@@ -65,7 +66,7 @@ Cada monitor hace algo como `GET https://api.example.com/health` cada 60 segundo
 | Gestión de miembros y roles, con al menos un `OWNER` siempre | **Implemented** | 1 |
 | Proyectos dentro de cada organización | **Implemented** | 2 |
 | Monitores HTTP/HTTPS configurables, con headers cifrados, pausa y reanudación | **Implemented** | 2 |
-| Motor de health checks periódicos con protección contra SSRF | Planned | 3 |
+| Motor de health checks periódicos con protección contra SSRF | **Implemented** | 3 |
 | Historial de checks, uptime y percentiles de latencia | Planned | 3 |
 | Incidentes automáticos con reconocimiento (acknowledge) y resolución | Planned | 4 |
 | Notificaciones por email y por webhook firmado con HMAC | Planned | 4 |

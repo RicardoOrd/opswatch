@@ -163,7 +163,7 @@ src/main/java/io/github/ricardoord/opswatch/
 │   │                 CheckStatus, CheckOutcome, StateTransition, StateChange,
 │   │                 repositorios (MonitorCheckRepository, con JDBC)
 │   ├── application/  MonitorService, CheckResultRecorder, MonitorStatsQueries, RetentionJob
-│   ├── engine/       CheckDispatcher, CheckClaimer, HttpMonitorClient, ProbeRequest, HttpObservation, CheckEvaluator,
+│   ├── engine/       CheckDispatcher, CheckClaimer, ClaimedCheck, HttpMonitorClient, ProbeRequest, HttpObservation, CheckEvaluator,
 │   │                 MonitoringEngineProperties
 │   │   └── http/     ApacheHttpMonitorClient, Deadline, Redirects, Failures
 │   └── web/          MonitorController, CheckController, DTOs

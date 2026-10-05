@@ -13,6 +13,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -73,11 +74,7 @@ public class CheckResultRecorder {
         try {
             transactions.executeWithoutResult(transaction -> recordLocked(monitor, checkedAt, outcome));
         } catch (RuntimeException ex) {
-            log.atError()
-                    .addKeyValue("monitor.id", monitor.monitorId())
-                    .setCause(ex)
-                    .log("Result of a check of monitor {} not recorded", monitor.monitorId());
-            meters.counter(CHECKS, "outcome", ERROR, "reason", NO_REASON).increment();
+            recordError(monitor.monitorId(), ex);
             return;
         }
         meters.counter(
@@ -89,6 +86,19 @@ public class CheckResultRecorder {
                                 ? NO_REASON
                                 : outcome.failureReason().name())
                 .increment();
+    }
+
+    /**
+     * An error of OpsWatch instead of a result: of the engine before the request (decrypting the headers), of the
+     * request itself, or of this recorder. No check and no transition, so the state stays as it was; logged with the id
+     * of the monitor and counted as {@code outcome="ERROR"}.
+     */
+    public void recordError(UUID monitorId, RuntimeException cause) {
+        log.atError()
+                .addKeyValue("monitor.id", monitorId)
+                .setCause(cause)
+                .log("Check of monitor {} failed with an error of OpsWatch: no result recorded", monitorId);
+        meters.counter(CHECKS, "outcome", ERROR, "reason", NO_REASON).increment();
     }
 
     /**
