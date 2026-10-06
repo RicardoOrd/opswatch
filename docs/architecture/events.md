@@ -87,8 +87,8 @@ public record OrganizationDeleted(UUID organizationId, Instant occurredAt) {}
 |---|---|---|---|---|
 | `MonitorWentDown` | `monitoring` | `incident` | **Síncrono, misma transacción** | Invariante: estado `DOWN` ⇔ incidente activo |
 | `MonitorRecovered` | `monitoring` | `incident` | **Síncrono, misma transacción** | Ídem |
-| `MonitorPaused` | `monitoring` | `incident` | **Síncrono, misma transacción** | Resolver el incidente activo al pausar. Se publica desde OW-044; su listener llega con OW-032 |
-| `MonitorDeleted` | `monitoring` | `incident` | **Síncrono, misma transacción** | Ídem al borrar, también cuando lo borra la limpieza de un proyecto. Se publica desde OW-044; su listener llega con OW-032 |
+| `MonitorPaused` | `monitoring` | `incident` | **Síncrono, misma transacción** | Resolver el incidente activo al pausar. Se publica desde OW-044 y lo escucha `MonitorEventsListener` desde OW-032 |
+| `MonitorDeleted` | `monitoring` | `incident` | **Síncrono, misma transacción** | Ídem al borrar, también cuando lo borra la limpieza de un proyecto. Se publica desde OW-044 y lo escucha `MonitorEventsListener` desde OW-032 |
 | `IncidentOpened` | `incident` | `notification` | **Asíncrono, después del commit, con registro** | Efecto lateral con I/O externo y reintentos |
 | `IncidentResolved` | `incident` | `notification` | **Asíncrono, después del commit, con registro** | Ídem |
 | `IncidentAcknowledged` | `incident` | — (Fase 8: tiempo real) | — | Se publica ya por consistencia del catálogo |
@@ -106,12 +106,12 @@ class MonitorEventsListener {
 
     @EventListener            // se ejecuta dentro de la transacción del publicador
     void on(MonitorWentDown event) {
-        incidents.openIfNoneActive(event);   // idempotente gracias al índice único parcial
+        lifecycle.open(event);   // INSERT … ON CONFLICT DO NOTHING sobre el índice único parcial: idempotente
     }
 
     @EventListener
     void on(MonitorRecovered event) {
-        incidents.resolveActive(event.monitorId(), Resolution.AUTO_RECOVERED, event.occurredAt());
+        lifecycle.resolve(event.monitorId(), Resolution.AUTO_RECOVERED, event.occurredAt(), null);   // FOR UPDATE
     }
 }
 ```

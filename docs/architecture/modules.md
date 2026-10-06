@@ -169,9 +169,9 @@ src/main/java/io/github/ricardoord/opswatch/
 │   └── web/          MonitorController, CheckController, DTOs
 ├── incident/
 │   ├── IncidentOpened.java, IncidentAcknowledged.java,
-│   │   IncidentResolved.java                            ← eventos publicados
-│   ├── domain/       Incident, IncidentTimelineEntry, IncidentStatus, Resolution, repositorios
-│   ├── application/  IncidentService, MonitorEventsListener
+│   │   IncidentResolved.java, Resolution.java           ← eventos publicados
+│   ├── domain/       Incident, IncidentStatus, NewIncident, TimelineEntryType, repositorios
+│   ├── application/  IncidentLifecycle, MonitorEventsListener, IncidentMetrics
 │   └── web/          IncidentController, DTOs
 └── notification/
     ├── domain/       NotificationChannel, NotificationDelivery, repositorios

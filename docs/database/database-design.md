@@ -311,7 +311,10 @@ CREATE TABLE incidents (
     CONSTRAINT fk_incidents_monitor FOREIGN KEY (monitor_id) REFERENCES monitors (id),
     CONSTRAINT fk_incidents_ack_by FOREIGN KEY (acknowledged_by) REFERENCES users (id) ON DELETE SET NULL,
     CONSTRAINT fk_incidents_resolved_by FOREIGN KEY (resolved_by) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT ck_incidents_monitor_name CHECK (char_length(monitor_name) BETWEEN 1 AND 100),
     CONSTRAINT ck_incidents_status CHECK (status IN ('OPEN', 'ACKNOWLEDGED', 'RESOLVED')),
+    CONSTRAINT ck_incidents_cause CHECK (cause IN ('TIMEOUT', 'DNS_FAILURE', 'CONNECTION_FAILED', 'TLS_FAILURE',
+        'UNEXPECTED_STATUS', 'TOO_MANY_REDIRECTS', 'TARGET_BLOCKED', 'PROTOCOL_ERROR')),
     CONSTRAINT ck_incidents_resolution CHECK (resolution IN ('AUTO_RECOVERED', 'MONITOR_PAUSED', 'MONITOR_DELETED')),
     CONSTRAINT ck_incidents_resolved CHECK ((status = 'RESOLVED') = (resolved_at IS NOT NULL AND resolution IS NOT NULL)),
     CONSTRAINT ck_incidents_acknowledged CHECK (status <> 'ACKNOWLEDGED' OR acknowledged_at IS NOT NULL)
