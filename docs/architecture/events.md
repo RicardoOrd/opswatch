@@ -92,7 +92,7 @@ public record OrganizationDeleted(UUID organizationId, Instant occurredAt) {}
 | `IncidentOpened` | `incident` | `notification` | **Asíncrono, después del commit, con registro** | Efecto lateral con I/O externo y reintentos |
 | `IncidentResolved` | `incident` | `notification` | **Asíncrono, después del commit, con registro** | Ídem |
 | `IncidentAcknowledged` | `incident` | — (Fase 8: tiempo real) | — | Se publica ya por consistencia del catálogo |
-| `ProjectDeleted` | `organization` | `monitoring` | **Asíncrono, después del commit, con registro** | Limpieza que puede tardar y no tiene que bloquear la petición. Borra cada monitor por el mismo camino que `DELETE`, así que cada uno publica su `MonitorDeleted` con el `deletedBy` del proyecto (OW-044) |
+| `ProjectDeleted` | `organization` | `monitoring`, `notification` (OW-035) | **Asíncrono, después del commit, con registro** | Limpieza que puede tardar y no tiene que bloquear la petición. Borra cada monitor por el mismo camino que `DELETE`, así que cada uno publica su `MonitorDeleted` con el `deletedBy` del proyecto (OW-044). `notification` borra los canales limitados al proyecto, con sus entregas (OW-035) |
 | `OrganizationDeleted` | `organization` | — (nadie en V1) | — | Los proyectos de la organización no se borran escuchándolo: `OrganizationService` llama a `ProjectService` en la misma transacción (OW-019). Dentro de un módulo, un evento solo añadiría indirección |
 
 ## 4. Semántica transaccional

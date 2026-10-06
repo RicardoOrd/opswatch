@@ -8,9 +8,9 @@ Sin fechas: es un proyecto personal y el ritmo es variable. El orden y los crite
 
 | | |
 |---|---|
-| **Ahora** | **Refinar la v0.4.0 — Incidentes y notificaciones** (OW-032, OW-033, OW-035, OW-036 y OW-043) contra lo que dejó construido la v0.3.0: `MonitorWentDown` y `MonitorRecovered` se publican dentro de la transacción de `CheckResultRecorder`, que nunca lanza (si un listener síncrono de `incident` falla, se revierte el check con su cambio de estado); `MonitorPaused` y `MonitorDeleted` ya existen y nadie los escucha; la retención conserva la fila de `monitors` para que la referencien los incidentes; los webhooks saldrán por el cliente de `egress`, sin el salto de `https` a `http`. Sus issues siguen en *Planned* hasta ese refinamiento |
+| **Ahora** | **v0.4.0 — Incidentes y notificaciones**, refinada el 2026-10-05 ([backlog](backlog.md#v040--incidentes-y-notificaciones)) contra lo que dejó construido la v0.3.0. Los eventos del monitor se publican dentro de la transacción de `CheckResultRecorder`, que nunca lanza, así que el listener de `incident` no hace I/O y el acknowledge se serializa con la resolución bloqueando la fila del incidente. Los webhooks salen por `egress` sin seguir redirects; el endpoint de prueba de canales y Mailpit van con el envío de emails (OW-036) |
 | **Hecho** | v0.3.0 — Motor de monitoreo, publicada el 2026-10-05 (release #90). v0.2.0 — Proyectos y monitores, publicada el 2026-10-03 (release #79). v0.1.0 — Identity y organizaciones, publicada el 2026-09-29 (release #69). Sprint 0 cerrado el 2026-09-28 |
-| **Orden** | Se fija al refinar la v0.4.0 |
+| **Orden** | OW-032 (incidentes) → OW-033 (acknowledge y listados) → OW-035 (canales) → OW-036 (entregas y email) → OW-043 (webhooks firmados) |
 | **Fuera de foco** | Todo lo de V2 a V5 (Redis, broker, microservicios, tiempo real). Vive en este roadmap y en los ADR propuestos, no en issues |
 
 ## Milestones
@@ -159,7 +159,7 @@ flowchart LR
 ## Fase 6: Despliegue y CD → **1.0.0 (V1)**
 
 - **Objetivo:** V1 pública, desplegada y recuperable.
-- **Funcionalidades:** VPS con Caddy y TLS; staging y producción; workflow de release (staging automático, producción con aprobación); copias de seguridad cifradas; firewall de salida (capa 6 de SSRF); monitor externo del propio OpsWatch; SBOM.
+- **Funcionalidades:** VPS con Caddy y TLS; staging y producción; workflow de release (staging automático, producción con aprobación); copias de seguridad cifradas; firewall de salida (capa 6 de SSRF); monitor externo del propio OpsWatch; SBOM; la versión en `/actuator/info` (`build-info` del plugin de Spring Boot), que los smoke tests comparan con el tag desplegado.
 - **Dependencias:** Fase 5. Decisión del proveedor de hosting ([decisiones abiertas](../architecture/open-decisions.md)).
 - **Definition of Done:** despliegue reproducible con un tag; rollback probado; **restauración de una copia de seguridad probada**; runbook de operación en `docs/devops/`. El runbook genera las claves JWT y de cifrado en el propio servidor, distintas en `staging` y en `production`, y nunca las copia de `secrets/` de una máquina de desarrollo. Sustituye a una comprobación de huellas de claves de desarrollo que no tiene sentido ([entornos](../devops/environments.md#por-qué-no-se-comprueba-la-huella-de-una-clave-de-desarrollo)).
 - **Criterios de aceptación:**

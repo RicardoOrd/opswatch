@@ -15,7 +15,7 @@ Estado: diseño inicial · Última revisión: 2026-10-02
 | Fuente de los secretos | `.env` | Generados en el test | Docker secrets | Docker secrets |
 | Claves JWT y de cifrado | De desarrollo, generadas por un script local | Generadas por test | Propias de staging | Propias de producción, **distintas** de staging |
 | `egress.allowed-private-cidrs` | Vacío (o la red local si se prueba con un destino propio) | Loopback y la red de Testcontainers | **Vacío** | **Vacío. Obligatorio: la aplicación no arranca si no** |
-| Email | Mailpit | `EmailSender` falso | SMTP del proveedor (sandbox si existe) | SMTP del proveedor |
+| Email | Mailpit (profile `mail` de Compose) | GreenMail en los tests de entrega; `EmailSender` simulado en los demás | SMTP del proveedor (sandbox si existe) | SMTP del proveedor |
 | bcrypt | Coste 12 | Coste 4 (velocidad de los tests) | Coste 12 | Coste 12 |
 | Salvaguardas de arranque | Desactivadas | Desactivadas | Activadas | Activadas |
 
@@ -140,7 +140,10 @@ Los rangos de validación del dominio (intervalo de 30 a 3600 s, timeout de 1 a 
 | `opswatch.notification.delivery.backoff` | `0s,30s,2m,10m,30m,1h` |
 | `opswatch.notification.webhook.timeout` | `5s` |
 | `opswatch.notification.test.rate-limit` | `5/1m` por canal |
+| `opswatch.notification.email.from` | Sin valor por defecto: **obligatoria**. `local` y `test` la definen en su perfil (OW-036) |
 | `spring.mail.*` | Según el entorno (host, puerto, usuario, contraseña **secreta**, STARTTLS) |
+| `spring.mail.properties.mail.smtp.connectiontimeout`, `timeout`, `writetimeout` | `5000`, `10000` y `10000` ms. Jakarta Mail espera sin límite si no se fijan (T-33, OW-036) |
+| `management.health.mail.enabled` | `false`: un SMTP caído no tiene que tumbar la readiness, las entregas lo reintentan (OW-036) |
 
 ### Eventos
 

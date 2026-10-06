@@ -465,7 +465,8 @@ Un error **interno** de OpsWatch (un bug, la base de datos caída al guardar) **
 - Máximo `opswatch.limits.channels-per-organization` canales.
 - La URL de un webhook pasa `TargetPolicy` y **tiene que ser `https`**.
 - El secreto de firma lo genera el servidor (32 bytes), se muestra una sola vez al crear el canal y se puede rotar.
-- Hay un endpoint que envía una notificación de prueba.
+- Hay un endpoint que envía una notificación de prueba: crea una entrega `TEST` que procesa el mismo worker (OW-036).
+- Un canal limitado a un proyecto se borra, con sus entregas, cuando se borra el proyecto (listener de `ProjectDeleted`, OW-035).
 
 ### NotificationDelivery
 
@@ -473,8 +474,8 @@ Un error **interno** de OpsWatch (un bug, la base de datos caída al guardar) **
 |---|---|---|
 | `id` | `uuid` | PK |
 | `channel_id` | `uuid` | FK, `ON DELETE CASCADE` |
-| `incident_id` | `uuid` | FK |
-| `event_type` | `text` | `INCIDENT_OPENED` o `INCIDENT_RESOLVED` |
+| `incident_id` | `uuid` | FK. Nulo solo en las entregas `TEST` |
+| `event_type` | `text` | `INCIDENT_OPENED`, `INCIDENT_RESOLVED` o `TEST` (prueba del canal, sin incidente) |
 | `status` | `text` | `PENDING`, `SENT` o `FAILED` |
 | `attempts` | `integer` | |
 | `next_attempt_at` | `timestamptz` | |
@@ -482,9 +483,9 @@ Un error **interno** de OpsWatch (un bug, la base de datos caída al guardar) **
 | `last_error` | `text` | Máximo 255 caracteres |
 | `created_at`, `sent_at` | `timestamptz` | |
 
-**Índices:** único `(channel_id, incident_id, event_type)`, que da la idempotencia ante eventos duplicados, y parcial `(next_attempt_at) WHERE status = 'PENDING'`.
+**Índices:** único `(channel_id, incident_id, event_type)`, que da la idempotencia ante eventos duplicados (las entregas `TEST` tienen `incident_id` nulo y no chocan entre sí), y parcial `(next_attempt_at) WHERE status = 'PENDING'`.
 
-**Reglas:** como mucho 6 intentos, con backoff de 0 s, 30 s, 2 min, 10 min, 30 min y 1 h. Después, `FAILED`.
+**Reglas:** como mucho 6 intentos, con backoff de 0 s, 30 s, 2 min, 10 min, 30 min y 1 h. Después, `FAILED`. Un canal deshabilitado no envía: su entrega pasa a `FAILED`. La entrega es at-least-once: el webhook lleva el id de la entrega para que el receptor descarte duplicados.
 
 ## 9. Entidades evaluadas y aplazadas
 

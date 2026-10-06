@@ -13,7 +13,7 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 
 **Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
-**Foco actual: refinar la v0.4.0 — Incidentes y notificaciones** contra lo que dejó construido la v0.3.0 (publicada el 2026-10-05, release #90). Hasta ese refinamiento, sus issues siguen en **Planned** y nada está listo para empezar. La v0.3.0 (OW-024 a OW-030; OW-031 se fusionó en OW-026 y OW-027), la v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
+**Foco actual: v0.4.0 — Incidentes y notificaciones**, refinada el 2026-10-05 contra lo que dejó construido la v0.3.0 (publicada el 2026-10-05, release #90). Orden: OW-032 → OW-033 → OW-035 → OW-036 → OW-043, todas en **Ready**. La v0.3.0 (OW-024 a OW-030; OW-031 se fusionó en OW-026 y OW-027), la v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
 
 ## Convenciones
 
@@ -905,100 +905,151 @@ Fusionada en OW-026 (claimers concurrentes) y OW-027 (pausa concurrente con el r
 
 ## v0.4.0 — Incidentes y notificaciones
 
-### OW-032 · Incidentes: apertura y resolución automáticas
-`feature` · P1 · Milestone: v0.4.0 — Incidentes y notificaciones · **Planned**
+Orden: OW-032 → OW-033 → OW-035 → OW-036 → OW-043. Las entregas (OW-036) necesitan incidentes que notificar (OW-032) y canales a los que enviar (OW-035). La firma de los webhooks (OW-043) va al final porque reutiliza el worker de OW-036.
 
-- **Context:** [ciclo de vida de incidentes](../architecture/incident-lifecycle.md) y [eventos](../architecture/events.md).
+Refinada el 2026-10-05 contra lo que dejó construido la v0.3.0:
+- `MonitorWentDown` y `MonitorRecovered` se publican dentro de la transacción de `CheckResultRecorder`, que bloquea la fila de `monitor_state` y **nunca lanza**: si un listener síncrono falla, se revierten el check y su cambio de estado, y se cuenta como `ERROR`;
+- `MonitorPaused` y `MonitorDeleted` se publican dentro de la transacción de la pausa y del borrado, también con la fila del estado bloqueada; la limpieza de un proyecto borra monitor a monitor (OW-044);
+- la retención conserva la fila de `monitors` para que la referencien los incidentes (OW-029);
+- en `egress`, `TargetKind.WEBHOOK` (solo `https`) y `EgressHttpClients`, cuyos clientes nunca siguen redirects;
+- `SecretCipher` con dato asociado, el registro de eventos (OW-034), `PageQuery`, `ETags`, `ProjectDirectory.lockActive`, `LockSpace`, `AccessControl` con los permisos `INCIDENT_*` y `CHANNEL_*`, y la matriz de autorización;
+- el limitador de peticiones vive en `identity.security` (`AuthRateLimiter`), donde `notification` no puede usarlo.
+
+Decisiones de Ricardo en el refinamiento (2026-10-05):
+- acknowledge y recuperación se serializan con un bloqueo pesimista de la fila del incidente, no con `@Version`: así ningún check se pierde;
+- emails multipart, en texto y en HTML, con Thymeleaf;
+- GreenMail como SMTP de los tests de integración;
+- los webhooks no siguen redirects;
+- los canales limitados a un proyecto se borran con él;
+- los incidentes de un proyecto o monitor borrado siguen visibles como historial;
+- versiones: `spring-boot-starter-mail` y Thymeleaf sin versión propia (las fija el BOM de Boot 4.1.1: Angus Mail 2.0.5 y Thymeleaf 3.1.5), `com.icegreen:greenmail-junit5` 2.1.14 en test y `axllent/mailpit:v1.31.4` fijado por digest;
+- la versión en `/actuator/info` (`build-info`) pasa a la Fase 6, donde la comprueban los smoke tests.
+
+### OW-032 · Incidentes: apertura y resolución automáticas
+`feature` · P1 · Milestone: v0.4.0 — Incidentes y notificaciones · **Ready**
+
+- **Context:** [ciclo de vida de incidentes](../architecture/incident-lifecycle.md) y [eventos](../architecture/events.md). Los cuatro eventos del monitor ya se publican (OW-027 y OW-044), dentro de transacciones que tienen bloqueada la fila de `monitor_state`, y nadie los escucha todavía.
 - **Objective:** el listener síncrono de `incident` abre y resuelve incidentes a partir de los eventos del monitor.
 - **Tasks:**
-  - [ ] Migración `incident_create_incidents_and_timeline`, con el índice único parcial.
-  - [ ] `MonitorEventsListener` (`@EventListener`, en la misma transacción) para `MonitorWentDown`, `MonitorRecovered`, `MonitorPaused` y `MonitorDeleted`.
-  - [ ] Apertura idempotente y timeline.
-  - [ ] Eventos `IncidentOpened` e `IncidentResolved`.
-- **Acceptance Criteria:** una caída = un incidente; pausar un monitor caído lo resuelve con `MONITOR_PAUSED`; dos `MonitorWentDown` seguidos no crean dos incidentes; insertar a mano un segundo incidente activo para el mismo monitor viola `ux_incidents_one_active_per_monitor`.
+  - [ ] Migración `incident_create_incidents_and_timeline`, con el DDL del [diseño](../database/database-design.md) y el índice único parcial `ux_incidents_one_active_per_monitor` (`(monitor_id) WHERE status <> 'RESOLVED'`).
+  - [ ] `MonitorEventsListener` (`@EventListener`, en la transacción del publicador) para `MonitorWentDown`, `MonitorRecovered`, `MonitorPaused` y `MonitorDeleted`. Sin I/O externo: si lanza, `CheckResultRecorder` revierte el check entero, y la pausa o el borrado fallan.
+  - [ ] Apertura idempotente con `INSERT … ON CONFLICT DO NOTHING` sobre el índice parcial, con el nombre del monitor, la causa y el código HTTP del evento, y su entrada `OPENED` en el timeline. `opened_at` es el `occurredAt` del evento.
+  - [ ] Resolución: lee el incidente activo con `FOR UPDATE`, en el orden de bloqueos estado del monitor → incidente (el acknowledge de OW-033 toma el mismo bloqueo), y lo pasa a `RESOLVED` con `AUTO_RECOVERED`, `MONITOR_PAUSED` o `MONITOR_DELETED`. `resolved_by` es quien pausó o borró, y nulo en la recuperación. Añade su entrada `RESOLVED`. Sin incidente activo no hace nada (pausar un monitor `UP`, por ejemplo).
+  - [ ] Eventos `IncidentOpened`, `IncidentAcknowledged` e `IncidentResolved` en el paquete raíz de `incident`, con la forma del [catálogo](../architecture/events.md#incident). Se publican en la misma transacción; los escuchará `notification` con el registro (OW-036).
+  - [ ] Métricas `opswatch_incidents_opened_total` y `opswatch_incidents_active`. El gauge lo recalcula una tarea programada cada 30 s, nunca el scrape.
+- **Acceptance Criteria:** una caída = un incidente; pausar un monitor caído lo resuelve con `MONITOR_PAUSED`; borrar el proyecto de un monitor caído lo resuelve con `MONITOR_DELETED`; dos `MonitorWentDown` seguidos no crean dos incidentes; insertar a mano un segundo incidente activo para el mismo monitor viola `ux_incidents_one_active_per_monitor`; si el listener falla, el check no se guarda, el estado no se mueve y el siguiente check vuelve a evaluar la transición.
 - **Testing:**
   - Módulo: `@ApplicationModuleTest` con `Scenario` (`MonitorWentDown` → `IncidentOpened`).
   - Integración: la restricción única (`IncidentRepositoryIT`) y los eventos duplicados.
+  - Integración: el registro de un resultado real abre y resuelve el incidente en su transacción, y un listener que lanza revierte el check (como el error propio de OW-027).
 - **Security considerations:** integridad del estado entre módulos: el listener síncrono y el índice único garantizan la invariante aunque haya duplicados. Los eventos llevan solo ids, el nombre del monitor y la causa, nunca la URL ni los headers.
-- **Dependencies:** OW-027.
+- **Dependencies:** OW-027, OW-044.
 - **Definition of Done:** la invariante "un incidente activo por monitor" está probada en la base de datos y en la aplicación.
 
 ### OW-033 · Acknowledge, listados y timeline
-`feature` · P2 · Milestone: v0.4.0 — Incidentes y notificaciones · **Planned**
+`feature` · P2 · Milestone: v0.4.0 — Incidentes y notificaciones · **Ready**
 
 - **Context:** la interacción humana con los incidentes. No hay resolución manual en V1 ([por qué](../architecture/incident-lifecycle.md#por-qué-no-hay-resolución-manual-r6)).
 - **Objective:** `GET /api/v1/organizations/{orgId}/incidents`, `GET /api/v1/incidents/{incidentId}` y `POST /api/v1/incidents/{incidentId}/acknowledge`.
 - **Tasks:**
-  - [ ] Acknowledge con nota opcional.
-  - [ ] Listado por organización con filtros.
-  - [ ] Detalle con el timeline.
+  - [ ] Acknowledge con nota opcional (500 caracteres como máximo). Lee el incidente con `FOR UPDATE`, el mismo bloqueo que la resolución de OW-032 (decisión de Ricardo del 2026-10-05): `OPEN` pasa a `ACKNOWLEDGED`, con su entrada en el timeline y `IncidentAcknowledged`. Cualquier otro estado da `409 business-rule-violation`.
+  - [ ] Listado por organización con `PageQuery`: filtros `status`, `projectId`, `monitorId`, `from` y `to`; `sort` por `openedAt` (por defecto, descendente) o `resolvedAt`.
+  - [ ] Detalle con el timeline, el actor de cada entrada (`UserDirectory`) y `durationSeconds` al resolverse.
+  - [ ] Autorización por la organización del incidente (`AccessControl.require` con `INCIDENT_READ` o `INCIDENT_ACKNOWLEDGE`), no por su proyecto: los incidentes de un proyecto o un monitor borrados siguen visibles como historial (decisión de Ricardo del 2026-10-05). Quien no es miembro recibe un `404` que habla del incidente.
   - [ ] Filas nuevas en la matriz de autorización.
-- **Acceptance Criteria:** acknowledge sobre `OPEN` → `ACKNOWLEDGED`; sobre `RESOLVED` → `409`; un `VIEWER` → `403`; acknowledge a la vez que la recuperación: una de las dos operaciones falla con conflicto y el estado final es coherente.
+- **Acceptance Criteria:** acknowledge sobre `OPEN` → `ACKNOWLEDGED`; sobre `RESOLVED` → `409`; un `VIEWER` → `403`; acknowledge a la vez que la recuperación: las dos se serializan sobre la fila del incidente; si gana la recuperación, el acknowledge da `409 business-rule-violation`, y el check se guarda siempre; los incidentes de un proyecto borrado salen en el listado y por id.
 - **Testing:**
   - API y seguridad: endpoints por rol e IDOR.
-  - Integración (concurrencia): acknowledge frente a la recuperación.
-- **Security considerations:** la nota tiene como máximo 500 caracteres y se escapa al mostrarla (XSS en un frontend futuro); `@Version` evita perder actualizaciones.
+  - Integración (concurrencia): con la fila del incidente retenida por una recuperación, el acknowledge espera y después da `409`; con el acknowledge primero, la recuperación espera y resuelve el incidente `ACKNOWLEDGED`.
+- **Security considerations:** la nota tiene como máximo 500 caracteres y se escapa al mostrarla (XSS en un frontend futuro). El bloqueo de la fila evita perder actualizaciones sin descartar checks.
 - **Dependencies:** OW-032.
 - **Definition of Done:** el catálogo de endpoints coincide con la implementación.
 
 ### OW-035 · Canales de notificación (email y webhook)
-`feature` `security` · P2 · Milestone: v0.4.0 — Incidentes y notificaciones · **Planned**
+`feature` `security` · P2 · Milestone: v0.4.0 — Incidentes y notificaciones · **Ready**
 
-- **Context:** a dónde avisar ([modelo de dominio](../architecture/domain-model.md#notificationchannel)).
-- **Objective:** CRUD de canales con la configuración cifrada, un secreto de firma que se muestra una sola vez y el endpoint de prueba.
+- **Context:** a dónde avisar ([modelo de dominio](../architecture/domain-model.md#notificationchannel)). El endpoint de prueba y Mailpit pasan a OW-036: hasta entonces no hay nada que envíe.
+- **Objective:** CRUD de canales con la configuración cifrada y un secreto de firma que se muestra una sola vez.
 - **Tasks:**
-  - [ ] Migración `notification_create_channels_and_deliveries`.
-  - [ ] Configuración cifrada con `SecretCipher`.
-  - [ ] Webhook: `TargetPolicy` solo con `https`; generación y rotación del secreto.
-  - [ ] `POST /api/v1/notification-channels/{channelId}/test` con rate limit.
-  - [ ] Mailpit en Compose (profile `mail`).
+  - [ ] Migración `notification_create_channels_and_deliveries`. `notification_deliveries` admite ya las entregas de prueba de OW-036: `event_type` `TEST` con `incident_id` nulo.
+  - [ ] Crear, listar, leer, `PATCH`, borrar y `rotate-secret`, como en el [catálogo](../api/endpoints-v1.md#canales-de-notificación-notification), con `ETag` e `If-Match` como las organizaciones.
+  - [ ] Configuración cifrada con `SecretCipher`. El dato asociado lleva el propósito y el id del canal, distinto del de los headers de monitor, para que un texto cifrado no se pueda mover de una tabla a otra.
+  - [ ] Email: de 1 a `recipients-per-channel` (10) direcciones válidas y sin repetir.
+  - [ ] Webhook:
+    - la URL pasa `TargetPolicy.validate(url, TargetKind.WEBHOOK)`, que solo admite `https` y resuelve el DNS fuera de la transacción;
+    - secreto de 32 bytes de `SecureRandom` con prefijo `whsec_`, que solo sale en las respuestas de creación y de rotación. En el resto, la configuración va enmascarada.
+  - [ ] Cuota `channels-per-organization` (10), serializada con un advisory lock como la de monitores (espacio nuevo en `LockSpace`).
+  - [ ] `projectId` opcional: el proyecto tiene que ser de la organización y no estar borrado. El canal se crea con el proyecto en `FOR SHARE` (`ProjectDirectory.lockActive`), como un monitor, para que no sobreviva a un borrado concurrente.
+  - [ ] Listener asíncrono de `ProjectDeleted` (`@ApplicationModuleListener`, registro de OW-034) que borra los canales del proyecto y, por cascada, sus entregas (decisión de Ricardo del 2026-10-05). Idempotente.
   - [ ] Filas nuevas en la matriz de autorización.
-- **Acceptance Criteria:** un webhook `http://` → `422`; el secreto solo aparece en la respuesta de creación y en la de rotación; el sexto envío de prueba en un minuto → `429`.
+- **Acceptance Criteria:** un webhook `http://` → `422`; el secreto solo aparece en la respuesta de creación y en la de rotación; el canal 11 de una organización → `422 quota-exceeded`; un `projectId` de otra organización → `404`; borrar el proyecto borra sus canales.
 - **Testing:**
   - API y seguridad: endpoints por rol, IDOR y enmascarado de la configuración.
-  - Seguridad: caso 26 de la tabla de SSRF (webhook `http`) y URL de webhook hacia una red privada.
-- **Security considerations:** T-30 (SSRF por webhooks), T-32 (lectura de secretos) y T-35 (spam con el endpoint de prueba).
-- **Dependencies:** OW-018, OW-022, OW-024.
+  - Seguridad: caso 26 de la tabla de SSRF (webhook `http`), URL de webhook hacia una red privada y un texto cifrado de otro canal que no se descifra.
+  - Integración: borrado de los canales por `ProjectDeleted`.
+- **Security considerations:** T-30 (SSRF por webhooks), T-32 (lectura de secretos) y T-35 (límites de canales y destinatarios).
+- **Dependencies:** OW-018, OW-022, OW-024, OW-044.
 - **Definition of Done:** el catálogo de endpoints coincide con la implementación.
 
 ### OW-036 · Entrega de notificaciones: listener, worker con reintentos y email
-`feature` · P2 · Milestone: v0.4.0 — Incidentes y notificaciones · **Planned**
+`feature` · P2 · Milestone: v0.4.0 — Incidentes y notificaciones · **Ready**
 
 - **Context:** efecto lateral fiable a partir de los eventos de incidentes. Los webhooks firmados van en OW-043.
-- **Objective:** listener asíncrono que crea las entregas y worker que las envía por email con backoff.
+- **Objective:** listener asíncrono que crea las entregas, worker que las envía por email con backoff, y endpoint de prueba de canales.
 - **Tasks:**
-  - [ ] `IncidentEventsListener` (`@ApplicationModuleListener`, registro de OW-034).
-  - [ ] `DeliveryWorker`: `SKIP LOCKED`, backoff de 0 s, 30 s, 2 min, 10 min, 30 min y 1 h, 6 intentos como máximo.
-  - [ ] `EmailSender` con Spring Mail y plantillas que escapan HTML.
-  - [ ] `GET /api/v1/notification-channels/{channelId}/deliveries`.
+  - [ ] Dependencias `spring-boot-starter-mail` y `org.thymeleaf:thymeleaf` sin versión propia (el BOM fija Angus Mail 2.0.5 y Thymeleaf 3.1.5), y `com.icegreen:greenmail-junit5` 2.1.14 en test. Decisión de Ricardo del 2026-10-05.
+  - [ ] `IncidentEventsListener` (`@ApplicationModuleListener`, registro de OW-034): una entrega `PENDING` por canal habilitado aplicable, es decir, de la organización y del proyecto del incidente o sin proyecto. La clave única da la idempotencia (`ON CONFLICT DO NOTHING`).
+  - [ ] `DeliveryWorker`, en todas las instancias, sin I/O dentro de transacciones:
+    - reclama en una transacción corta con `FOR UPDATE SKIP LOCKED`, suma el intento y aparta la entrega (`next_attempt_at` = ahora + timeout del envío + margen) para que otra instancia no la tome en vuelo;
+    - envía fuera de la transacción;
+    - guarda el resultado en otra transacción corta: `SENT`, el siguiente intento según el backoff (0 s, 30 s, 2 min, 10 min, 30 min y 1 h) o `FAILED` tras el sexto;
+    - la entrega es at-least-once: una caída entre el envío y el registro repite el envío;
+    - un canal deshabilitado no envía: su entrega pasa a `FAILED` con `channel disabled`.
+  - [ ] `EmailSender` con Spring Mail:
+    - multipart en texto y en HTML con Thymeleaf (decisión de Ricardo), con un `TemplateEngine` propio para las plantillas de email, sin el starter ni `ViewResolver`;
+    - `th:text` escapa el nombre del monitor, y el asunto no admite saltos de línea;
+    - remitente `opswatch.notification.email.from`, obligatorio;
+    - timeouts de SMTP (`mail.smtp.connectiontimeout`, `timeout` y `writetimeout`), porque Jakarta Mail espera sin límite por defecto;
+    - `management.health.mail.enabled=false`, para que un SMTP caído no tumbe la readiness.
+  - [ ] `POST /api/v1/notification-channels/{channelId}/test` (desde OW-035): `202` y una entrega `TEST`, sin incidente, que procesa el mismo worker. 5 por minuto por canal (`opswatch.notification.test.rate-limit`).
+  - [ ] Limitador genérico en `shared`, sacado de `AuthRateLimiter` sin cambiar su comportamiento: `notification` no puede depender de `identity`.
+  - [ ] `GET /api/v1/notification-channels/{channelId}/deliveries`, paginado, con el estado y los intentos, nunca el contenido.
+  - [ ] Purga diaria de las entregas de más de `opswatch.retention.deliveries` (90 días), con el cron común y en lotes con `SKIP LOCKED`, como OW-029. Cuenta en `opswatch_retention_deleted_rows_total{table="notification_deliveries"}`.
+  - [ ] Métrica `opswatch_notification_deliveries_total{channel_type, result}`.
+  - [ ] Mailpit en Compose (profile `mail`), `axllent/mailpit:v1.31.4` fijado por digest (desde OW-035).
 - **Acceptance Criteria:**
   - Una caída de 10 minutos → exactamente un email de apertura y uno de resolución por canal.
   - Con el SMTP caído, las entregas se reintentan y acaban en `SENT` al volver, o en `FAILED` tras 6 intentos.
   - Un `IncidentOpened` duplicado no crea una segunda entrega.
   - Si la aplicación se reinicia entre la apertura del incidente y la creación de las entregas, se crean al reiniciar, una sola vez.
+  - El sexto envío de prueba de un canal en un minuto → `429`.
+  - Con el SMTP caído, la readiness sigue `UP`.
 - **Testing:**
-  - Integración: worker contra un SMTP falso (fallo, reintentos, `FAILED`).
+  - Integración: worker contra GreenMail, parándolo dentro del test para simular la caída (reintentos con `MutableClock`, `SENT` al volver y `FAILED` tras 6 intentos).
   - Módulo: idempotencia ante eventos duplicados.
-  - Integración: reinicio con publicaciones pendientes.
-- **Security considerations:** T-33 (un proveedor lento no bloquea las entregas: timeout y worker aparte) y T-34 (inyección en las plantillas: escapado). Ningún I/O externo dentro de transacciones de negocio.
+  - Integración: reinicio con publicaciones pendientes, como `ProjectCleanupRestartIT`.
+  - Seguridad: un nombre de monitor con HTML y con saltos de línea sale escapado en el cuerpo y no rompe el asunto.
+- **Security considerations:** T-33 (un proveedor lento no bloquea las entregas: timeouts y worker aparte), T-34 (inyección en las plantillas: escapado) y T-35 (rate limit del endpoint de prueba). Ningún I/O externo dentro de transacciones de negocio.
 - **Dependencies:** OW-032, OW-034, OW-035.
 - **Definition of Done:** el flujo de eventos de `events.md` coincide con la implementación.
 
 ### OW-043 · Webhooks firmados con HMAC
-`feature` `security` · P2 · Milestone: v0.4.0 — Incidentes y notificaciones · **Planned**
+`feature` `security` · P2 · Milestone: v0.4.0 — Incidentes y notificaciones · **Ready**
 
 - **Context:** separado de OW-036 para que la entrega por webhook y su firma tengan su propia revisión de seguridad.
 - **Objective:** `WebhookSender` a través de `egress`, con cuerpo generado por OpsWatch y firma verificable.
 - **Tasks:**
-  - [ ] `WebhookSender`: `POST` JSON por el cliente de `egress`, timeout de 5 s, solo `https` también en los redirects.
+  - [ ] `WebhookSender`: `POST` JSON por un cliente de `EgressHttpClients` con `TargetKind.WEBHOOK` y un deadline de 5 s sobre el envío entero (`opswatch.notification.webhook.timeout`), como el del motor.
+  - [ ] **Sin redirects** (decisión de Ricardo del 2026-10-05): un `3xx` es un intento fallido, igual que cualquier respuesta fuera de `2xx`. El cuerpo firmado nunca sale hacia otra URL.
+  - [ ] Cuerpo del [catálogo](../api/endpoints-v1.md#canales-de-notificación-notification), con `id` = id de la entrega para que el receptor descarte los duplicados de la entrega at-least-once, y `type` `TEST` en las pruebas.
   - [ ] `X-OpsWatch-Signature: t=<timestamp>,v1=<HMAC-SHA256>` y `X-OpsWatch-Webhook-Version: 1`.
   - [ ] Guía breve para los receptores: cómo verificar la firma y rechazar marcas de tiempo antiguas.
-- **Acceptance Criteria:** un verificador independiente escrito en el test valida la firma con el secreto del canal; un webhook que redirige a `http://` o a una IP privada falla sin enviar el cuerpo; un receptor que tarda más de 5 s cuenta como intento fallido.
+- **Acceptance Criteria:** un verificador independiente escrito en el test valida la firma con el secreto del canal; un `3xx`, también hacia `http://` o hacia una IP privada, cuenta como intento fallido y su destino no recibe nada; una URL que ya resuelve a una IP privada falla sin enviar el cuerpo; un receptor que tarda más de 5 s cuenta como intento fallido.
 - **Testing:**
   - Integración: `WebhookSenderIT` contra WireMock.
-  - Seguridad: firma, redirects prohibidos, SSRF por redirect.
+  - Seguridad: firma, redirects y SSRF por DNS (`FakeHostResolver`).
 - **Security considerations:** T-30 (SSRF), T-31 (suplantación de OpsWatch ante el receptor). La marca de tiempo en la firma permite al receptor rechazar repeticiones.
-- **Dependencies:** OW-024, OW-036.
+- **Dependencies:** OW-024, OW-035, OW-036.
 - **Definition of Done:** la guía de verificación está enlazada desde el catálogo de endpoints.
 
 ---

@@ -39,7 +39,7 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | Métricas del motor en `/actuator/prometheus` (solo en el puerto de management): lag, duración, claim, checks en vuelo, vencidos, saturación, bloqueos SSRF y retención (OW-030) | **Implemented** |
 | Resto de funcionalidades de producto | Planned |
 
-**Qué se hace ahora:** refinar el milestone [v0.4.0 — Incidentes y notificaciones](https://github.com/RicardoOrd/opswatch/milestone/5) contra lo que dejó construido la v0.3.0. Siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
+**Qué se hace ahora:** el milestone [v0.4.0 — Incidentes y notificaciones](https://github.com/RicardoOrd/opswatch/milestone/5), refinado contra lo que dejó construido la v0.3.0. Siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
 
 ---
 

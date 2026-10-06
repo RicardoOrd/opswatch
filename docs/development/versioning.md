@@ -24,7 +24,7 @@ Estado: diseño inicial · Última revisión: 2026-10-05
 | 0.5.0 | Fase 5: endurecimiento de seguridad | v0.5.0 — Endurecimiento de seguridad |
 | **1.0.0** | Fase 6: V1 desplegada. A partir de aquí, la API `v1` es estable | v1.0.0 — V1 desplegada |
 
-- La versión se expone en el User-Agent del motor. `/actuator/info` todavía no la da: falta generar el `build-info` con el plugin de Spring Boot.
+- La versión se expone en el User-Agent del motor. `/actuator/info` todavía no la da: el `build-info` del plugin de Spring Boot llega en la Fase 6, donde lo comprueban los smoke tests.
 - **Versión del pom:** el commit que recibe el tag lleva `X.Y.Z`, y justo después `main` pasa a la siguiente minor con `-SNAPSHOT` (`X.(Y+1).0-SNAPSHOT`). Así el jar y la imagen de un tag se identifican con su versión, y un build de `main` entre releases no se confunde con uno publicado. Se aplica desde la 0.3.0: las releases 0.1.0 y 0.2.0 se publicaron con el pom en `0.1.0-SNAPSHOT`.
 - Correcciones sobre una versión publicada, si hacen falta: `0.N.1`, `0.N.2`… sin milestone propio.
 

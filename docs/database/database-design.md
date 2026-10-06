@@ -357,7 +357,7 @@ CREATE INDEX ix_notification_channels_org ON notification_channels (organization
 CREATE TABLE notification_deliveries (
     id              uuid        PRIMARY KEY,
     channel_id      uuid        NOT NULL,
-    incident_id     uuid        NOT NULL,
+    incident_id     uuid,       -- NULL solo en las entregas TEST (prueba del canal, OW-036)
     event_type      text        NOT NULL,
     status          text        NOT NULL DEFAULT 'PENDING',
     attempts        integer     NOT NULL DEFAULT 0,
@@ -370,7 +370,8 @@ CREATE TABLE notification_deliveries (
         REFERENCES notification_channels (id) ON DELETE CASCADE,
     CONSTRAINT fk_notification_deliveries_incident FOREIGN KEY (incident_id) REFERENCES incidents (id),
     CONSTRAINT ux_notification_deliveries_once UNIQUE (channel_id, incident_id, event_type),
-    CONSTRAINT ck_notification_deliveries_event CHECK (event_type IN ('INCIDENT_OPENED', 'INCIDENT_RESOLVED')),
+    CONSTRAINT ck_notification_deliveries_event CHECK (event_type IN ('INCIDENT_OPENED', 'INCIDENT_RESOLVED', 'TEST')),
+    CONSTRAINT ck_notification_deliveries_incident CHECK ((event_type = 'TEST') = (incident_id IS NULL)),
     CONSTRAINT ck_notification_deliveries_status CHECK (status IN ('PENDING', 'SENT', 'FAILED')),
     CONSTRAINT ck_notification_deliveries_error CHECK (last_error IS NULL OR char_length(last_error) <= 255)
 );

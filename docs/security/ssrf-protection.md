@@ -281,7 +281,8 @@ Salvaguardas:
 
 Los webhooks reutilizan exactamente la misma política a través de `EgressHttpClients`, con estas diferencias:
 
-- solo `https`, en la URL y en los redirects;
+- solo `https` (`TargetKind.WEBHOOK`);
+- **sin redirects**: un `3xx` cuenta como intento fallido y el cuerpo firmado nunca sale hacia otra URL, como en GitHub o Stripe (decisión de Ricardo del 2026-10-05, OW-043);
 - `POST` con cuerpo JSON generado por OpsWatch, nunca por el usuario;
 - timeout fijo de 5 s;
 - firma `X-OpsWatch-Signature: t=<timestamp>,v1=<HMAC-SHA256(secret, t + "." + body)>` para que el receptor verifique el origen y descarte las repeticiones antiguas.

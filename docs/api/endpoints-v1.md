@@ -244,7 +244,7 @@ Validaciones: ver el [modelo de dominio](../architecture/domain-model.md#monitor
 |---|---|---|---|---|---|
 | `GET` | `/api/v1/organizations/{orgId}/incidents` | `INCIDENT_READ` | `200`, paginado. Filtros `status`, `projectId`, `monitorId`, `from`, `to`. `sort`: `openedAt`, `resolvedAt` | `400` | 4 |
 | `GET` | `/api/v1/incidents/{incidentId}` | `INCIDENT_READ` | `200`, con el timeline | — | 4 |
-| `POST` | `/api/v1/incidents/{incidentId}/acknowledge` | `INCIDENT_ACKNOWLEDGE` | `200` | `403`, `409 business-rule-violation` (no está `OPEN`), `409 concurrent-modification` | 4 |
+| `POST` | `/api/v1/incidents/{incidentId}/acknowledge` | `INCIDENT_ACKNOWLEDGE` | `200` | `403`, `409 business-rule-violation` (no está `OPEN`, también si la recuperación lo resolvió a la vez) | 4 |
 
 No hay endpoint de resolución manual en V1 ([por qué](../architecture/incident-lifecycle.md#por-qué-no-hay-resolución-manual-r6)).
 
@@ -268,6 +268,9 @@ No hay endpoint de resolución manual en V1 ([por qué](../architecture/incident
   "version": 1
 }
 ```
+
+- La autorización va por la organización del incidente, no por su proyecto: los incidentes de un proyecto o un monitor borrados siguen visibles como historial (OW-033). Quien no es miembro recibe `404` con el detalle del incidente.
+- El acknowledge y la resolución automática se serializan sobre la fila del incidente ([concurrencia](../architecture/incident-lifecycle.md#6-concurrencia-y-casos-límite)): no hay `409 concurrent-modification` en este endpoint.
 
 ## Canales de notificación (`notification`)
 
@@ -305,6 +308,11 @@ Cuerpo que recibe un webhook (`POST`, `Content-Type: application/json`, header `
   }
 }
 ```
+
+- `id` es el de la entrega: la entrega es at-least-once, y el receptor descarta los duplicados por él. `type` es `INCIDENT_OPENED`, `INCIDENT_RESOLVED` o `TEST`.
+- OpsWatch no sigue redirects: un `3xx` cuenta como intento fallido, igual que cualquier respuesta fuera de `2xx` o que tarde más de 5 s (OW-043).
+- `POST …/test` crea una entrega `TEST` que procesa el mismo worker que las reales, así que aparece en `…/deliveries` (OW-036).
+- Un canal limitado a un proyecto se borra, con sus entregas, cuando se borra el proyecto (OW-035).
 
 ## Operación (no forma parte de `/api/v1`)
 
