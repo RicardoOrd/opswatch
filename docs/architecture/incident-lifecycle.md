@@ -1,6 +1,6 @@
 # Ciclo de vida de incidentes
 
-Estado: diseño inicial · Última revisión: 2026-09-28
+Estado: diseño inicial · Última revisión: 2026-10-05
 
 ## 1. Qué es un incidente
 
@@ -85,7 +85,7 @@ No hay recordatorios periódicos ni escalado en V1. Llegarán con `AlertRule` si
 
 | Caso | Qué pasa |
 |---|---|
-| Acknowledge del usuario y resolución automática a la vez | Las dos transacciones modifican el incidente, que tiene `@Version`. Una falla: si falla el check, se revierte y el siguiente check vuelve a aplicar la recuperación; si falla el acknowledge, la API responde `409 concurrent-modification` y el cliente ve el incidente ya resuelto |
+| Acknowledge del usuario y resolución automática a la vez | Las dos leen el incidente activo con `FOR UPDATE` y se serializan; la resolución toma antes la fila de `monitor_state`, así que el orden de bloqueos es siempre estado del monitor → incidente y no hay deadlock. Si gana la recuperación, el acknowledge encuentra el incidente `RESOLVED` y da `409 business-rule-violation`; si gana el acknowledge, la recuperación espera y resuelve el incidente `ACKNOWLEDGED`. El check nunca se pierde. Con `@Version`, perder la carrera revertiría el check entero, porque `CheckResultRecorder` no lanza (decisión de Ricardo del 2026-10-05, OW-033) |
 | Acknowledge sobre un incidente `RESOLVED` o ya `ACKNOWLEDGED` | `409 business-rule-violation` |
 | Alguien quiere cerrar un incidente de un monitor que sigue caído | Tiene que pausar el monitor (R6) |
 | Se pausa el monitor con un check en vuelo | La pausa resuelve el incidente. El check en vuelo guarda su resultado y no cambia nada ([motor](monitoring-engine.md#pausa-reanudación-borrado-y-edición)) |

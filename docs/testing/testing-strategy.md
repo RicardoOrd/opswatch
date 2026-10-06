@@ -1,6 +1,6 @@
 # Estrategia de testing
 
-Estado: diseño inicial · Última revisión: 2026-09-29
+Estado: diseño inicial · Última revisión: 2026-10-05
 
 ## Objetivos
 
@@ -67,7 +67,7 @@ La lógica pura, sin Spring, sin base de datos y sin red:
 | `GuardedDnsResolver` | Resolver falso: IP mixtas, rebinding, IP literales que pasan por el resolver |
 | Módulos (`@ApplicationModuleTest`) | `incident` recibe `MonitorWentDown` y abre un incidente. `notification` recibe `IncidentOpened` y crea entregas. Idempotencia ante eventos duplicados |
 | Event Publication Registry | Una publicación incompleta se reenvía al reiniciar el contexto |
-| Entregas | Worker con backoff: fallo, reintento, `FAILED` tras 6 intentos. Firma HMAC verificable |
+| Entregas | Worker con backoff contra GreenMail (`com.icegreen:greenmail-junit5`), que se para dentro del test para simular el SMTP caído: fallo, reintento, `SENT` al volver y `FAILED` tras 6 intentos. Webhooks contra WireMock: firma HMAC verificable y `3xx` como intento fallido |
 
 ### API
 
