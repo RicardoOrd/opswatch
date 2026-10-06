@@ -1,6 +1,7 @@
 package io.github.ricardoord.opswatch.incident.domain;
 
 import io.github.ricardoord.opswatch.incident.Resolution;
+import io.github.ricardoord.opswatch.shared.error.BusinessRuleViolationException;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -68,6 +69,23 @@ public class Incident {
 
     /** For JPA, which populates the fields. Incidents are opened by {@link NewIncidentRepository}. */
     protected Incident() {}
+
+    /**
+     * Someone is looking into it (rule R7). It does not change the monitor, and the incident still resolves on its own.
+     *
+     * @throws BusinessRuleViolationException if it is not {@code OPEN}: already acknowledged or resolved (409)
+     */
+    public void acknowledge(UUID by, Clock clock) {
+        if (status != IncidentStatus.OPEN) {
+            throw new BusinessRuleViolationException(
+                    "Only an open incident can be acknowledged; this one is " + status + ".");
+        }
+        Instant now = clock.instant().truncatedTo(ChronoUnit.MICROS);
+        this.status = IncidentStatus.ACKNOWLEDGED;
+        this.acknowledgedAt = now;
+        this.acknowledgedBy = by;
+        this.updatedAt = now;
+    }
 
     /**
      * Final: a monitor that goes down again opens a new incident.
