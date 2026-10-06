@@ -13,7 +13,7 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 
 **Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
-**Foco actual: v0.4.0 — Incidentes y notificaciones**, refinada el 2026-10-05 contra lo que dejó construido la v0.3.0 (publicada el 2026-10-05, release #90). Orden: OW-032 → OW-033 → OW-035 → OW-036 → OW-043, todas en **Ready**. La v0.3.0 (OW-024 a OW-030; OW-031 se fusionó en OW-026 y OW-027), la v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
+**Foco actual: v0.4.0 — Incidentes y notificaciones**, refinada el 2026-10-05 contra lo que dejó construido la v0.3.0 (publicada el 2026-10-05, release #90). Orden: OW-032 → OW-033 → OW-035 → OW-036 → OW-043. OW-032 está **Hecha**; las demás, en **Ready**. La v0.3.0 (OW-024 a OW-030; OW-031 se fusionó en OW-026 y OW-027), la v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
 
 ## Convenciones
 
@@ -926,22 +926,29 @@ Decisiones de Ricardo en el refinamiento (2026-10-05):
 - la versión en `/actuator/info` (`build-info`) pasa a la Fase 6, donde la comprueban los smoke tests.
 
 ### OW-032 · Incidentes: apertura y resolución automáticas
-`feature` · P1 · Milestone: v0.4.0 — Incidentes y notificaciones · **Ready**
+`feature` · P1 · Milestone: v0.4.0 — Incidentes y notificaciones · **Hecha**
 
 - **Context:** [ciclo de vida de incidentes](../architecture/incident-lifecycle.md) y [eventos](../architecture/events.md). Los cuatro eventos del monitor ya se publican (OW-027 y OW-044), dentro de transacciones que tienen bloqueada la fila de `monitor_state`, y nadie los escucha todavía.
 - **Objective:** el listener síncrono de `incident` abre y resuelve incidentes a partir de los eventos del monitor.
 - **Tasks:**
-  - [ ] Migración `incident_create_incidents_and_timeline`, con el DDL del [diseño](../database/database-design.md) y el índice único parcial `ux_incidents_one_active_per_monitor` (`(monitor_id) WHERE status <> 'RESOLVED'`).
-  - [ ] `MonitorEventsListener` (`@EventListener`, en la transacción del publicador) para `MonitorWentDown`, `MonitorRecovered`, `MonitorPaused` y `MonitorDeleted`. Sin I/O externo: si lanza, `CheckResultRecorder` revierte el check entero, y la pausa o el borrado fallan.
-  - [ ] Apertura idempotente con `INSERT … ON CONFLICT DO NOTHING` sobre el índice parcial, con el nombre del monitor, la causa y el código HTTP del evento, y su entrada `OPENED` en el timeline. `opened_at` es el `occurredAt` del evento.
-  - [ ] Resolución: lee el incidente activo con `FOR UPDATE`, en el orden de bloqueos estado del monitor → incidente (el acknowledge de OW-033 toma el mismo bloqueo), y lo pasa a `RESOLVED` con `AUTO_RECOVERED`, `MONITOR_PAUSED` o `MONITOR_DELETED`. `resolved_by` es quien pausó o borró, y nulo en la recuperación. Añade su entrada `RESOLVED`. Sin incidente activo no hace nada (pausar un monitor `UP`, por ejemplo).
-  - [ ] Eventos `IncidentOpened`, `IncidentAcknowledged` e `IncidentResolved` en el paquete raíz de `incident`, con la forma del [catálogo](../architecture/events.md#incident). Se publican en la misma transacción; los escuchará `notification` con el registro (OW-036).
-  - [ ] Métricas `opswatch_incidents_opened_total` y `opswatch_incidents_active`. El gauge lo recalcula una tarea programada cada 30 s, nunca el scrape.
+  - [x] Migración `incident_create_incidents_and_timeline`, con el DDL del [diseño](../database/database-design.md) y el índice único parcial `ux_incidents_one_active_per_monitor` (`(monitor_id) WHERE status <> 'RESOLVED'`).
+  - [x] `MonitorEventsListener` (`@EventListener`, en la transacción del publicador) para `MonitorWentDown`, `MonitorRecovered`, `MonitorPaused` y `MonitorDeleted`. Sin I/O externo: si lanza, `CheckResultRecorder` revierte el check entero, y la pausa o el borrado fallan.
+  - [x] Apertura idempotente con `INSERT … ON CONFLICT DO NOTHING` sobre el índice parcial, con el nombre del monitor, la causa y el código HTTP del evento, y su entrada `OPENED` en el timeline. `opened_at` es el `occurredAt` del evento.
+  - [x] Resolución: lee el incidente activo con `FOR UPDATE`, en el orden de bloqueos estado del monitor → incidente (el acknowledge de OW-033 toma el mismo bloqueo), y lo pasa a `RESOLVED` con `AUTO_RECOVERED`, `MONITOR_PAUSED` o `MONITOR_DELETED`. `resolved_by` es quien pausó o borró, y nulo en la recuperación. Añade su entrada `RESOLVED`. Sin incidente activo no hace nada (pausar un monitor `UP`, por ejemplo).
+  - [x] Eventos `IncidentOpened`, `IncidentAcknowledged` e `IncidentResolved` en el paquete raíz de `incident`, con la forma del [catálogo](../architecture/events.md#incident). Se publican en la misma transacción; los escuchará `notification` con el registro (OW-036).
+  - [x] Métricas `opswatch_incidents_opened_total` y `opswatch_incidents_active`. El gauge lo recalcula una tarea programada cada 30 s, nunca el scrape.
+  - **Decisiones de la implementación:**
+    - la migración es `V9`. Añade dos restricciones que el diseño no tenía: `ck_incidents_cause`, con las mismas causas que `monitor_checks`, y `ck_incidents_monitor_name`, con el límite de 100 caracteres del nombre de un monitor;
+    - `IncidentLifecycle` lleva `@Transactional(propagation = MANDATORY)`: un evento publicado fuera de una transacción falla en lugar de escribir por su cuenta, porque así no se podría mantener la invariante;
+    - la apertura va con JDBC (`NewIncidentRepository`) y la resolución con JPA (`IncidentRepository.findActiveByMonitorIdForUpdate`); el timeline, también con JDBC, porque solo se añade;
+    - el contador de aperturas y el log `incident.opened`/`incident.resolved` van después del commit: un check revertido no abrió nada;
+    - `Resolution` va en el paquete raíz, porque viaja en `IncidentResolved`; la causa viaja como texto, para que `notification` no dependa de `monitoring`.
 - **Acceptance Criteria:** una caída = un incidente; pausar un monitor caído lo resuelve con `MONITOR_PAUSED`; borrar el proyecto de un monitor caído lo resuelve con `MONITOR_DELETED`; dos `MonitorWentDown` seguidos no crean dos incidentes; insertar a mano un segundo incidente activo para el mismo monitor viola `ux_incidents_one_active_per_monitor`; si el listener falla, el check no se guarda, el estado no se mueve y el siguiente check vuelve a evaluar la transición.
 - **Testing:**
-  - Módulo: `@ApplicationModuleTest` con `Scenario` (`MonitorWentDown` → `IncidentOpened`).
-  - Integración: la restricción única (`IncidentRepositoryIT`) y los eventos duplicados.
-  - Integración: el registro de un resultado real abre y resuelve el incidente en su transacción, y un listener que lanza revierte el check (como el error propio de OW-027).
+  - Módulo: `IncidentModuleIT` (`@ApplicationModuleTest` con `Scenario`): apertura, evento repetido, recuperación, pausa y borrado con su autor, pausa sin incidente, una caída nueva tras resolver y un evento fuera de transacción.
+  - Integración: la restricción única y la de las resoluciones completas (`IncidentRepositoryIT`).
+  - Integración: `MonitorIncidentsIT` con el `CheckResultRecorder`, el `MonitorService` y el `ProjectService` reales: una caída y su recuperación, la pausa y la reanudación, el borrado del proyecto, un check revertido por un listener que lanza (sin incidente ni contador) y el gauge.
+  - Comprobado que los tests detectan el fallo: sin `ON CONFLICT` el evento repetido lanza, y con el contador antes del commit cuenta una apertura revertida.
 - **Security considerations:** integridad del estado entre módulos: el listener síncrono y el índice único garantizan la invariante aunque haya duplicados. Los eventos llevan solo ids, el nombre del monitor y la causa, nunca la URL ni los headers.
 - **Dependencies:** OW-027, OW-044.
 - **Definition of Done:** la invariante "un incidente activo por monitor" está probada en la base de datos y en la aplicación.
