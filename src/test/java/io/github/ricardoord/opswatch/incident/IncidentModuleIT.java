@@ -6,11 +6,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.ricardoord.opswatch.PostgresTestcontainer;
 import io.github.ricardoord.opswatch.TestEncryptionKeys;
+import io.github.ricardoord.opswatch.identity.UserDirectory;
 import io.github.ricardoord.opswatch.monitoring.FailureReason;
 import io.github.ricardoord.opswatch.monitoring.MonitorDeleted;
 import io.github.ricardoord.opswatch.monitoring.MonitorPaused;
 import io.github.ricardoord.opswatch.monitoring.MonitorRecovered;
 import io.github.ricardoord.opswatch.monitoring.MonitorWentDown;
+import io.github.ricardoord.opswatch.organization.AccessControl;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -28,17 +30,25 @@ import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.modulith.test.AssertablePublishedEvents;
 import org.springframework.modulith.test.Scenario;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.IllegalTransactionStateException;
 
 /**
  * The incident module alone, as Spring Modulith bootstraps it, with the open module {@code shared}: what it does with
  * the events of the monitor. {@code monitoring} is absent, so the monitors, their projects and their users are rows
- * inserted by hand, and each event is published as {@code monitoring} would, inside a transaction.
+ * inserted by hand, and each event is published as {@code monitoring} would, inside a transaction. The parts of the API
+ * of {@code organization} and {@code identity} that the use cases of people need are mocks.
  */
 @ApplicationModuleTest(extraIncludes = "shared")
 @Import({PostgresTestcontainer.class, TestEncryptionKeys.class})
 @ActiveProfiles("test")
 class IncidentModuleIT {
+
+    @MockitoBean
+    private AccessControl access;
+
+    @MockitoBean
+    private UserDirectory users;
 
     @Autowired
     private JdbcTemplate jdbc;

@@ -1,7 +1,7 @@
 /** Incident lifecycle driven by monitoring events, acknowledgement and timeline. */
 @ApplicationModule(
         displayName = "Incident",
-        allowedDependencies = {"monitoring", "organization", "shared"})
+        allowedDependencies = {"monitoring", "organization", "identity", "shared"})
 @NullMarked
 package io.github.ricardoord.opswatch.incident;
 

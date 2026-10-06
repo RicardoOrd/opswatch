@@ -57,6 +57,7 @@ Resultado: **siete módulos**: `shared`, `egress`, `identity`, `organization`, `
 - **Hace:** abre y resuelve incidentes a partir de los eventos del monitor, acknowledge, timeline y consultas.
 - **Publica:** `IncidentOpened`, `IncidentAcknowledged` e `IncidentResolved`.
 - **Escucha:** `MonitorWentDown`, `MonitorRecovered`, `MonitorPaused` y `MonitorDeleted`.
+- **Usa:** `AccessControl` de `organization` y `UserDirectory` de `identity`.
 
 ### `notification`
 
@@ -91,6 +92,7 @@ flowchart BT
     monitoring --> shared
     incident --> monitoring
     incident --> organization
+    incident --> identity
     incident --> shared
     notification --> incident
     notification --> organization
@@ -105,7 +107,7 @@ flowchart BT
 | `identity` | `shared` | `organization`, `monitoring`, `incident`, `notification` |
 | `organization` | `identity`, `shared` | `monitoring`, `incident`, `notification` |
 | `monitoring` | `organization`, `egress`, `shared` | `incident`, `notification`, `identity` |
-| `incident` | `monitoring`, `organization`, `shared` | `notification`, `identity` |
+| `incident` | `monitoring`, `organization`, `identity` (solo `UserDirectory`), `shared` | `notification` |
 | `notification` | `incident`, `organization`, `egress`, `shared` | `monitoring`, `identity` |
 
 Consecuencias que importan:
@@ -114,6 +116,7 @@ Consecuencias que importan:
 - **`organization` no conoce a `monitoring`.** Cuando se borra un proyecto, publica `ProjectDeleted` y `monitoring` reacciona.
 - **Nadie lee las tablas de otro módulo.** Si `incident` necesita el nombre de un monitor, lo recibe en el evento o lo pide a `MonitorDirectory`.
 - **El usuario actual no exige depender de `identity`.** `CurrentUser` vive en `shared` y solo lee el `sub` del JWT del `SecurityContext`.
+- **`incident` lee nombres de `identity`** con `UserDirectory`, para mostrar quién hizo cada cosa en el timeline de un incidente (OW-033, decisión de Ricardo del 2026-10-05). Solo lectura, como `organization`. Pasar por `organization` dejaría sin nombre a quien ya no es miembro, y el timeline es historial.
 
 ## 5. Estructura interna de un módulo
 
@@ -171,7 +174,7 @@ src/main/java/io/github/ricardoord/opswatch/
 │   ├── IncidentOpened.java, IncidentAcknowledged.java,
 │   │   IncidentResolved.java, Resolution.java           ← eventos publicados
 │   ├── domain/       Incident, IncidentStatus, NewIncident, TimelineEntryType, repositorios
-│   ├── application/  IncidentLifecycle, MonitorEventsListener, IncidentMetrics
+│   ├── application/  IncidentLifecycle, IncidentService, MonitorEventsListener, IncidentMetrics
 │   └── web/          IncidentController, DTOs
 └── notification/
     ├── domain/       NotificationChannel, NotificationDelivery, repositorios

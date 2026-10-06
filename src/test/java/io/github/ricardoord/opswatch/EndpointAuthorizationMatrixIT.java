@@ -83,6 +83,9 @@ class EndpointAuthorizationMatrixIT {
             DELETE /api/v1/monitors/{monitorId}                     204 204 204 403 404 401
             GET    /api/v1/monitors/{monitorId}/checks              200 200 200 200 404 401
             GET    /api/v1/monitors/{monitorId}/stats               200 200 200 200 404 401
+            GET    /api/v1/organizations/{orgId}/incidents          200 200 200 200 404 401
+            GET    /api/v1/incidents/{incidentId}                   200 200 200 200 404 401
+            POST   /api/v1/incidents/{incidentId}/acknowledge       200 200 200 403 404 401
             """;
 
     private static final Pattern ROW = Pattern.compile("(GET|POST|PATCH|DELETE)\\s+(\\S+)((?:\\s+\\d{3}){6})");
@@ -294,6 +297,18 @@ class EndpointAuthorizationMatrixIT {
         requests.put(
                 "GET /api/v1/monitors/{monitorId}/stats",
                 (mvc, fixture) -> mvc.get().uri("/api/v1/monitors/{monitorId}/stats", fixture.monitor()));
+        requests.put(
+                "GET /api/v1/organizations/{orgId}/incidents",
+                (mvc, fixture) -> mvc.get().uri("/api/v1/organizations/{orgId}/incidents", fixture.organization()));
+        requests.put(
+                "GET /api/v1/incidents/{incidentId}",
+                (mvc, fixture) -> mvc.get().uri("/api/v1/incidents/{incidentId}", fixture.incident()));
+        requests.put(
+                "POST /api/v1/incidents/{incidentId}/acknowledge",
+                (mvc, fixture) -> json(
+                        mvc.post(),
+                        "/api/v1/incidents/" + fixture.incident() + "/acknowledge",
+                        "{\"note\": \"Looking into it\"}"));
         return requests;
     }
 
@@ -320,7 +335,7 @@ class EndpointAuthorizationMatrixIT {
     }
 
     /**
-     * An organization with one member of each role and a project with a monitor, a user who is not a member, a
+     * An organization with one member of each role and a project with a monitor and its open incident, a user who is not a member, a
      * {@code MEMBER} to change or remove and a user to add. Straight into the tables, with the tokens issued directly: nearly a hundred cases would
      * otherwise mean hundreds of registrations.
      */
@@ -351,8 +366,21 @@ class EndpointAuthorizationMatrixIT {
                 VALUES (?, ?, 'Production', now(), now())""", project, organization);
         UUID monitor = insertMonitor(organization, project, "Authentication API", false);
         UUID pausedMonitor = insertMonitor(organization, project, "Donations API", true);
+        UUID incident = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO incidents (id, organization_id, project_id, monitor_id, monitor_name, status, cause, opened_at,
+                                       created_at, updated_at)
+                VALUES (?, ?, ?, ?, 'Authentication API', 'OPEN', 'TIMEOUT', now(), now(), now())""", incident, organization, project, monitor);
         return new Fixture(
-                organization, project, monitor, pausedMonitor, callerTokens, subject, subjectEmail, newcomerEmail);
+                organization,
+                project,
+                monitor,
+                pausedMonitor,
+                incident,
+                callerTokens,
+                subject,
+                subjectEmail,
+                newcomerEmail);
     }
 
     private UUID insertMonitor(UUID organization, UUID project, String name, boolean paused) {
@@ -385,6 +413,7 @@ class EndpointAuthorizationMatrixIT {
      * @param project a project of the organization
      * @param monitor a monitor of the project, scheduled
      * @param pausedMonitor a paused monitor of the project, which can be resumed
+     * @param incident an open incident of {@code monitor}, which can be acknowledged
      * @param tokens the access token of each caller; none for {@link Caller#ANONYMOUS}
      * @param subject a {@code MEMBER} that the member endpoints change or remove
      * @param newcomerEmail a user with an account who is not a member yet
@@ -394,6 +423,7 @@ class EndpointAuthorizationMatrixIT {
             UUID project,
             UUID monitor,
             UUID pausedMonitor,
+            UUID incident,
             Map<Caller, @Nullable String> tokens,
             UUID subject,
             String subjectEmail,

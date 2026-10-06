@@ -13,7 +13,7 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 
 **Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
-**Foco actual: v0.4.0 — Incidentes y notificaciones**, refinada el 2026-10-05 contra lo que dejó construido la v0.3.0 (publicada el 2026-10-05, release #90). Orden: OW-032 → OW-033 → OW-035 → OW-036 → OW-043. OW-032 está **Hecha**; las demás, en **Ready**. La v0.3.0 (OW-024 a OW-030; OW-031 se fusionó en OW-026 y OW-027), la v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
+**Foco actual: v0.4.0 — Incidentes y notificaciones**, refinada el 2026-10-05 contra lo que dejó construido la v0.3.0 (publicada el 2026-10-05, release #90). Orden: OW-032 → OW-033 → OW-035 → OW-036 → OW-043. OW-032 y OW-033 están **Hechas**; las demás, en **Ready**. La v0.3.0 (OW-024 a OW-030; OW-031 se fusionó en OW-026 y OW-027), la v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
 
 ## Convenciones
 
@@ -954,20 +954,27 @@ Decisiones de Ricardo en el refinamiento (2026-10-05):
 - **Definition of Done:** la invariante "un incidente activo por monitor" está probada en la base de datos y en la aplicación.
 
 ### OW-033 · Acknowledge, listados y timeline
-`feature` · P2 · Milestone: v0.4.0 — Incidentes y notificaciones · **Ready**
+`feature` · P2 · Milestone: v0.4.0 — Incidentes y notificaciones · **Hecha**
 
 - **Context:** la interacción humana con los incidentes. No hay resolución manual en V1 ([por qué](../architecture/incident-lifecycle.md#por-qué-no-hay-resolución-manual-r6)).
 - **Objective:** `GET /api/v1/organizations/{orgId}/incidents`, `GET /api/v1/incidents/{incidentId}` y `POST /api/v1/incidents/{incidentId}/acknowledge`.
 - **Tasks:**
-  - [ ] Acknowledge con nota opcional (500 caracteres como máximo). Lee el incidente con `FOR UPDATE`, el mismo bloqueo que la resolución de OW-032 (decisión de Ricardo del 2026-10-05): `OPEN` pasa a `ACKNOWLEDGED`, con su entrada en el timeline y `IncidentAcknowledged`. Cualquier otro estado da `409 business-rule-violation`.
-  - [ ] Listado por organización con `PageQuery`: filtros `status`, `projectId`, `monitorId`, `from` y `to`; `sort` por `openedAt` (por defecto, descendente) o `resolvedAt`.
-  - [ ] Detalle con el timeline, el actor de cada entrada (`UserDirectory`) y `durationSeconds` al resolverse.
-  - [ ] Autorización por la organización del incidente (`AccessControl.require` con `INCIDENT_READ` o `INCIDENT_ACKNOWLEDGE`), no por su proyecto: los incidentes de un proyecto o un monitor borrados siguen visibles como historial (decisión de Ricardo del 2026-10-05). Quien no es miembro recibe un `404` que habla del incidente.
-  - [ ] Filas nuevas en la matriz de autorización.
+  - [x] Acknowledge con nota opcional (500 caracteres como máximo). Lee el incidente con `FOR UPDATE`, el mismo bloqueo que la resolución de OW-032 (decisión de Ricardo del 2026-10-05): `OPEN` pasa a `ACKNOWLEDGED`, con su entrada en el timeline y `IncidentAcknowledged`. Cualquier otro estado da `409 business-rule-violation`.
+  - [x] Listado por organización con `PageQuery`: filtros `status`, `projectId`, `monitorId`, `from` y `to`; `sort` por `openedAt` (por defecto, descendente) o `resolvedAt`.
+  - [x] Detalle con el timeline, el actor de cada entrada (`UserDirectory`) y `durationSeconds` al resolverse.
+  - [x] Autorización por la organización del incidente (`AccessControl.require` con `INCIDENT_READ` o `INCIDENT_ACKNOWLEDGE`), no por su proyecto: los incidentes de un proyecto o un monitor borrados siguen visibles como historial (decisión de Ricardo del 2026-10-05). Quien no es miembro recibe un `404` que habla del incidente.
+  - [x] Filas nuevas en la matriz de autorización.
+  - **Decisiones de la implementación:**
+    - `incident` puede depender de `identity` (solo `UserDirectory`) para los nombres del timeline: decisión de Ricardo del 2026-10-05. La regla de módulos lo prohibía y el refinamiento no lo vio. Pasar por `organization` dejaría sin nombre a quien ya no es miembro;
+    - la nota es una línea (`VisibleText`): sin saltos de línea ni caracteres de control. Un cuerpo vacío o sin nota es válido;
+    - el listado va con una `Specification` de Spring Data (`IncidentFilter`), y `status` admite varios valores, como el historial de checks;
+    - el acknowledge vacía el contexto de persistencia (`flush`) antes de responder, para devolver la versión nueva;
+    - el listado no lleva el timeline ni `acknowledgedBy`: el detalle sí.
 - **Acceptance Criteria:** acknowledge sobre `OPEN` → `ACKNOWLEDGED`; sobre `RESOLVED` → `409`; un `VIEWER` → `403`; acknowledge a la vez que la recuperación: las dos se serializan sobre la fila del incidente; si gana la recuperación, el acknowledge da `409 business-rule-violation`, y el check se guarda siempre; los incidentes de un proyecto borrado salen en el listado y por id.
 - **Testing:**
-  - API y seguridad: endpoints por rol e IDOR.
-  - Integración (concurrencia): con la fila del incidente retenida por una recuperación, el acknowledge espera y después da `409`; con el acknowledge primero, la recuperación espera y resuelve el incidente `ACKNOWLEDGED`.
+  - API y seguridad: `IncidentApiIT` (acknowledge con y sin nota, `409` sobre un incidente ya reconocido o resuelto, notas rechazadas, detalle de un incidente resuelto por una pausa, listado con filtros y orden, parámetros rechazados, incidentes de un proyecto borrado, IDOR y OpenAPI) y tres filas nuevas en `EndpointAuthorizationMatrixIT`.
+  - Integración (concurrencia): `AcknowledgeConcurrencyIT`. Con la fila del incidente retenida por una recuperación, el acknowledge espera y después da `409`; con el acknowledge primero, el check que recupera el monitor espera y resuelve el incidente `ACKNOWLEDGED`, sin perder el check.
+  - Comprobado que los tests detectan el fallo: sin el `FOR UPDATE` del acknowledge, falla por versión en lugar de dar `409`.
 - **Security considerations:** la nota tiene como máximo 500 caracteres y se escapa al mostrarla (XSS en un frontend futuro). El bloqueo de la fila evita perder actualizaciones sin descartar checks.
 - **Dependencies:** OW-032.
 - **Definition of Done:** el catálogo de endpoints coincide con la implementación.
