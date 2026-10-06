@@ -1,6 +1,6 @@
 # Versionado
 
-Estado: diseño inicial · Última revisión: 2026-09-28
+Estado: diseño inicial · Última revisión: 2026-10-05
 
 ## Aplicación: Semantic Versioning
 
@@ -24,7 +24,8 @@ Estado: diseño inicial · Última revisión: 2026-09-28
 | 0.5.0 | Fase 5: endurecimiento de seguridad | v0.5.0 — Endurecimiento de seguridad |
 | **1.0.0** | Fase 6: V1 desplegada. A partir de aquí, la API `v1` es estable | v1.0.0 — V1 desplegada |
 
-- La versión se expone en `/actuator/info` y en el User-Agent del motor.
+- La versión se expone en el User-Agent del motor. `/actuator/info` todavía no la da: falta generar el `build-info` con el plugin de Spring Boot.
+- **Versión del pom:** el commit que recibe el tag lleva `X.Y.Z`, y justo después `main` pasa a la siguiente minor con `-SNAPSHOT` (`X.(Y+1).0-SNAPSHOT`). Así el jar y la imagen de un tag se identifican con su versión, y un build de `main` entre releases no se confunde con uno publicado. Se aplica desde la 0.3.0: las releases 0.1.0 y 0.2.0 se publicaron con el pom en `0.1.0-SNAPSHOT`.
 - Correcciones sobre una versión publicada, si hacen falta: `0.N.1`, `0.N.2`… sin milestone propio.
 
 ### Proceso de release
@@ -37,7 +38,9 @@ Una release **no** forma parte de ninguna issue funcional. Las issues se cierran
    - [ ] CI en verde en el último commit de `main`.
    - [ ] README: lo publicado pasa de *Planned* a *Implemented*.
    - [ ] Documentación de la fase coherente con el código (catálogos de endpoints y de propiedades, modelo de dominio).
+   - [ ] `pom.xml` en `X.Y.Z` en el PR de docs de cierre, que es el commit del tag.
    - [ ] Tag `vX.Y.Z` sobre `main` y release de GitHub con notas generadas a partir de los Conventional Commits, revisadas a mano.
+   - [ ] `pom.xml` en `X.(Y+1).0-SNAPSHOT` en `main` justo después del tag.
    - [ ] Desde la Fase 6: despliegue en staging, smoke tests y promoción a producción.
 3. Se cierra la issue de release y, con ella, el milestone.
 

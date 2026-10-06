@@ -10,7 +10,7 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 
 ## Estado actual
 
-**v0.2.0 publicada** (Proyectos y monitores): sobre la identidad y las organizaciones de la v0.1.0, proyectos y monitores HTTP configurables con su cuota, la URL validada contra SSRF al guardar, headers cifrados y de solo escritura, pausa, reanudación y borrado. Todavía no comprueba nada: cada monitor queda programado, pero el motor de checks llega con la v0.3.0.
+**v0.3.0 publicada** (Motor de monitoreo): sobre los proyectos y monitores de la v0.2.0, el motor comprueba cada monitor en su intervalo, sin duplicados aunque corran varias instancias, con un cliente HTTP que vuelve a aplicar la política SSRF en cada petición y en cada redirect. Guarda cada resultado, lleva el estado del monitor (`UP`, `DEGRADED`, `DOWN`), da el historial y las estadísticas por API, purga lo antiguo y exporta sus métricas a Prometheus. Todavía no avisa: los incidentes y las notificaciones llegan con la v0.4.0.
 
 | Qué | Estado |
 |---|---|
@@ -39,7 +39,7 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | Métricas del motor en `/actuator/prometheus` (solo en el puerto de management): lag, duración, claim, checks en vuelo, vencidos, saturación, bloqueos SSRF y retención (OW-030) | **Implemented** |
 | Resto de funcionalidades de producto | Planned |
 
-**Qué se hace ahora:** el milestone [v0.3.0 — Motor de monitoreo](https://github.com/RicardoOrd/opswatch/milestone/4). Todas sus issues están hechas, con la [medición informal](docs/performance/results/2026-10-05-medicion-informal-motor.md) de 100 y 1 000 monitores: falta la release. Siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
+**Qué se hace ahora:** refinar el milestone [v0.4.0 — Incidentes y notificaciones](https://github.com/RicardoOrd/opswatch/milestone/5) contra lo que dejó construido la v0.3.0. Siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
 
 ---
 

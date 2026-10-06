@@ -13,7 +13,7 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 
 **Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
-**Foco actual: v0.3.0 — Motor de monitoreo**, refinada el 2026-10-03 contra lo que dejó construido la v0.2.0 (publicada el 2026-10-03, release #79). Orden: OW-024 → OW-025 → OW-027 → OW-026 → OW-028 → OW-029 → OW-030. Todas sus issues (OW-024 a OW-030) están **Hechas**: falta la release. La v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
+**Foco actual: refinar la v0.4.0 — Incidentes y notificaciones** contra lo que dejó construido la v0.3.0 (publicada el 2026-10-05, release #90). Hasta ese refinamiento, sus issues siguen en **Planned** y nada está listo para empezar. La v0.3.0 (OW-024 a OW-030; OW-031 se fusionó en OW-026 y OW-027), la v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
 
 ## Convenciones
 
@@ -698,7 +698,7 @@ Refinada el 2026-10-03 contra lo que dejó construido la v0.2.0:
   - [x] Cierre de la conexión tras recibir los headers: el cuerpo no se lee.
     - Cerrar la respuesta leería el cuerpo hasta el final, así que antes se cancela la petición, que cierra el socket.
   - [x] `User-Agent` de `opswatch.monitoring.engine.user-agent`.
-    - El valor por defecto vive en `application.yml`, con la versión del pom que pone Maven al copiar los recursos (hoy `0.1.0-SNAPSHOT`).
+    - El valor por defecto vive en `application.yml`, con la versión del pom que pone Maven al copiar los recursos: la de la release en un tag y `X.Y.0-SNAPSHOT` entre releases ([versionado](../development/versioning.md#aplicación-semantic-versioning)).
 - **Acceptance Criteria:**
   - Los casos 18, 19 y 22 de la tabla de SSRF; el 22 con un destino que gotea bytes (un servidor de sockets en el test: WireMock no gotea headers).
   - Un destino que tarda más que `timeoutMs` devuelve `TIMEOUT` en menos de `timeoutMs` + 500 ms.
