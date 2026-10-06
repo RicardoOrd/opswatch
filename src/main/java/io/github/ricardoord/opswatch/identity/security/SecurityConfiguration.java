@@ -57,7 +57,8 @@ public class SecurityConfiguration {
                         // Error dispatches render Problem Details for errors raised before the controller
                         .dispatcherTypeMatchers(DispatcherType.ERROR)
                         .permitAll()
-                        // Only health and info are exposed, on the management port (8081), which is never published
+                        // Only health, info and prometheus are exposed, on the management port (8081), which is never
+                        // published: Prometheus reaches it through the internal network
                         .requestMatchers("/actuator/**")
                         .permitAll()
                         .requestMatchers("/api/v1/auth/**")

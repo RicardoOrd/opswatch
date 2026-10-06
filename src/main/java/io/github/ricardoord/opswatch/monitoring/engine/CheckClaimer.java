@@ -6,6 +6,8 @@ import io.github.ricardoord.opswatch.monitoring.domain.Monitor;
 import io.github.ricardoord.opswatch.monitoring.domain.MonitorRepository;
 import io.github.ricardoord.opswatch.monitoring.domain.MonitorSettings;
 import io.github.ricardoord.opswatch.monitoring.domain.MonitorSnapshot;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -66,6 +68,7 @@ class CheckClaimer {
     private final MonitorHeaders headers;
     private final CheckResultRecorder recorder;
     private final TransactionOperations transactions;
+    private final MeterRegistry meters;
     private final Clock clock;
 
     CheckClaimer(
@@ -74,12 +77,14 @@ class CheckClaimer {
             MonitorHeaders headers,
             CheckResultRecorder recorder,
             TransactionOperations transactions,
+            MeterRegistry meters,
             Clock clock) {
         this.jdbc = jdbc;
         this.monitors = monitors;
         this.headers = headers;
         this.recorder = recorder;
         this.transactions = transactions;
+        this.meters = meters;
         this.clock = clock;
     }
 
@@ -101,8 +106,13 @@ class CheckClaimer {
         }
         List<ClaimedCheck> claimed = new ArrayList<>();
         Map<UUID, RuntimeException> unusable = new LinkedHashMap<>();
-        transactions.executeWithoutResult(
-                transaction -> claimLocked(max, now.truncatedTo(ChronoUnit.MICROS), claimed, unusable));
+        Timer.Sample claiming = Timer.start(meters);
+        try {
+            transactions.executeWithoutResult(
+                    transaction -> claimLocked(max, now.truncatedTo(ChronoUnit.MICROS), claimed, unusable));
+        } finally {
+            claiming.stop(meters.timer(EngineMetrics.CLAIM_DURATION));
+        }
         // Only once the claim is committed: a claim rolled back took nothing
         unusable.forEach(recorder::recordError);
         return claimed;

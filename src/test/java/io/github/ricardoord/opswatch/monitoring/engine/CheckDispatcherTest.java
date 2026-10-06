@@ -9,6 +9,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import io.github.ricardoord.opswatch.monitoring.application.CheckResultRecorder;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
@@ -20,6 +21,7 @@ import org.springframework.dao.DataAccessResourceFailureException;
 class CheckDispatcherTest {
 
     private final CheckClaimer claimer = mock(CheckClaimer.class);
+    private final SimpleMeterRegistry meters = new SimpleMeterRegistry();
     private CheckDispatcher dispatcher = dispatcher(10, 3);
 
     @AfterEach
@@ -82,6 +84,7 @@ class CheckDispatcherTest {
                 5,
                 Duration.ofMillis(200),
                 Duration.ofSeconds(5),
+                Duration.ofSeconds(5),
                 "OpsWatch-Test/0");
         return new CheckDispatcher(
                 claimer,
@@ -90,6 +93,7 @@ class CheckDispatcherTest {
                 },
                 mock(CheckResultRecorder.class),
                 properties,
+                meters,
                 Clock.systemUTC());
     }
 }

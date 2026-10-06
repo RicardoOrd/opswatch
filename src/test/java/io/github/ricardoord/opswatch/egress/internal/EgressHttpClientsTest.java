@@ -18,6 +18,7 @@ import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import io.github.ricardoord.opswatch.egress.BlockedTargetException;
 import io.github.ricardoord.opswatch.egress.EgressClientSettings;
 import io.github.ricardoord.opswatch.egress.TargetKind;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
@@ -47,6 +48,7 @@ class EgressHttpClientsTest {
             .options(wireMockConfig().dynamicPort().bindAddress("127.0.0.1"))
             .build();
 
+    private final SimpleMeterRegistry meters = new SimpleMeterRegistry();
     private final FakeHostResolver names = new FakeHostResolver().with(HOST, "127.0.0.1");
     private final CloseableHttpClient client = client(List.of("127.0.0.0/8"), Duration.ofSeconds(2));
 
@@ -79,6 +81,7 @@ class EgressHttpClientsTest {
                     .hasMessageContaining(host);
         }
         target.verify(0, anyRequestedFor(anyUrl()));
+        assertThat(blocked(BlockedTargets.Reason.ADDRESS)).isEqualTo(2);
     }
 
     /** If a version of the client ever skipped the resolver for literals, this would no longer be blocked. */
@@ -111,6 +114,7 @@ class EgressHttpClientsTest {
 
         assertThat(names.lookups()).isEmpty();
         target.verify(0, anyRequestedFor(anyUrl()));
+        assertThat(blocked(BlockedTargets.Reason.URL)).isOne();
     }
 
     /** These the client itself refuses, before its execution chain: they do not leave either, and resolve nothing. */
@@ -140,6 +144,7 @@ class EgressHttpClientsTest {
                     .hasMessageNotContaining("Google");
         }
         target.verify(0, anyRequestedFor(anyUrl()));
+        assertThat(blocked(BlockedTargets.Reason.HEADER)).isEqualTo(3);
     }
 
     @Test
@@ -213,8 +218,12 @@ class EgressHttpClientsTest {
     }
 
     private CloseableHttpClient client(List<String> allowedPrivate, Duration timeout) {
-        return new DefaultEgressHttpClients(names, properties(allowedPrivate))
+        return new DefaultEgressHttpClients(names, properties(allowedPrivate), meters)
                 .create(new EgressClientSettings(TargetKind.MONITOR, 10, timeout, USER_AGENT));
+    }
+
+    private double blocked(BlockedTargets.Reason reason) {
+        return meters.counter(BlockedTargets.METRIC, "reason", reason.name()).count();
     }
 
     private static EgressProperties properties(List<String> allowedPrivate) {

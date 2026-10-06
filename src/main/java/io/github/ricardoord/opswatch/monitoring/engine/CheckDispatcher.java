@@ -3,6 +3,8 @@ package io.github.ricardoord.opswatch.monitoring.engine;
 import io.github.ricardoord.opswatch.monitoring.application.CheckResultRecorder;
 import io.github.ricardoord.opswatch.monitoring.domain.CheckOutcome;
 import io.github.ricardoord.opswatch.monitoring.domain.MonitorSnapshot;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -43,6 +45,7 @@ class CheckDispatcher implements SmartLifecycle, DisposableBean {
     private final CheckClaimer claimer;
     private final HttpMonitorClient client;
     private final CheckResultRecorder recorder;
+    private final MeterRegistry meters;
     private final Clock clock;
     private final Semaphore permits;
     private final int maxConcurrentChecks;
@@ -64,21 +67,28 @@ class CheckDispatcher implements SmartLifecycle, DisposableBean {
     /** {@link System#nanoTime()} by which every check in flight has reached its deadline. */
     private long inFlightUntil;
 
+    /** While it runs: in a registry shared by several dispatchers (the tests), a gauge left behind would stay stale. */
+    private @Nullable Gauge inFlightGauge;
+
     CheckDispatcher(
             CheckClaimer claimer,
             HttpMonitorClient client,
             CheckResultRecorder recorder,
             MonitoringEngineProperties properties,
+            MeterRegistry meters,
             Clock clock) {
         this.claimer = claimer;
         this.client = client;
         this.recorder = recorder;
+        this.meters = meters;
         this.clock = clock;
         this.maxConcurrentChecks = properties.maxConcurrentChecks();
         this.permits = new Semaphore(maxConcurrentChecks);
         this.maxBatchSize = properties.maxBatchSize();
         this.deadlineGrace = properties.deadlineGrace();
         this.shutdownGrace = properties.shutdownGrace();
+        // At zero from the start, so that a rate over it has a series to work on
+        meters.counter(EngineMetrics.DISPATCHER_SATURATED);
     }
 
     @Scheduled(fixedDelayString = "${opswatch.monitoring.engine.dispatch-interval:1s}")
@@ -95,7 +105,12 @@ class CheckDispatcher implements SmartLifecycle, DisposableBean {
         synchronized (lock) {
             ExecutorService executor = checks;
             int free = permits.availablePermits();
-            if (!running || executor == null || free == 0) {
+            if (!running || executor == null) {
+                return 0;
+            }
+            if (free == 0) {
+                // Back pressure: what is due waits in the database, and the lag shows it
+                meters.counter(EngineMetrics.DISPATCHER_SATURATED).increment();
                 return 0;
             }
             List<ClaimedCheck> claimed;
@@ -134,11 +149,15 @@ class CheckDispatcher implements SmartLifecycle, DisposableBean {
     private void run(ClaimedCheck check, ExecutorService executor) {
         MonitorSnapshot monitor = check.monitor();
         Instant startedAt = clock.instant();
+        Duration late = Duration.between(check.scheduledFor(), startedAt);
+        meters.timer(EngineMetrics.CHECK_LAG).record(late.isNegative() ? Duration.ZERO : late);
+        long probing = System.nanoTime();
         CheckOutcome outcome;
         try {
             outcome = CheckEvaluator.evaluate(monitor.settings(), client.probe(check.request()));
         } catch (RuntimeException ex) {
             if (!executor.isShutdown()) {
+                timeProbe(EngineMetrics.ERROR, probing);
                 recorder.recordError(monitor.monitorId(), ex);
             }
             return;
@@ -149,7 +168,13 @@ class CheckDispatcher implements SmartLifecycle, DisposableBean {
                     .log("Result of a check of monitor {} dropped: abandoned at shutdown", monitor.monitorId());
             return;
         }
+        timeProbe(outcome.status().name(), probing);
         recorder.record(monitor, startedAt, outcome);
+    }
+
+    private void timeProbe(String outcome, long startedNanos) {
+        meters.timer(EngineMetrics.CHECK_DURATION, "outcome", outcome)
+                .record(Duration.ofNanos(System.nanoTime() - startedNanos));
     }
 
     @Override
@@ -161,6 +186,9 @@ class CheckDispatcher implements SmartLifecycle, DisposableBean {
             checks = Executors.newThreadPerTaskExecutor(
                     Thread.ofVirtual().name("check-", 0).factory());
             inFlightUntil = System.nanoTime();
+            inFlightGauge = Gauge.builder(EngineMetrics.CHECKS_IN_FLIGHT, this, CheckDispatcher::inFlight)
+                    .strongReference(true)
+                    .register(meters);
             running = true;
         }
     }
@@ -219,6 +247,7 @@ class CheckDispatcher implements SmartLifecycle, DisposableBean {
                             inFlight());
         }
         shutdown.executor().shutdown();
+        unregisterInFlight();
     }
 
     /**
@@ -234,6 +263,18 @@ class CheckDispatcher implements SmartLifecycle, DisposableBean {
         }
         if (executor != null) {
             executor.shutdown();
+        }
+        unregisterInFlight();
+    }
+
+    private void unregisterInFlight() {
+        Gauge gauge;
+        synchronized (lock) {
+            gauge = inFlightGauge;
+            inFlightGauge = null;
+        }
+        if (gauge != null) {
+            meters.remove(gauge);
         }
     }
 

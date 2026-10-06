@@ -2,6 +2,7 @@ package io.github.ricardoord.opswatch.egress.internal;
 
 import io.github.ricardoord.opswatch.egress.EgressClientSettings;
 import io.github.ricardoord.opswatch.egress.EgressHttpClients;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.config.TlsConfig;
@@ -32,17 +33,19 @@ class DefaultEgressHttpClients implements EgressHttpClients {
 
     private final HostResolver resolver;
     private final IpRangeClassifier classifier;
+    private final BlockedTargets blocked;
 
-    DefaultEgressHttpClients(HostResolver resolver, EgressProperties properties) {
+    DefaultEgressHttpClients(HostResolver resolver, EgressProperties properties, MeterRegistry meters) {
         this.resolver = resolver;
         this.classifier = new IpRangeClassifier(properties.allowedPrivateBlocks());
+        this.blocked = new BlockedTargets(meters);
     }
 
     @Override
     public CloseableHttpClient create(EgressClientSettings settings) {
         Timeout timeout = Timeout.of(settings.timeout());
         PoolingHttpClientConnectionManager connections = PoolingHttpClientConnectionManagerBuilder.create()
-                .setDnsResolver(new GuardedDnsResolver(resolver, classifier))
+                .setDnsResolver(new GuardedDnsResolver(resolver, classifier, blocked))
                 .setMaxConnTotal(settings.maxConnections())
                 .setMaxConnPerRoute(settings.maxConnections())
                 .setDefaultConnectionConfig(ConnectionConfig.custom()
@@ -65,7 +68,7 @@ class DefaultEgressHttpClients implements EgressHttpClients {
                 // Direct to the target, never through a proxy: neither the environment's nor a configured one
                 .setRoutePlanner(new DefaultRoutePlanner(DefaultSchemePortResolver.INSTANCE))
                 // First of all, before DNS and before connecting
-                .addExecInterceptorFirst(EgressRequestGuard.NAME, new EgressRequestGuard(settings.kind()))
+                .addExecInterceptorFirst(EgressRequestGuard.NAME, new EgressRequestGuard(settings.kind(), blocked))
                 // A new connection for every request: the latency always includes DNS, TCP and TLS, and every request
                 // goes through the guarded resolver again
                 .setConnectionReuseStrategy((request, response, context) -> false)

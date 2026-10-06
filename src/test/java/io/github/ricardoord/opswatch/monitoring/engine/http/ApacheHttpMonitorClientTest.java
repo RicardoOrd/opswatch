@@ -75,6 +75,7 @@ class ApacheHttpMonitorClientTest {
                     5,
                     Duration.ofMillis(200),
                     Duration.ofSeconds(5),
+                    Duration.ofSeconds(5),
                     USER_AGENT));
 
     @AfterEach

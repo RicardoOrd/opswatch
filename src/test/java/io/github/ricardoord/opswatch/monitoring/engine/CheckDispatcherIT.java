@@ -226,7 +226,7 @@ class CheckDispatcherIT {
     }
 
     private CheckDispatcher dispatcher(int maxConcurrentChecks, HttpMonitorClient client) {
-        CheckClaimer claimer = new CheckClaimer(jdbcClient, monitors, headers, recorder, transactions, clock);
+        CheckClaimer claimer = new CheckClaimer(jdbcClient, monitors, headers, recorder, transactions, meters, clock);
         MonitoringEngineProperties properties = new MonitoringEngineProperties(
                 true,
                 Duration.ofSeconds(1),
@@ -235,8 +235,9 @@ class CheckDispatcherIT {
                 5,
                 DEADLINE_GRACE,
                 SHUTDOWN_GRACE,
+                Duration.ofSeconds(5),
                 "OpsWatch-Test/0");
-        CheckDispatcher dispatcher = new CheckDispatcher(claimer, client, recorder, properties, clock);
+        CheckDispatcher dispatcher = new CheckDispatcher(claimer, client, recorder, properties, meters, clock);
         dispatcher.start();
         dispatchers.add(dispatcher);
         return dispatcher;

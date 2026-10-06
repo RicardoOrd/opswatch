@@ -1,6 +1,7 @@
 package io.github.ricardoord.opswatch.egress.internal;
 
 import io.github.ricardoord.opswatch.egress.EgressHttpClients;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.util.List;
 
@@ -19,6 +20,8 @@ public final class TestEgressHttpClients {
      */
     public static EgressHttpClients resolvingWith(FakeHostResolver names, String... allowedPrivateCidrs) {
         return new DefaultEgressHttpClients(
-                names, new EgressProperties(List.of(allowedPrivateCidrs), Duration.ofSeconds(2)));
+                names,
+                new EgressProperties(List.of(allowedPrivateCidrs), Duration.ofSeconds(2)),
+                new SimpleMeterRegistry());
     }
 }

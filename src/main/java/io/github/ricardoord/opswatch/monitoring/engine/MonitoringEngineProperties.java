@@ -16,6 +16,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param maxRedirects followed in one check; one more is {@code TOO_MANY_REDIRECTS}
  * @param deadlineGrace margin over the timeout of a monitor before its request is cut
  * @param shutdownGrace on shutdown, waited for the checks in flight on top of the longest of their deadlines
+ * @param overdueThreshold how late a monitor must be to count in {@code opswatch_monitor_checks_overdue}
  * @param userAgent sent with every check, so that a target can tell who calls and block it. Its default, with the
  *     version, is in application.yml
  */
@@ -28,6 +29,7 @@ public record MonitoringEngineProperties(
         @DefaultValue("5") int maxRedirects,
         @DefaultValue("200ms") Duration deadlineGrace,
         @DefaultValue("5s") Duration shutdownGrace,
+        @DefaultValue("5s") Duration overdueThreshold,
         String userAgent) {
 
     public MonitoringEngineProperties {
@@ -49,6 +51,9 @@ public record MonitoringEngineProperties(
         }
         if (shutdownGrace.isNegative()) {
             throw new IllegalArgumentException("opswatch.monitoring.engine.shutdown-grace must not be negative");
+        }
+        if (overdueThreshold.isNegative()) {
+            throw new IllegalArgumentException("opswatch.monitoring.engine.overdue-threshold must not be negative");
         }
         if (userAgent.isBlank()) {
             throw new IllegalArgumentException("opswatch.monitoring.engine.user-agent must not be blank");
