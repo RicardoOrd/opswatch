@@ -12,7 +12,7 @@
 
     <groupId>io.github.ricardoord</groupId>
     <artifactId>opswatch</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.3.0</version>
     <name>opswatch</name>
     <description>SaaS de monitoreo de APIs y servicios HTTP</description>
     <url>https://github.com/RicardoOrd/opswatch</url>

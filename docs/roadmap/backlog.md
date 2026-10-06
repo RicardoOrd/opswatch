@@ -698,7 +698,7 @@ Refinada el 2026-10-03 contra lo que dejó construido la v0.2.0:
   - [x] Cierre de la conexión tras recibir los headers: el cuerpo no se lee.
     - Cerrar la respuesta leería el cuerpo hasta el final, así que antes se cancela la petición, que cierra el socket.
   - [x] `User-Agent` de `opswatch.monitoring.engine.user-agent`.
-    - El valor por defecto vive en `application.yml`, con la versión del pom que pone Maven al copiar los recursos (hoy `0.1.0-SNAPSHOT`).
+    - El valor por defecto vive en `application.yml`, con la versión del pom que pone Maven al copiar los recursos: la de la release en un tag y `X.Y.0-SNAPSHOT` entre releases ([versionado](../development/versioning.md#aplicación-semantic-versioning)).
 - **Acceptance Criteria:**
   - Los casos 18, 19 y 22 de la tabla de SSRF; el 22 con un destino que gotea bytes (un servidor de sockets en el test: WireMock no gotea headers).
   - Un destino que tarda más que `timeoutMs` devuelve `TIMEOUT` en menos de `timeoutMs` + 500 ms.
