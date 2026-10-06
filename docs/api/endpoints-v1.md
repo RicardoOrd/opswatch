@@ -279,13 +279,13 @@ No hay endpoint de resolución manual en V1 ([por qué](../architecture/incident
 
 | Método | Ruta | Permiso | Éxito | Errores específicos | Fase |
 |---|---|---|---|---|---|
-| `POST` | `/api/v1/organizations/{orgId}/notification-channels` | `CHANNEL_WRITE` | `201` (el webhook devuelve `signingSecret` **una sola vez**) | `400`, `403`, `422 target-not-allowed`, `422 quota-exceeded` | 4 |
-| `GET` | `/api/v1/organizations/{orgId}/notification-channels` | `CHANNEL_READ` | `200`, paginado (configuración enmascarada) | — | 4 |
-| `GET` | `/api/v1/notification-channels/{channelId}` | `CHANNEL_READ` | `200` | — | 4 |
-| `PATCH` | `/api/v1/notification-channels/{channelId}` | `CHANNEL_WRITE` | `200` | `400`, `403`, `412`, `422` | 4 |
+| `POST` | `/api/v1/organizations/{orgId}/notification-channels` | `CHANNEL_WRITE` | `201` y `ETag` (el webhook devuelve `signingSecret` **una sola vez**) | `400`, `403`, `404` (proyecto inexistente, borrado o de otra organización), `422 target-not-allowed`, `422 quota-exceeded` (10 canales) | 4 |
+| `GET` | `/api/v1/organizations/{orgId}/notification-channels` | `CHANNEL_READ` | `200`, paginado (configuración enmascarada). `sort` por `name` (por defecto) o `createdAt` | `400 invalid-parameter`, `403` | 4 |
+| `GET` | `/api/v1/notification-channels/{channelId}` | `CHANNEL_READ` | `200` y `ETag` | `403` | 4 |
+| `PATCH` | `/api/v1/notification-channels/{channelId}` | `CHANNEL_WRITE` | `200` y `ETag` nuevo | `400`, `403`, `404` (proyecto nuevo), `409 concurrent-modification`, `412`, `422 target-not-allowed` | 4 |
 | `DELETE` | `/api/v1/notification-channels/{channelId}` | `CHANNEL_WRITE` | `204` | `403` | 4 |
 | `POST` | `/api/v1/notification-channels/{channelId}/test` | `CHANNEL_WRITE` | `202` (envío asíncrono) | `403`, `429` (5 por minuto por canal) | 4 |
-| `POST` | `/api/v1/notification-channels/{channelId}/rotate-secret` | `CHANNEL_WRITE` | `200` con el secreto nuevo, una sola vez | `403`, `409` (no es un webhook) | 4 |
+| `POST` | `/api/v1/notification-channels/{channelId}/rotate-secret` | `CHANNEL_WRITE` | `200` con el secreto nuevo, una sola vez, y `ETag` nuevo | `403`, `409` (no es un webhook) | 4 |
 | `GET` | `/api/v1/notification-channels/{channelId}/deliveries` | `CHANNEL_READ` | `200`, paginado (estado de las últimas entregas) | — | 4 |
 
 ```jsonc
@@ -294,8 +294,19 @@ No hay endpoint de resolución manual en V1 ([por qué](../architecture/incident
 
 // POST (WEBHOOK)
 { "name": "Slack bridge", "type": "WEBHOOK", "projectId": "0192…", "webhook": { "url": "https://hooks.example.com/opswatch" } }
-// 201
-{ "id": "0192…", "type": "WEBHOOK", "webhook": { "url": "https://hooks.example.com/…", "signingSecret": "whsec_…" } }
+// 201, Location: /api/v1/notification-channels/0192…, ETag: "0"
+{
+  "id": "0192…", "organizationId": "0192…", "projectId": "0192…", "name": "Slack bridge", "type": "WEBHOOK",
+  "enabled": true, "email": null,
+  "webhook": { "url": "https://hooks.example.com/…", "signingSecret": "whsec_…" },   // signingSecret: solo aquí y al rotar
+  "createdAt": "…", "updatedAt": "…", "version": 0
+}
+
+// GET de un canal EMAIL: destinatarios enmascarados
+{ "id": "0192…", "type": "EMAIL", "email": { "recipients": ["o***@example.com"] }, "webhook": null, … }
+
+// PATCH /api/v1/notification-channels/{channelId}, con If-Match: "0" (opcional). Solo cambia lo que viene
+{ "name": "Slack", "enabled": false, "projectId": null, "webhook": { "url": "https://hooks.example.com/otra" } }
 ```
 
 Cuerpo que recibe un webhook (`POST`, `Content-Type: application/json`, header `X-OpsWatch-Signature`):
@@ -315,7 +326,9 @@ Cuerpo que recibe un webhook (`POST`, `Content-Type: application/json`, header `
 - `id` es el de la entrega: la entrega es at-least-once, y el receptor descarta los duplicados por él. `type` es `INCIDENT_OPENED`, `INCIDENT_RESOLVED` o `TEST`.
 - OpsWatch no sigue redirects: un `3xx` cuenta como intento fallido, igual que cualquier respuesta fuera de `2xx` o que tarde más de 5 s (OW-043).
 - `POST …/test` crea una entrega `TEST` que procesa el mismo worker que las reales, así que aparece en `…/deliveries` (OW-036).
-- Un canal limitado a un proyecto se borra, con sus entregas, cuando se borra el proyecto (OW-035).
+- Un canal limitado a un proyecto se borra, con sus entregas, cuando se borra el proyecto, y todos los de una organización cuando se borra la organización (OW-035).
+- La configuración sale enmascarada para todos: los destinatarios como `o***@example.com` y la URL solo con su origen. Los destinatarios se guardan en minúsculas y sin repetir (`400` sobre `email.recipients`), de 1 a 10.
+- El tipo no cambia nunca. En `PATCH`, `email` o `webhook` (el del tipo del canal) reemplaza esa parte entera; una URL nueva conserva el secreto. `projectId: null` hace que el canal reciba los incidentes de todos los proyectos.
 
 ## Operación (no forma parte de `/api/v1`)
 

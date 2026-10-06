@@ -9,7 +9,9 @@ public enum LockSpace {
     /** Organizations a user owns: the key is the user (OW-016). */
     ORGANIZATIONS_OWNED_BY_USER(1),
     /** Monitors of an organization: the key is the organization (OW-021). */
-    MONITORS_OF_ORGANIZATION(2);
+    MONITORS_OF_ORGANIZATION(2),
+    /** Notification channels of an organization: the key is the organization (OW-035). */
+    CHANNELS_OF_ORGANIZATION(3);
 
     private final int number;
 

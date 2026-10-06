@@ -178,7 +178,7 @@ src/main/java/io/github/ricardoord/opswatch/
 │   └── web/          IncidentController, DTOs
 └── notification/
     ├── domain/       NotificationChannel, NotificationDelivery, repositorios
-    ├── application/  ChannelService, IncidentEventsListener
+    ├── application/  ChannelService, ChannelConfigs, ChannelCleanupListener, IncidentEventsListener
     ├── delivery/     DeliveryWorker, EmailSender, WebhookSender, WebhookSigner
     └── web/          ChannelController, DTOs
 ```

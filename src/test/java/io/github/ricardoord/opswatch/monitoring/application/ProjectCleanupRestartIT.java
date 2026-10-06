@@ -104,11 +104,12 @@ class ProjectCleanupRestartIT {
             projects.delete(owner, project);
             AtomicReference<String> listenerId = new AtomicReference<>();
             await().atMost(CLEANUP).untilAsserted(() -> {
+                // notification has a listener of its own (OW-035): only the one of monitoring
                 List<String> found = jdbc.queryForList(
-                        "SELECT listener_id FROM event_publication_archive WHERE serialized_event LIKE ?",
-                        String.class,
-                        "%" + project + "%");
-                assertThat(found).singleElement().asString().contains("ProjectDeletedListener");
+                        """
+                        SELECT listener_id FROM event_publication_archive
+                        WHERE serialized_event LIKE ? AND listener_id LIKE ?""", String.class, "%" + project + "%", "%monitoring.application.ProjectDeletedListener%");
+                assertThat(found).singleElement();
                 listenerId.set(found.getFirst());
             });
             return listenerId.get();

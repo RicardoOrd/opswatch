@@ -39,6 +39,7 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | Métricas del motor en `/actuator/prometheus` (solo en el puerto de management): lag, duración, claim, checks en vuelo, vencidos, saturación, bloqueos SSRF y retención (OW-030) | **Implemented** |
 | Incidentes: apertura y resolución automáticas en la misma transacción que el estado del monitor, con un solo incidente activo por monitor garantizado por la base de datos (OW-032) | **Implemented** |
 | Incidentes por la API: listado con filtros, detalle con el timeline y acknowledge serializado con la resolución automática (OW-033) | **Implemented** |
+| Canales de notificación (email y webhook) con la configuración cifrada y enmascarada, secreto de firma que se muestra una vez, SSRF en la URL y cuota de 10 por organización (OW-035) | **Implemented** |
 | Resto de funcionalidades de producto | Planned |
 
 **Qué se hace ahora:** el milestone [v0.4.0 — Incidentes y notificaciones](https://github.com/RicardoOrd/opswatch/milestone/5), refinado contra lo que dejó construido la v0.3.0. Siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
