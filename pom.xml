@@ -30,7 +30,7 @@
         <palantir-java-format.version>2.100.0</palantir-java-format.version>
         <jacoco.version>0.8.15</jacoco.version>
         <!-- No lo gestiona Boot: versión confirmada con Ricardo en OW-015 -->
-        <bucket4j.version>8.20.0</bucket4j.version>
+        <bucket4j.version>8.21.0</bucket4j.version>
         <!-- No lo gestiona Boot: la última estable, confirmada con Ricardo al refinar la v0.3.0 (la 4.0 sigue en beta) -->
         <wiremock.version>3.13.2</wiremock.version>
         <!-- No lo gestiona Boot: versión confirmada con Ricardo al refinar la v0.4.0 -->
