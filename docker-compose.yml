@@ -1,6 +1,7 @@
 # Entorno local (docs/devops/docker.md). Las variables salen de .env: scripts/dev-keys.sh lo crea.
 #   docker compose up -d --wait postgres         solo la base de datos; la aplicación desde el IDE
 #   docker compose --profile app up -d --build   todo en contenedores
+#   docker compose --profile mail up -d mailpit  SMTP de pruebas para las notificaciones; los emails, en localhost:8025
 name: opswatch
 
 services:
@@ -35,6 +36,8 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: local
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-opswatch}
+      # Mailpit, si se levanta con --profile mail; sin él, las entregas fallan y se reintentan
+      SPRING_MAIL_HOST: mailpit
     ports:
       - "127.0.0.1:8080:8080"
       # Management, solo en local y solo en loopback: en los despliegues no se publica
@@ -57,6 +60,15 @@ services:
       - ALL
     mem_limit: 1g
     cpus: 2
+
+  mailpit:
+    # Solo con --profile mail: recoge los emails de las notificaciones en local (OW-036). Fijada por digest
+    profiles: ["mail"]
+    image: axllent/mailpit:v1.31.4@sha256:b68349e3a014b90c5610bfb26b2ae36f3892d7b8cf25ee140c6c71c98d2fcf48
+    ports:
+      # SMTP y la interfaz web, solo en loopback
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
 
 volumes:
   postgres-data:

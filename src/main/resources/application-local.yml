@@ -14,6 +14,11 @@ spring:
     url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:opswatch}
     username: ${POSTGRES_USER:opswatch}
     password: ${POSTGRES_PASSWORD}
+  # Mailpit de Compose (docker compose --profile mail up -d): los emails se ven en http://localhost:8025. Sin él, las
+  # entregas fallan y se reintentan
+  mail:
+    host: localhost
+    port: 1025
 
 opswatch:
   security:
@@ -25,6 +30,9 @@ opswatch:
       keys:
         "0": ${encryption-dev-key}
       active-key-id: 0
+  notification:
+    email:
+      from: "OpsWatch <alerts@opswatch.test>"
 
 logging:
   level:

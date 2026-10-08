@@ -18,3 +18,10 @@ opswatch:
       # Sin motor en el contexto compartido: haría peticiones reales por cada monitor que crean los tests (el DNS falso
       # resuelve api.example.com a una IP pública). Los tests del motor lo activan en su propio contexto (OW-026)
       enabled: false
+  notification:
+    delivery:
+      # Sin worker en el contexto compartido: enviaría las entregas que crean los incidentes de los demás tests. Los tests
+      # de entrega construyen el suyo contra GreenMail (OW-036)
+      enabled: false
+    email:
+      from: "OpsWatch <alerts@opswatch.test>"

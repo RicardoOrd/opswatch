@@ -53,6 +53,13 @@ spring:
         schema-initialization:
           # Flyway es el dueño del esquema (V4__modulith_create_event_publication)
           enabled: false
+  # El servidor SMTP depende del entorno (host, puerto, usuario, contraseña secreta). Los timeouts valen para todos:
+  # sin ellos, Jakarta Mail espera sin límite y un SMTP lento retendría las entregas (T-33, OW-036)
+  mail:
+    properties:
+      "[mail.smtp.connectiontimeout]": 5000
+      "[mail.smtp.timeout]": 10000
+      "[mail.smtp.writetimeout]": 10000
 
 server:
   shutdown: graceful
@@ -78,6 +85,10 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    mail:
+      # Un SMTP caído no tumba la readiness: las entregas lo reintentan con backoff (OW-036)
+      enabled: false
 
 logging:
   pattern:

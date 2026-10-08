@@ -284,9 +284,9 @@ No hay endpoint de resolución manual en V1 ([por qué](../architecture/incident
 | `GET` | `/api/v1/notification-channels/{channelId}` | `CHANNEL_READ` | `200` y `ETag` | `403` | 4 |
 | `PATCH` | `/api/v1/notification-channels/{channelId}` | `CHANNEL_WRITE` | `200` y `ETag` nuevo | `400`, `403`, `404` (proyecto nuevo), `409 concurrent-modification`, `412`, `422 target-not-allowed` | 4 |
 | `DELETE` | `/api/v1/notification-channels/{channelId}` | `CHANNEL_WRITE` | `204` | `403` | 4 |
-| `POST` | `/api/v1/notification-channels/{channelId}/test` | `CHANNEL_WRITE` | `202` (envío asíncrono) | `403`, `429` (5 por minuto por canal) | 4 |
+| `POST` | `/api/v1/notification-channels/{channelId}/test` | `CHANNEL_WRITE` | `202` con la entrega `TEST`, `PENDING` (envío asíncrono) | `403`, `429` (5 por minuto por canal, con `Retry-After`) | 4 |
 | `POST` | `/api/v1/notification-channels/{channelId}/rotate-secret` | `CHANNEL_WRITE` | `200` con el secreto nuevo, una sola vez, y `ETag` nuevo | `403`, `409` (no es un webhook) | 4 |
-| `GET` | `/api/v1/notification-channels/{channelId}/deliveries` | `CHANNEL_READ` | `200`, paginado (estado de las últimas entregas) | — | 4 |
+| `GET` | `/api/v1/notification-channels/{channelId}/deliveries` | `CHANNEL_READ` | `200`, paginado (estado de las entregas, las más recientes primero). `sort` por `createdAt` | `400 invalid-parameter`, `403` | 4 |
 
 ```jsonc
 // POST /api/v1/organizations/{orgId}/notification-channels (EMAIL)
@@ -307,6 +307,12 @@ No hay endpoint de resolución manual en V1 ([por qué](../architecture/incident
 
 // PATCH /api/v1/notification-channels/{channelId}, con If-Match: "0" (opcional). Solo cambia lo que viene
 { "name": "Slack", "enabled": false, "projectId": null, "webhook": { "url": "https://hooks.example.com/otra" } }
+
+// POST /api/v1/notification-channels/{channelId}/test → 202. GET …/deliveries da páginas de lo mismo (OW-036)
+{
+  "id": "0192…", "channelId": "0192…", "incidentId": null, "eventType": "TEST", "status": "PENDING", "attempts": 0,
+  "nextAttemptAt": "…", "lastAttemptAt": null, "lastError": null, "createdAt": "…", "sentAt": null
+}
 ```
 
 Cuerpo que recibe un webhook (`POST`, `Content-Type: application/json`, header `X-OpsWatch-Signature`):
@@ -325,7 +331,9 @@ Cuerpo que recibe un webhook (`POST`, `Content-Type: application/json`, header `
 
 - `id` es el de la entrega: la entrega es at-least-once, y el receptor descarta los duplicados por él. `type` es `INCIDENT_OPENED`, `INCIDENT_RESOLVED` o `TEST`.
 - OpsWatch no sigue redirects: un `3xx` cuenta como intento fallido, igual que cualquier respuesta fuera de `2xx` o que tarde más de 5 s (OW-043).
-- `POST …/test` crea una entrega `TEST` que procesa el mismo worker que las reales, así que aparece en `…/deliveries` (OW-036).
+- `POST …/test` crea una entrega `TEST` que procesa el mismo worker que las reales, así que aparece en `…/deliveries` (OW-036). Se autoriza antes del límite: quien no puede probar el canal no gasta sus pruebas. Un canal deshabilitado también la recibe, y el worker la deja `FAILED` con `channel disabled`.
+- `…/deliveries` da el estado y los intentos de cada entrega, nunca su contenido. `lastError` dice qué falló del servidor, nunca qué destinatario: `SMTP server unreachable`, `SMTP server timed out`, `SMTP authentication failed`, `SMTP server rejected the message or a recipient`, `channel disabled` o `internal error: <excepción>`.
+- Hasta OW-043, las entregas de los webhooks esperan `PENDING`, sin intentos: todavía no hay quien las envíe.
 - Un canal limitado a un proyecto se borra, con sus entregas, cuando se borra el proyecto, y todos los de una organización cuando se borra la organización (OW-035).
 - La configuración sale enmascarada para todos: los destinatarios como `o***@example.com` y la URL solo con su origen. Los destinatarios se guardan en minúsculas y sin repetir (`400` sobre `email.recipients`), de 1 a 10.
 - El tipo no cambia nunca. En `PATCH`, `email` o `webhook` (el del tipo del canal) reemplaza esa parte entera; una URL nueva conserva el secreto. `projectId: null` hace que el canal reciba los incidentes de todos los proyectos.

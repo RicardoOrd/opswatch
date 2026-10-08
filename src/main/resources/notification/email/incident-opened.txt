@@ -1,0 +1,8 @@
+DOWN: [(${monitorName})]
+
+Since:       [(${openedAt})]
+Cause:       [(${cause})]
+[# th:if="${httpStatus != ''}"]HTTP status: [(${httpStatus})]
+[/]Incident:    [(${incidentId})]
+
+Sent by OpsWatch to the channel [(${channelName})]. You will get another email when the incident is resolved.

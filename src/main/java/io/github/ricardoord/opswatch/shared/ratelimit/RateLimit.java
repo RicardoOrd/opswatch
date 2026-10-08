@@ -1,4 +1,4 @@
-package io.github.ricardoord.opswatch.identity.security;
+package io.github.ricardoord.opswatch.shared.ratelimit;
 
 import java.time.Duration;
 import org.springframework.boot.convert.DurationStyle;

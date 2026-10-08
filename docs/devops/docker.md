@@ -111,7 +111,7 @@ Cada uno entra en su fase, con un profile de Compose para que no arranque si no 
 
 | Servicio | Profile | Fase | Para qué |
 |---|---|---|---|
-| `mailpit` | `mail` | 4 | Servidor SMTP falso con interfaz web para ver los emails en local |
+| `mailpit` | `mail` | 4 | Servidor SMTP falso con interfaz web para ver los emails en local. **Llegó en OW-036**: `docker compose --profile mail up -d mailpit`, SMTP en `localhost:1025` (el perfil `local` lo usa) y los emails en `http://localhost:8025`. Imagen fijada por digest |
 | `prometheus` | `observability` | 7 | Recoger las métricas de `/actuator/prometheus` |
 | `grafana` | `observability` | 7 | Dashboards |
 | `target-simulator` | `benchmark` | 7 | Destinos simulados con latencia y fallos configurables ([benchmarks](../performance/benchmark-plan.md)) |

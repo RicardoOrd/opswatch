@@ -55,6 +55,7 @@ Resultado: **siete módulos**: `shared`, `egress`, `identity`, `organization`, `
 
 - **Es dueño de:** `incidents` e `incident_timeline`.
 - **Hace:** abre y resuelve incidentes a partir de los eventos del monitor, acknowledge, timeline y consultas.
+- **API pública:** `IncidentDirectory` (un incidente por id como `IncidentSummary`, para que `notification` componga sus avisos, OW-036) y los eventos.
 - **Publica:** `IncidentOpened`, `IncidentAcknowledged` e `IncidentResolved`.
 - **Escucha:** `MonitorWentDown`, `MonitorRecovered`, `MonitorPaused` y `MonitorDeleted`.
 - **Usa:** `AccessControl` de `organization` y `UserDirectory` de `identity`.
@@ -65,6 +66,7 @@ Resultado: **siete módulos**: `shared`, `egress`, `identity`, `organization`, `
 - **Hace:** CRUD de canales (email y webhook), creación de entregas a partir de eventos de incidentes, envío con reintentos y backoff, y firma HMAC de webhooks.
 - **Publica:** nada en V1.
 - **Escucha:** `IncidentOpened` e `IncidentResolved`.
+- **Usa:** `AccessControl` y `ProjectDirectory` de `organization`, `TargetPolicy` de `egress` e `IncidentDirectory` de `incident`.
 
 ### `egress`
 
@@ -76,7 +78,7 @@ Resultado: **siete módulos**: `shared`, `egress`, `identity`, `organization`, `
 ### `shared`
 
 - **Es dueño de:** nada persistente.
-- **Contiene:** excepciones base y su traducción a Problem Details, `RequestIdFilter`, DTOs de paginación, `CurrentUser`, el bean `Clock`, `SecretCipher` (AES-GCM), los advisory locks de PostgreSQL con el registro único de sus espacios (`AdvisoryLocks`, `LockSpace`) y el mantenimiento del registro de eventos (purga del archivo y gauge de pendientes), que sirve a todos los módulos con listeners asíncronos.
+- **Contiene:** excepciones base y su traducción a Problem Details, `RequestIdFilter`, DTOs de paginación, `CurrentUser`, el bean `Clock`, `SecretCipher` (AES-GCM), los advisory locks de PostgreSQL con el registro único de sus espacios (`AdvisoryLocks`, `LockSpace`), el limitador de peticiones por clave (`KeyedRateLimiter`, que usan la autenticación y la prueba de canales) y el mantenimiento del registro de eventos (purga del archivo y gauge de pendientes), que sirve a todos los módulos con listeners asíncronos.
 
 ## 4. Reglas de dependencia
 
@@ -137,6 +139,7 @@ src/main/java/io/github/ricardoord/opswatch/
 │   ├── crypto/       SecretCipher (AES-256-GCM con key id)
 │   ├── events/       EventPublicationPurgeJob, IncompleteEventPublicationsMonitor
 │   ├── lock/         AdvisoryLocks, LockSpace (un número por espacio, nunca repetido)
+│   ├── ratelimit/    KeyedRateLimiter, RateLimit (límites en memoria por clave, OW-036)
 │   └── time/         ClockConfiguration
 ├── egress/
 │   ├── TargetPolicy.java, TargetKind.java ← API pública
@@ -173,13 +176,16 @@ src/main/java/io/github/ricardoord/opswatch/
 ├── incident/
 │   ├── IncidentOpened.java, IncidentAcknowledged.java,
 │   │   IncidentResolved.java, Resolution.java           ← eventos publicados
+│   ├── IncidentDirectory.java, IncidentSummary.java     ← API pública
 │   ├── domain/       Incident, IncidentStatus, NewIncident, TimelineEntryType, repositorios
-│   ├── application/  IncidentLifecycle, IncidentService, MonitorEventsListener, IncidentMetrics
+│   ├── application/  IncidentLifecycle, IncidentService, MonitorEventsListener, IncidentMetrics,
+│   │                 DefaultIncidentDirectory
 │   └── web/          IncidentController, DTOs
 └── notification/
-    ├── domain/       NotificationChannel, NotificationDelivery, repositorios
-    ├── application/  ChannelService, ChannelConfigs, ChannelCleanupListener, IncidentEventsListener
-    ├── delivery/     DeliveryWorker, EmailSender, WebhookSender, WebhookSigner
+    ├── domain/       NotificationChannel, NotificationDelivery, DeliveryQueue (JDBC), repositorios
+    ├── application/  ChannelService, ChannelConfigs, ChannelCleanupListener, IncidentEventsListener,
+    │                 DeliveryService, DeliveryRetentionJob, DeliveryProperties
+    ├── delivery/     DeliveryWorker, ChannelSender, EmailSender, EmailTemplates; WebhookSender y WebhookSigner (OW-043)
     └── web/          ChannelController, DTOs
 ```
 
