@@ -319,7 +319,10 @@ class DeliveryWorkerIT {
         assertThat(rows.delivery(delivery)).containsEntry("status", "SENT");
     }
 
-    /** Until OW-043 there is no sender for webhooks: their deliveries wait in the queue, untouched. */
+    /**
+     * A worker claims only the types it has a sender for: one built with the email sender alone leaves the deliveries
+     * of a webhook in the queue, untouched, for one that can send them.
+     */
     @Test
     void theDeliveriesOfATypeWithoutASenderWaitInTheQueue() {
         Fixture fixture = newFixture();

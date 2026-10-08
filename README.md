@@ -40,7 +40,8 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | Incidentes: apertura y resolución automáticas en la misma transacción que el estado del monitor, con un solo incidente activo por monitor garantizado por la base de datos (OW-032) | **Implemented** |
 | Incidentes por la API: listado con filtros, detalle con el timeline y acknowledge serializado con la resolución automática (OW-033) | **Implemented** |
 | Canales de notificación (email y webhook) con la configuración cifrada y enmascarada, secreto de firma que se muestra una vez, SSRF en la URL y cuota de 10 por organización (OW-035) | **Implemented** |
-| Avisos por email de la apertura y la resolución de cada incidente: entregas fiables tras el commit (sobreviven a un reinicio), reintentos con backoff, prueba de canales limitada a 5 por minuto e historial de entregas (OW-036). Los webhooks firmados llegan en OW-043 | **Implemented** |
+| Avisos por email de la apertura y la resolución de cada incidente: entregas fiables tras el commit (sobreviven a un reinicio), reintentos con backoff, prueba de canales limitada a 5 por minuto e historial de entregas (OW-036) | **Implemented** |
+| Webhooks firmados con HMAC-SHA256 y marca de tiempo, sin redirects, con la política SSRF en cada envío y un plazo de 5 s; guía de verificación para los receptores (OW-043) | **Implemented** |
 | Resto de funcionalidades de producto | Planned |
 
 **Qué se hace ahora:** el milestone [v0.4.0 — Incidentes y notificaciones](https://github.com/RicardoOrd/opswatch/milestone/5), refinado contra lo que dejó construido la v0.3.0. Siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).

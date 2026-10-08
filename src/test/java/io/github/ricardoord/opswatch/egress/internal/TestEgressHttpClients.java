@@ -24,4 +24,17 @@ public final class TestEgressHttpClients {
                 new EgressProperties(List.of(allowedPrivateCidrs), Duration.ofSeconds(2)),
                 new SimpleMeterRegistry());
     }
+
+    /**
+     * As {@link #resolvingWith}, trusting a certificate of the tests instead of the JVM: an {@code https} target on the
+     * loopback, as a webhook must be.
+     */
+    public static EgressHttpClients trusting(
+            TestCertificate certificate, FakeHostResolver names, String... allowedPrivateCidrs) {
+        return new DefaultEgressHttpClients(
+                names,
+                new EgressProperties(List.of(allowedPrivateCidrs), Duration.ofSeconds(2)),
+                new SimpleMeterRegistry(),
+                certificate.trust());
+    }
 }

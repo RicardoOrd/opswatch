@@ -158,6 +158,7 @@ class EmailSenderTest {
                         UUID.randomUUID(),
                         UUID.randomUUID(),
                         monitorName,
+                        "OPEN",
                         "TIMEOUT",
                         null,
                         NOW.minusSeconds(60),

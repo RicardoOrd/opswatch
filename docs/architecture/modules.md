@@ -185,7 +185,8 @@ src/main/java/io/github/ricardoord/opswatch/
     ├── domain/       NotificationChannel, NotificationDelivery, DeliveryQueue (JDBC), repositorios
     ├── application/  ChannelService, ChannelConfigs, ChannelCleanupListener, IncidentEventsListener,
     │                 DeliveryService, DeliveryRetentionJob, DeliveryProperties
-    ├── delivery/     DeliveryWorker, ChannelSender, EmailSender, EmailTemplates; WebhookSender y WebhookSigner (OW-043)
+    ├── delivery/     DeliveryWorker, ChannelSender, EmailSender, EmailTemplates, WebhookSender, WebhookSigner,
+    │                 WebhookPayloads, SendDeadline
     └── web/          ChannelController, DTOs
 ```
 
