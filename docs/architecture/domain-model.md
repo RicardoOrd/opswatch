@@ -466,7 +466,9 @@ Un error **interno** de OpsWatch (un bug, la base de datos caída al guardar) **
 - La URL de un webhook pasa `TargetPolicy` y **tiene que ser `https`**.
 - El secreto de firma lo genera el servidor (32 bytes), se muestra una sola vez al crear el canal y se puede rotar.
 - Hay un endpoint que envía una notificación de prueba: crea una entrega `TEST` que procesa el mismo worker (OW-036).
-- Un canal limitado a un proyecto se borra, con sus entregas, cuando se borra el proyecto (listener de `ProjectDeleted`, OW-035).
+- Un canal limitado a un proyecto se borra, con sus entregas, cuando se borra el proyecto (listener de `ProjectDeleted`, OW-035); todos los de una organización, cuando se borra la organización (`OrganizationDeleted`).
+- El borrado es físico, con sus entregas: no hay `deleted_at`. Todos los canales cuentan para la cuota, también los deshabilitados.
+- La API devuelve la configuración enmascarada a todo lector: los destinatarios como `o***@example.com` y la URL solo con su origen (`https://hooks.example.com/…`). El tipo no cambia nunca, y una URL nueva conserva el secreto.
 
 ### NotificationDelivery
 

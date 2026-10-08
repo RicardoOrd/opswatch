@@ -4,6 +4,8 @@ import static io.github.ricardoord.opswatch.identity.domain.UserBuilder.uniqueEm
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.ricardoord.opswatch.identity.security.AccessTokenIssuer;
+import io.github.ricardoord.opswatch.notification.application.ChannelDestination;
+import io.github.ricardoord.opswatch.notification.application.ChannelService;
 import jakarta.servlet.http.Cookie;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -11,6 +13,7 @@ import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -86,6 +89,12 @@ class EndpointAuthorizationMatrixIT {
             GET    /api/v1/organizations/{orgId}/incidents          200 200 200 200 404 401
             GET    /api/v1/incidents/{incidentId}                   200 200 200 200 404 401
             POST   /api/v1/incidents/{incidentId}/acknowledge       200 200 200 403 404 401
+            POST   /api/v1/organizations/{orgId}/notification-channels      201 201 403 403 404 401
+            GET    /api/v1/organizations/{orgId}/notification-channels      200 200 200 403 404 401
+            GET    /api/v1/notification-channels/{channelId}                200 200 200 403 404 401
+            PATCH  /api/v1/notification-channels/{channelId}                200 200 403 403 404 401
+            DELETE /api/v1/notification-channels/{channelId}                204 204 403 403 404 401
+            POST   /api/v1/notification-channels/{channelId}/rotate-secret  200 200 403 403 404 401
             """;
 
     private static final Pattern ROW = Pattern.compile("(GET|POST|PATCH|DELETE)\\s+(\\S+)((?:\\s+\\d{3}){6})");
@@ -110,6 +119,9 @@ class EndpointAuthorizationMatrixIT {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private ChannelService channels;
 
     @Autowired
     @Qualifier("requestMappingHandlerMapping")
@@ -309,6 +321,29 @@ class EndpointAuthorizationMatrixIT {
                         mvc.post(),
                         "/api/v1/incidents/" + fixture.incident() + "/acknowledge",
                         "{\"note\": \"Looking into it\"}"));
+        requests.put(
+                "POST /api/v1/organizations/{orgId}/notification-channels",
+                (mvc, fixture) -> json(
+                        mvc.post(), "/api/v1/organizations/" + fixture.organization() + "/notification-channels", """
+                        {"name": "Guardia", "type": "EMAIL", "email": {"recipients": ["oncall@example.com"]}}"""));
+        requests.put(
+                "GET /api/v1/organizations/{orgId}/notification-channels",
+                (mvc, fixture) ->
+                        mvc.get().uri("/api/v1/organizations/{orgId}/notification-channels", fixture.organization()));
+        requests.put(
+                "GET /api/v1/notification-channels/{channelId}",
+                (mvc, fixture) -> mvc.get().uri("/api/v1/notification-channels/{channelId}", fixture.channel()));
+        requests.put(
+                "PATCH /api/v1/notification-channels/{channelId}",
+                (mvc, fixture) -> json(
+                        mvc.patch(), "/api/v1/notification-channels/" + fixture.channel(), "{\"name\": \"Renamed\"}"));
+        requests.put(
+                "DELETE /api/v1/notification-channels/{channelId}",
+                (mvc, fixture) -> mvc.delete().uri("/api/v1/notification-channels/{channelId}", fixture.channel()));
+        requests.put(
+                "POST /api/v1/notification-channels/{channelId}/rotate-secret",
+                (mvc, fixture) ->
+                        mvc.post().uri("/api/v1/notification-channels/{channelId}/rotate-secret", fixture.channel()));
         return requests;
     }
 
@@ -335,7 +370,7 @@ class EndpointAuthorizationMatrixIT {
     }
 
     /**
-     * An organization with one member of each role and a project with a monitor and its open incident, a user who is not a member, a
+     * An organization with one member of each role, a webhook channel and a project with a monitor and its open incident, a user who is not a member, a
      * {@code MEMBER} to change or remove and a user to add. Straight into the tables, with the tokens issued directly: nearly a hundred cases would
      * otherwise mean hundreds of registrations.
      */
@@ -346,10 +381,14 @@ class EndpointAuthorizationMatrixIT {
                 "INSERT INTO organizations (id, name, created_at, updated_at) VALUES (?, 'CharityLink', now(), now())",
                 organization);
         Map<Caller, @Nullable String> callerTokens = new EnumMap<>(Caller.class);
+        UUID owner = null;
         for (Caller caller : Arrays.asList(Caller.OWNER, Caller.ADMIN, Caller.MEMBER, Caller.VIEWER)) {
             UUID user = insertUser(uniqueEmail(), passwordHash);
             insertMembership(organization, user, caller.name());
             callerTokens.put(caller, tokens.issue(user).value());
+            if (caller == Caller.OWNER) {
+                owner = user;
+            }
         }
         callerTokens.put(
                 Caller.NOT_A_MEMBER,
@@ -371,12 +410,21 @@ class EndpointAuthorizationMatrixIT {
                 INSERT INTO incidents (id, organization_id, project_id, monitor_id, monitor_name, status, cause, opened_at,
                                        created_at, updated_at)
                 VALUES (?, ?, ?, ?, 'Authentication API', 'OPEN', 'TIMEOUT', now(), now(), now())""", incident, organization, project, monitor);
+        UUID channel = channels.create(
+                        Objects.requireNonNull(owner),
+                        organization,
+                        "Slack bridge",
+                        null,
+                        new ChannelDestination.Webhook("https://" + TestHostResolver.PUBLIC_HOST + "/hooks"))
+                .channel()
+                .id();
         return new Fixture(
                 organization,
                 project,
                 monitor,
                 pausedMonitor,
                 incident,
+                channel,
                 callerTokens,
                 subject,
                 subjectEmail,
@@ -414,6 +462,7 @@ class EndpointAuthorizationMatrixIT {
      * @param monitor a monitor of the project, scheduled
      * @param pausedMonitor a paused monitor of the project, which can be resumed
      * @param incident an open incident of {@code monitor}, which can be acknowledged
+     * @param channel a webhook channel of the organization, whose secret can be rotated
      * @param tokens the access token of each caller; none for {@link Caller#ANONYMOUS}
      * @param subject a {@code MEMBER} that the member endpoints change or remove
      * @param newcomerEmail a user with an account who is not a member yet
@@ -424,6 +473,7 @@ class EndpointAuthorizationMatrixIT {
             UUID monitor,
             UUID pausedMonitor,
             UUID incident,
+            UUID channel,
             Map<Caller, @Nullable String> tokens,
             UUID subject,
             String subjectEmail,

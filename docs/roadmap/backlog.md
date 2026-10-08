@@ -13,7 +13,7 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 
 **Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
-**Foco actual: v0.4.0 — Incidentes y notificaciones**, refinada el 2026-10-05 contra lo que dejó construido la v0.3.0 (publicada el 2026-10-05, release #90). Orden: OW-032 → OW-033 → OW-035 → OW-036 → OW-043. OW-032 y OW-033 están **Hechas**; las demás, en **Ready**. La v0.3.0 (OW-024 a OW-030; OW-031 se fusionó en OW-026 y OW-027), la v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
+**Foco actual: v0.4.0 — Incidentes y notificaciones**, refinada el 2026-10-05 contra lo que dejó construido la v0.3.0 (publicada el 2026-10-05, release #90). Orden: OW-032 → OW-033 → OW-035 → OW-036 → OW-043. OW-032, OW-033 y OW-035 están **Hechas**; OW-036 y OW-043, en **Ready**. La v0.3.0 (OW-024 a OW-030; OW-031 se fusionó en OW-026 y OW-027), la v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
 
 ## Convenciones
 
@@ -980,27 +980,36 @@ Decisiones de Ricardo en el refinamiento (2026-10-05):
 - **Definition of Done:** el catálogo de endpoints coincide con la implementación.
 
 ### OW-035 · Canales de notificación (email y webhook)
-`feature` `security` · P2 · Milestone: v0.4.0 — Incidentes y notificaciones · **Ready**
+`feature` `security` · P2 · Milestone: v0.4.0 — Incidentes y notificaciones · **Hecha**
 
 - **Context:** a dónde avisar ([modelo de dominio](../architecture/domain-model.md#notificationchannel)). El endpoint de prueba y Mailpit pasan a OW-036: hasta entonces no hay nada que envíe.
 - **Objective:** CRUD de canales con la configuración cifrada y un secreto de firma que se muestra una sola vez.
 - **Tasks:**
-  - [ ] Migración `notification_create_channels_and_deliveries`. `notification_deliveries` admite ya las entregas de prueba de OW-036: `event_type` `TEST` con `incident_id` nulo.
-  - [ ] Crear, listar, leer, `PATCH`, borrar y `rotate-secret`, como en el [catálogo](../api/endpoints-v1.md#canales-de-notificación-notification), con `ETag` e `If-Match` como las organizaciones.
-  - [ ] Configuración cifrada con `SecretCipher`. El dato asociado lleva el propósito y el id del canal, distinto del de los headers de monitor, para que un texto cifrado no se pueda mover de una tabla a otra.
-  - [ ] Email: de 1 a `recipients-per-channel` (10) direcciones válidas y sin repetir.
-  - [ ] Webhook:
+  - [x] Migración `notification_create_channels_and_deliveries`. `notification_deliveries` admite ya las entregas de prueba de OW-036: `event_type` `TEST` con `incident_id` nulo.
+  - [x] Crear, listar, leer, `PATCH`, borrar y `rotate-secret`, como en el [catálogo](../api/endpoints-v1.md#canales-de-notificación-notification), con `ETag` e `If-Match` como las organizaciones.
+  - [x] Configuración cifrada con `SecretCipher`. El dato asociado lleva el propósito y el id del canal, distinto del de los headers de monitor, para que un texto cifrado no se pueda mover de una tabla a otra.
+  - [x] Email: de 1 a `recipients-per-channel` (10) direcciones válidas y sin repetir.
+  - [x] Webhook:
     - la URL pasa `TargetPolicy.validate(url, TargetKind.WEBHOOK)`, que solo admite `https` y resuelve el DNS fuera de la transacción;
     - secreto de 32 bytes de `SecureRandom` con prefijo `whsec_`, que solo sale en las respuestas de creación y de rotación. En el resto, la configuración va enmascarada.
-  - [ ] Cuota `channels-per-organization` (10), serializada con un advisory lock como la de monitores (espacio nuevo en `LockSpace`).
-  - [ ] `projectId` opcional: el proyecto tiene que ser de la organización y no estar borrado. El canal se crea con el proyecto en `FOR SHARE` (`ProjectDirectory.lockActive`), como un monitor, para que no sobreviva a un borrado concurrente.
-  - [ ] Listener asíncrono de `ProjectDeleted` (`@ApplicationModuleListener`, registro de OW-034) que borra los canales del proyecto y, por cascada, sus entregas (decisión de Ricardo del 2026-10-05). Idempotente.
-  - [ ] Filas nuevas en la matriz de autorización.
+  - [x] Cuota `channels-per-organization` (10), serializada con un advisory lock como la de monitores (espacio nuevo en `LockSpace`).
+  - [x] `projectId` opcional: el proyecto tiene que ser de la organización y no estar borrado. El canal se crea con el proyecto en `FOR SHARE` (`ProjectDirectory.lockActive`), como un monitor, para que no sobreviva a un borrado concurrente.
+  - [x] Listener asíncrono de `ProjectDeleted` (`@ApplicationModuleListener`, registro de OW-034) que borra los canales del proyecto y, por cascada, sus entregas (decisión de Ricardo del 2026-10-05). Idempotente.
+  - [x] Filas nuevas en la matriz de autorización.
+  - **Añadido durante la implementación:** el listener también escucha `OrganizationDeleted` y borra todos los canales de la organización. Sin eso, a los canales de todos los proyectos de una organización borrada les llegaría, desde OW-036, la resolución de los incidentes que cierra el borrado de sus monitores.
+  - **Decisiones de la implementación:**
+    - la configuración sale enmascarada para todos los lectores, como pide el modelo de autorización: los destinatarios como `o***@example.com` y la URL solo con su origen (`https://hooks.example.com/…`);
+    - los destinatarios se guardan en minúsculas, como los emails de `identity`, y se comparan así para rechazar repetidos;
+    - borrado físico con sus entregas (`ON DELETE CASCADE`): los canales no tienen `deleted_at`, y todos cuentan para la cuota;
+    - el tipo no cambia nunca; en `PATCH`, la parte del otro tipo da `400 not-applicable`, y una URL nueva conserva el secreto;
+    - el dato asociado es `notification_channels.config:<channelId>`; el espacio de advisory locks nuevo es el 3 (`CHANNELS_OF_ORGANIZATION`);
+    - un `projectId` de otra organización da el `404` del proyecto.
 - **Acceptance Criteria:** un webhook `http://` → `422`; el secreto solo aparece en la respuesta de creación y en la de rotación; el canal 11 de una organización → `422 quota-exceeded`; un `projectId` de otra organización → `404`; borrar el proyecto borra sus canales.
 - **Testing:**
-  - API y seguridad: endpoints por rol, IDOR y enmascarado de la configuración.
-  - Seguridad: caso 26 de la tabla de SSRF (webhook `http`), URL de webhook hacia una red privada y un texto cifrado de otro canal que no se descifra.
-  - Integración: borrado de los canales por `ProjectDeleted`.
+  - API y seguridad: `ChannelApiIT` (creación con destinatarios normalizados y enmascarados, secreto solo al crear y al rotar y nunca en claro en la base, validaciones, cuota, proyecto de otra organización, `PATCH` parcial con `If-Match`, rotación de un canal email, borrado, permisos de `MEMBER`, IDOR y OpenAPI) y seis filas nuevas en `EndpointAuthorizationMatrixIT`.
+  - Seguridad: caso 26 de la tabla de SSRF (webhook `http`), URL de webhook hacia una red privada, loopback y metadata, y un texto cifrado copiado de otro canal que no se descifra.
+  - Integración: borrado de los canales por `ProjectDeleted` y por `OrganizationDeleted`.
+  - Comprobado que los tests detectan el fallo: con el secreto siempre en la respuesta, sin la cuota o con la URL sin enmascarar, fallan.
 - **Security considerations:** T-30 (SSRF por webhooks), T-32 (lectura de secretos) y T-35 (límites de canales y destinatarios).
 - **Dependencies:** OW-018, OW-022, OW-024, OW-044.
 - **Definition of Done:** el catálogo de endpoints coincide con la implementación.

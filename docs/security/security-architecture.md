@@ -155,7 +155,7 @@ Se cifran con **AES-256-GCM** (`SecretCipher` en `shared`):
 - los headers de los monitores (pueden llevar `Authorization`, API keys);
 - la configuración de los canales de notificación (URL del webhook con token, secreto de firma, destinatarios).
 
-Formato: `keyId (1 byte) ‖ nonce (12 bytes) ‖ ciphertext ‖ tag (16 bytes)`. El nonce es aleatorio por cifrado. Se usa como dato asociado (AAD) el propósito y el id de la entidad (`monitors.request_headers:<monitorId>`), para que un texto cifrado no se pueda copiar de una fila a otra ni de una tabla a otra.
+Formato: `keyId (1 byte) ‖ nonce (12 bytes) ‖ ciphertext ‖ tag (16 bytes)`. El nonce es aleatorio por cifrado. Se usa como dato asociado (AAD) el propósito y el id de la entidad (`monitors.request_headers:<monitorId>`, `notification_channels.config:<channelId>` desde OW-035), para que un texto cifrado no se pueda copiar de una fila a otra ni de una tabla a otra.
 
 El cifrado es explícito en el servicio, no un `AttributeConverter` de JPA: un converter solo recibe el valor de la columna y, al leer, no conoce el id de la entidad que hace falta como dato asociado. La aplicación no arranca, en ningún perfil, sin la clave activa ni con una clave que no mida 32 bytes (OW-022).
 
