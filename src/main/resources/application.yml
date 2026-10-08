@@ -100,3 +100,7 @@ opswatch:
     engine:
       # Cada check se identifica, para que el destino sepa quién llama y pueda bloquearlo. Maven pone la versión del pom
       user-agent: "OpsWatch-Monitor/@project.version@ (+https://github.com/RicardoOrd/opswatch)"
+  notification:
+    webhook:
+      # Cada webhook se identifica, como los checks. Maven pone la versión del pom
+      user-agent: "OpsWatch-Webhook/@project.version@ (+https://github.com/RicardoOrd/opswatch)"

@@ -13,7 +13,7 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 
 **Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
-**Foco actual: v0.4.0 — Incidentes y notificaciones**, refinada el 2026-10-05 contra lo que dejó construido la v0.3.0 (publicada el 2026-10-05, release #90). Orden: OW-032 → OW-033 → OW-035 → OW-036 → OW-043. OW-032, OW-033, OW-035 y OW-036 están **Hechas**; OW-043, en **Ready**. La v0.3.0 (OW-024 a OW-030; OW-031 se fusionó en OW-026 y OW-027), la v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
+**Foco actual: v0.4.0 — Incidentes y notificaciones**, refinada el 2026-10-05 contra lo que dejó construido la v0.3.0 (publicada el 2026-10-05, release #90). Orden: OW-032 → OW-033 → OW-035 → OW-036 → OW-043. OW-032, OW-033, OW-035, OW-036 y OW-043 están **Hechas**: falta la release. La v0.3.0 (OW-024 a OW-030; OW-031 se fusionó en OW-026 y OW-027), la v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
 
 ## Convenciones
 
@@ -1072,20 +1072,32 @@ Decisiones de Ricardo en el refinamiento (2026-10-05):
 - **Definition of Done:** el flujo de eventos de `events.md` coincide con la implementación.
 
 ### OW-043 · Webhooks firmados con HMAC
-`feature` `security` · P2 · Milestone: v0.4.0 — Incidentes y notificaciones · **Ready**
+`feature` `security` · P2 · Milestone: v0.4.0 — Incidentes y notificaciones · **Hecha**
 
 - **Context:** separado de OW-036 para que la entrega por webhook y su firma tengan su propia revisión de seguridad. Desde OW-036, `DeliveryWorker` solo reclama las entregas de los tipos con un `ChannelSender`: las de webhook esperan `PENDING`, sin intentos, hasta que exista `WebhookSender`.
 - **Objective:** `WebhookSender` a través de `egress`, con cuerpo generado por OpsWatch y firma verificable.
 - **Tasks:**
-  - [ ] `WebhookSender`: `POST` JSON por un cliente de `EgressHttpClients` con `TargetKind.WEBHOOK` y un deadline de 5 s sobre el envío entero (`opswatch.notification.webhook.timeout`), como el del motor.
-  - [ ] **Sin redirects** (decisión de Ricardo del 2026-10-05): un `3xx` es un intento fallido, igual que cualquier respuesta fuera de `2xx`. El cuerpo firmado nunca sale hacia otra URL.
-  - [ ] Cuerpo del [catálogo](../api/endpoints-v1.md#canales-de-notificación-notification), con `id` = id de la entrega para que el receptor descarte los duplicados de la entrega at-least-once, y `type` `TEST` en las pruebas.
-  - [ ] `X-OpsWatch-Signature: t=<timestamp>,v1=<HMAC-SHA256>` y `X-OpsWatch-Webhook-Version: 1`.
-  - [ ] Guía breve para los receptores: cómo verificar la firma y rechazar marcas de tiempo antiguas.
+  - [x] `WebhookSender`: `POST` JSON por un cliente de `EgressHttpClients` con `TargetKind.WEBHOOK` y un deadline de 5 s sobre el envío entero (`opswatch.notification.webhook.timeout`), como el del motor.
+  - [x] **Sin redirects** (decisión de Ricardo del 2026-10-05): un `3xx` es un intento fallido, igual que cualquier respuesta fuera de `2xx`. El cuerpo firmado nunca sale hacia otra URL.
+  - [x] Cuerpo del [catálogo](../api/endpoints-v1.md#canales-de-notificación-notification), con `id` = id de la entrega para que el receptor descarte los duplicados de la entrega at-least-once, y `type` `TEST` en las pruebas.
+  - [x] `X-OpsWatch-Signature: t=<timestamp>,v1=<HMAC-SHA256>` y `X-OpsWatch-Webhook-Version: 1`.
+  - [x] Guía breve para los receptores: cómo verificar la firma y rechazar marcas de tiempo antiguas ([webhooks.md](../api/webhooks.md)).
+  - **Decisiones de la implementación:**
+    - la clave del HMAC es el secreto **entero**, prefijo `whsec_` incluido, en UTF-8; el resultado va en hexadecimal en minúsculas. La guía lo dice, y un vector calculado con `openssl` lo fija en `WebhookSignerTest`;
+    - `incident` lleva el incidente **tal como está al enviar** (`IncidentSummary` gana `status`): un aviso de apertura reintentado tras la resolución llega con `status: "RESOLVED"`. `occurredAt` es la apertura, la resolución o la petición de la prueba; `httpStatus`, `resolvedAt` y `resolution` solo aparecen si tienen valor, e `incident` es `null` en una prueba;
+    - el `User-Agent` es `opswatch.notification.webhook.user-agent` (propiedad nueva), con la versión del pom como el del motor;
+    - el cliente admite tantas conexiones como `opswatch.notification.delivery.batch-size`: el worker no envía más a la vez, así que ningún envío espera al pool;
+    - `last_error` nunca lleva la URL, que puede contener un token: `receiver answered <código>`, `receiver answered 3xx; redirects are not followed`, `receiver timed out`, `target not allowed`, `receiver host not found`, `receiver unreachable`, `TLS handshake failed`;
+    - el deadline es una copia de la del motor (`SendDeadline`): `notification` no puede depender de `monitoring`. La respuesta no se lee: se cancela la petición y se cierra, como en el motor;
+    - **punto de prueba en `egress`:** `DefaultEgressHttpClients` acepta un `SSLContext` en un constructor de paquete, que solo usa `TestEgressHttpClients.trusting`. En producción usa el almacén de confianza de siempre. Los tests generan su certificado con el `keytool` del JDK (`TestCertificate`), así que no hay claves en el repositorio y se verifica el nombre del host;
+    - el test es `WebhookSenderTest` y no `WebhookSenderIT`: WireMock corre dentro del proceso, como en `ApacheHttpMonitorClientTest`.
 - **Acceptance Criteria:** un verificador independiente escrito en el test valida la firma con el secreto del canal; un `3xx`, también hacia `http://` o hacia una IP privada, cuenta como intento fallido y su destino no recibe nada; una URL que ya resuelve a una IP privada falla sin enviar el cuerpo; un receptor que tarda más de 5 s cuenta como intento fallido.
 - **Testing:**
-  - Integración: `WebhookSenderIT` contra WireMock.
-  - Seguridad: firma, redirects y SSRF por DNS (`FakeHostResolver`).
+  - `WebhookSenderTest` contra WireMock por `https`, con un certificado del test: cuerpo y headers del catálogo, firma validada por `WebhookSignatureVerifier` (escrito a partir de la guía, no del firmante), `3xx` hacia el mismo host, hacia `http://`, hacia la metadata y hacia una IP privada sin que el destino reciba nada, respuestas fuera de `2xx`, URL que resuelve a una IP privada, URL `http://` escrita fuera de la API, receptor lento, receptor que gotea los headers (un servidor TLS propio: WireMock no gotea headers), cuerpo de la respuesta sin leer y certificado no confiable.
+  - `WebhookSignerTest` con un vector de `openssl`, y `WebhookPropertiesTest`.
+  - `WebhookDeliveryIT`: un canal creado con `ChannelService` y enviado por el worker con su configuración descifrada; el receptor verifica la firma con el secreto que mostró la creación. Un receptor que redirige se reintenta y acaba en `FAILED`.
+  - El ejemplo de Node.js de la guía valida el mismo vector que el firmante de Java.
+  - Comprobado que los tests detectan el fallo: sin el deadline, con los `3xx` como éxito y sin la marca de tiempo en la firma, fallan.
 - **Security considerations:** T-30 (SSRF), T-31 (suplantación de OpsWatch ante el receptor). La marca de tiempo en la firma permite al receptor rechazar repeticiones.
 - **Dependencies:** OW-024, OW-035, OW-036.
 - **Definition of Done:** la guía de verificación está enlazada desde el catálogo de endpoints.
