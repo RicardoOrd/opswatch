@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.ricardoord.opswatch.shared.error.RateLimitExceededException;
+import io.github.ricardoord.opswatch.shared.ratelimit.RateLimit;
 import io.github.ricardoord.opswatch.shared.time.MutableClock;
 import java.time.Duration;
 import java.time.Instant;

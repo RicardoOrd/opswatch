@@ -1,0 +1,5 @@
+Test notification
+
+Someone asked OpsWatch to test the channel [(${channelName})]. If you are reading this, it works: the incidents it covers will be announced here.
+
+Delivery [(${deliveryId})]

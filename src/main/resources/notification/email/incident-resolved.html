@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<!-- Every value goes through th:text, which escapes it: the monitor name is typed by a user (T-34) -->
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="'RESOLVED: ' + ${monitorName}">RESOLVED</title>
+</head>
+<body style="font-family: Arial, Helvetica, sans-serif; color: #1f2328; line-height: 1.5;">
+<p style="font-size: 18px; margin: 0 0 16px;">
+    <strong style="color: #1a7f37;">RESOLVED</strong> &middot; <strong th:text="${monitorName}">Payments API</strong>
+</p>
+<p style="margin: 0 0 16px;">Resolved because <span th:text="${resolution}">the monitor recovered</span>.</p>
+<table style="border-collapse: collapse;">
+    <tr>
+        <td style="padding: 2px 16px 2px 0; color: #59636e;">Down since</td>
+        <td th:text="${openedAt}">2026-09-28 10:03:00 UTC</td>
+    </tr>
+    <tr>
+        <td style="padding: 2px 16px 2px 0; color: #59636e;">Resolved at</td>
+        <td th:text="${resolvedAt}">2026-09-28 10:13:00 UTC</td>
+    </tr>
+    <tr>
+        <td style="padding: 2px 16px 2px 0; color: #59636e;">Duration</td>
+        <td th:text="${duration}">10 min 0 s</td>
+    </tr>
+    <tr>
+        <td style="padding: 2px 16px 2px 0; color: #59636e;">Cause</td>
+        <td th:text="${cause}">TIMEOUT</td>
+    </tr>
+    <tr>
+        <td style="padding: 2px 16px 2px 0; color: #59636e;">Incident</td>
+        <td th:text="${incidentId}">0192…</td>
+    </tr>
+</table>
+<p style="margin-top: 24px; font-size: 12px; color: #59636e;">
+    Sent by OpsWatch to the channel <span th:text="${channelName}">On call</span>.
+</p>
+</body>
+</html>

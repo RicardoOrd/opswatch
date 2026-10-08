@@ -53,6 +53,7 @@ Se registran con `event.category=security` para poder filtrarlos:
 - `auth.login.failed` (email con hash, IP), `auth.refresh.reuse_detected`, `auth.rate_limited` (límite, IP y, según el límite, el hash del email o el id del usuario; uno por ráfaga, no por petición rechazada);
 - `auth.password.changed` (usuario, IP y sesiones revocadas) y `auth.password.change_failed` (usuario e IP, con la contraseña actual incorrecta);
 - `authz.denied` (usuario, organización, permiso);
+- `notification.test_rate_limited` (usuario y canal; uno por ráfaga, OW-036);
 - `egress.blocked` (monitor, host y rango, sin la query string);
 - `membership.role_changed`, `membership.removed`.
 
@@ -90,6 +91,8 @@ Se registran con `event.category=security` para poder filtrarlos:
 | `opswatch_notification_deliveries_total` | counter | `channel_type`, `result` | 4 |
 | `opswatch_event_publications_incomplete` | gauge | — | 2 |
 | `opswatch_auth_login_total` | counter | `result` | 1 |
+
+`opswatch_notification_deliveries_total` cuenta un valor por intento (OW-036): `result` es `SENT`, `RETRY` (falló y habrá otro intento) o `FAILED` (no habrá más: falló el último o el canal está deshabilitado).
 
 Correspondencia con los ejemplos de la especificación inicial:
 

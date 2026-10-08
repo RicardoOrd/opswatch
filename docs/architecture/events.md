@@ -163,6 +163,12 @@ La entrega es **at-least-once**, así que el listener tiene que ser idempotente:
 - `notification_deliveries` tiene la clave única `(channel_id, incident_id, event_type)`, y un evento duplicado no crea entregas nuevas.
 - El envío real lo hace el `DeliveryWorker`, que reintenta con backoff. El listener solo encola trabajo en la base de datos.
 
+**Implementado en OW-036:**
+
+- **Listener:** `IncidentEventsListener` escucha `IncidentOpened` e `IncidentResolved` y añade una entrega `PENDING` por canal habilitado de la organización que cubre el proyecto (los de todos los proyectos y los de ese). Toma los canales con `FOR KEY SHARE`: uno que se borra a la vez espera y borra sus entregas con él.
+- **Worker:** `DeliveryWorker` reclama con `FOR UPDATE OF d SKIP LOCKED`, cuenta el intento y aparta la entrega durante `opswatch.notification.delivery.lease`; envía cada una en un hilo virtual, fuera de toda transacción, y registra el resultado solo si la entrega sigue en ese intento. Lee el incidente con `IncidentDirectory`: la entrega no guarda el contenido.
+- **Pruebas:** `NotificationModuleIT` (`@ApplicationModuleTest` con `Scenario`, también el evento repetido), `DeliveryRestartIT` (reinicio con la publicación pendiente, como `ProjectCleanupRestartIT`) y `DeliveryWorkerIT` (de la caída del monitor al email, contra GreenMail).
+
 ## 5. Cuándo usar cada tipo de listener
 
 | Tipo | Úsalo cuando | No lo uses cuando |

@@ -1,0 +1,11 @@
+RESOLVED: [(${monitorName})]
+
+Resolved because [(${resolution})].
+
+Down since:  [(${openedAt})]
+Resolved at: [(${resolvedAt})]
+Duration:    [(${duration})]
+Cause:       [(${cause})]
+Incident:    [(${incidentId})]
+
+Sent by OpsWatch to the channel [(${channelName})].

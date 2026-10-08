@@ -13,7 +13,7 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 
 **Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
-**Foco actual: v0.4.0 — Incidentes y notificaciones**, refinada el 2026-10-05 contra lo que dejó construido la v0.3.0 (publicada el 2026-10-05, release #90). Orden: OW-032 → OW-033 → OW-035 → OW-036 → OW-043. OW-032, OW-033 y OW-035 están **Hechas**; OW-036 y OW-043, en **Ready**. La v0.3.0 (OW-024 a OW-030; OW-031 se fusionó en OW-026 y OW-027), la v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
+**Foco actual: v0.4.0 — Incidentes y notificaciones**, refinada el 2026-10-05 contra lo que dejó construido la v0.3.0 (publicada el 2026-10-05, release #90). Orden: OW-032 → OW-033 → OW-035 → OW-036 → OW-043. OW-032, OW-033, OW-035 y OW-036 están **Hechas**; OW-043, en **Ready**. La v0.3.0 (OW-024 a OW-030; OW-031 se fusionó en OW-026 y OW-027), la v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
 
 ## Convenciones
 
@@ -1015,31 +1015,44 @@ Decisiones de Ricardo en el refinamiento (2026-10-05):
 - **Definition of Done:** el catálogo de endpoints coincide con la implementación.
 
 ### OW-036 · Entrega de notificaciones: listener, worker con reintentos y email
-`feature` · P2 · Milestone: v0.4.0 — Incidentes y notificaciones · **Ready**
+`feature` · P2 · Milestone: v0.4.0 — Incidentes y notificaciones · **Hecha**
 
 - **Context:** efecto lateral fiable a partir de los eventos de incidentes. Los webhooks firmados van en OW-043.
 - **Objective:** listener asíncrono que crea las entregas, worker que las envía por email con backoff, y endpoint de prueba de canales.
 - **Tasks:**
-  - [ ] Dependencias `spring-boot-starter-mail` y `org.thymeleaf:thymeleaf` sin versión propia (el BOM fija Angus Mail 2.0.5 y Thymeleaf 3.1.5), y `com.icegreen:greenmail-junit5` 2.1.14 en test. Decisión de Ricardo del 2026-10-05.
-  - [ ] `IncidentEventsListener` (`@ApplicationModuleListener`, registro de OW-034): una entrega `PENDING` por canal habilitado aplicable, es decir, de la organización y del proyecto del incidente o sin proyecto. La clave única da la idempotencia (`ON CONFLICT DO NOTHING`).
-  - [ ] `DeliveryWorker`, en todas las instancias, sin I/O dentro de transacciones:
+  - [x] Dependencias `spring-boot-starter-mail` y `org.thymeleaf:thymeleaf` sin versión propia (el BOM fija Angus Mail 2.0.5 y Thymeleaf 3.1.5), y `com.icegreen:greenmail-junit5` 2.1.14 en test. Decisión de Ricardo del 2026-10-05.
+  - [x] `IncidentEventsListener` (`@ApplicationModuleListener`, registro de OW-034): una entrega `PENDING` por canal habilitado aplicable, es decir, de la organización y del proyecto del incidente o sin proyecto. La clave única da la idempotencia (`ON CONFLICT DO NOTHING`).
+  - [x] `DeliveryWorker`, en todas las instancias, sin I/O dentro de transacciones:
     - reclama en una transacción corta con `FOR UPDATE SKIP LOCKED`, suma el intento y aparta la entrega (`next_attempt_at` = ahora + timeout del envío + margen) para que otra instancia no la tome en vuelo;
     - envía fuera de la transacción;
     - guarda el resultado en otra transacción corta: `SENT`, el siguiente intento según el backoff (0 s, 30 s, 2 min, 10 min, 30 min y 1 h) o `FAILED` tras el sexto;
     - la entrega es at-least-once: una caída entre el envío y el registro repite el envío;
     - un canal deshabilitado no envía: su entrega pasa a `FAILED` con `channel disabled`.
-  - [ ] `EmailSender` con Spring Mail:
+  - [x] `EmailSender` con Spring Mail:
     - multipart en texto y en HTML con Thymeleaf (decisión de Ricardo), con un `TemplateEngine` propio para las plantillas de email, sin el starter ni `ViewResolver`;
     - `th:text` escapa el nombre del monitor, y el asunto no admite saltos de línea;
     - remitente `opswatch.notification.email.from`, obligatorio;
     - timeouts de SMTP (`mail.smtp.connectiontimeout`, `timeout` y `writetimeout`), porque Jakarta Mail espera sin límite por defecto;
     - `management.health.mail.enabled=false`, para que un SMTP caído no tumbe la readiness.
-  - [ ] `POST /api/v1/notification-channels/{channelId}/test` (desde OW-035): `202` y una entrega `TEST`, sin incidente, que procesa el mismo worker. 5 por minuto por canal (`opswatch.notification.test.rate-limit`).
-  - [ ] Limitador genérico en `shared`, sacado de `AuthRateLimiter` sin cambiar su comportamiento: `notification` no puede depender de `identity`.
-  - [ ] `GET /api/v1/notification-channels/{channelId}/deliveries`, paginado, con el estado y los intentos, nunca el contenido.
-  - [ ] Purga diaria de las entregas de más de `opswatch.retention.deliveries` (90 días), con el cron común y en lotes con `SKIP LOCKED`, como OW-029. Cuenta en `opswatch_retention_deleted_rows_total{table="notification_deliveries"}`.
-  - [ ] Métrica `opswatch_notification_deliveries_total{channel_type, result}`.
-  - [ ] Mailpit en Compose (profile `mail`), `axllent/mailpit:v1.31.4` fijado por digest (desde OW-035).
+  - [x] `POST /api/v1/notification-channels/{channelId}/test` (desde OW-035): `202` y una entrega `TEST`, sin incidente, que procesa el mismo worker. 5 por minuto por canal (`opswatch.notification.test.rate-limit`).
+  - [x] Limitador genérico en `shared`, sacado de `AuthRateLimiter` sin cambiar su comportamiento: `notification` no puede depender de `identity`.
+  - [x] `GET /api/v1/notification-channels/{channelId}/deliveries`, paginado, con el estado y los intentos, nunca el contenido.
+  - [x] Purga diaria de las entregas de más de `opswatch.retention.deliveries` (90 días), con el cron común y en lotes con `SKIP LOCKED`, como OW-029. Cuenta en `opswatch_retention_deleted_rows_total{table="notification_deliveries"}`.
+  - [x] Métrica `opswatch_notification_deliveries_total{channel_type, result}`.
+  - [x] Mailpit en Compose (profile `mail`), `axllent/mailpit:v1.31.4` fijado por digest (desde OW-035).
+  - **Decisiones de la implementación:**
+    - el worker lee el incidente con una API pública nueva de `incident`, `IncidentDirectory` (`findById` → `IncidentSummary`): la entrega no guarda el contenido, y el email se compone en cada intento con el incidente tal como está;
+    - el worker solo reclama las entregas de los tipos para los que tiene emisor (`ChannelSender`). Hasta OW-043 no hay emisor de webhooks: sus entregas esperan `PENDING` en la cola, sin intentos, y OW-043 las envía al añadir `WebhookSender`;
+    - el claim bloquea `FOR UPDATE OF d`: solo la fila de la entrega, así que un `PATCH` del canal nunca espera a un claim (mismo motivo que `OF s` en el motor, OW-026);
+    - el resultado se registra solo si la entrega sigue en ese intento (`attempts = :attempt`): un worker cuyo apartado venció, y cuya entrega tomó otro, no pisa el intento nuevo;
+    - el apartado es `opswatch.notification.delivery.lease` (5 min, propiedad nueva): un envío por SMTP no tiene un plazo total, solo los timeouts de cada operación, y el apartado tiene que superarlos;
+    - el listener y la entrega `TEST` toman los canales con `FOR KEY SHARE`: un canal que se borra a la vez espera a que se escriban sus entregas y las borra con él, en lugar de romper la FK. Un canal borrado entre la autorización y la prueba da `404`;
+    - `opswatch.notification.delivery.enabled` (propiedad nueva), como el motor: `false` en el perfil `test`, en `ApplicationStartupIT` y en una instancia que solo sirve la API. Sin worker tampoco existe `EmailSender`, y `email.from` y `spring.mail.host` solo se exigen con él;
+    - `last_error` dice qué falló del servidor (`SMTP server unreachable`, `SMTP server timed out`, `SMTP authentication failed`, `SMTP server rejected the message or a recipient`), nunca la dirección rechazada: la API muestra los destinatarios enmascarados. Un fallo nuestro (descifrado, plantilla) es `internal error: <excepción>` y un `ERROR` en el log;
+    - el backoff tiene una espera por intento, y la primera es la de antes del primer intento: el arranque falla si no hay tantas como `max-attempts`;
+    - un solo mensaje por entrega a todos los destinatarios, con `X-OpsWatch-Delivery-Id` (el id de la entrega, igual en cada intento) y `Auto-Submitted: auto-generated` (RFC 3834, contra respuestas automáticas);
+    - el limitador es `shared.ratelimit.KeyedRateLimiter`, y `RateLimit` pasó a ese paquete. La prueba se autoriza antes del límite: un `VIEWER` o alguien ajeno no gastan las pruebas del canal. `GET …/deliveries` tiene el permiso del canal (`CHANNEL_READ`): un `VIEWER` recibe `403`;
+    - alcanzar el límite de pruebas deja un evento de seguridad `notification.test_rate_limited` por ráfaga.
 - **Acceptance Criteria:**
   - Una caída de 10 minutos → exactamente un email de apertura y uno de resolución por canal.
   - Con el SMTP caído, las entregas se reintentan y acaban en `SENT` al volver, o en `FAILED` tras 6 intentos.
@@ -1048,10 +1061,12 @@ Decisiones de Ricardo en el refinamiento (2026-10-05):
   - El sexto envío de prueba de un canal en un minuto → `429`.
   - Con el SMTP caído, la readiness sigue `UP`.
 - **Testing:**
-  - Integración: worker contra GreenMail, parándolo dentro del test para simular la caída (reintentos con `MutableClock`, `SENT` al volver y `FAILED` tras 6 intentos).
-  - Módulo: idempotencia ante eventos duplicados.
-  - Integración: reinicio con publicaciones pendientes, como `ProjectCleanupRestartIT`.
-  - Seguridad: un nombre de monitor con HTML y con saltos de línea sale escapado en el cuerpo y no rompe el asunto.
+  - Integración: worker contra GreenMail, parándolo dentro del test para simular la caída (reintentos con `MutableClock`, `SENT` al volver y `FAILED` tras 6 intentos). Es `DeliveryWorkerIT`, que cubre también la caída de 10 minutos de punta a punta (con el `CheckResultRecorder` real), el canal deshabilitado, la prueba, los webhooks que esperan, el resultado tardío tras vencer el apartado y la concurrencia del claim (`SKIP LOCKED` y `OF d`). Reclama en 2001 con un worker construido a mano, como los tests del motor.
+  - Módulo: idempotencia ante eventos duplicados (`NotificationModuleIT`, con los canales aplicables y los que no).
+  - Integración: reinicio con publicaciones pendientes, como `ProjectCleanupRestartIT` (`DeliveryRestartIT`).
+  - Seguridad: un nombre de monitor con HTML y con saltos de línea sale escapado en el cuerpo y no rompe el asunto (`EmailTemplatesTest`, y `EmailSenderTest` contra GreenMail en el proceso).
+  - API: `DeliveryApiIT` (prueba, `429` con `Retry-After`, permisos, que las negativas no gastan pruebas y listado sin contenido) y dos filas nuevas en `EndpointAuthorizationMatrixIT`. Purga: `DeliveryRetentionJobIT`. Readiness con el SMTP caído: `ApplicationStartupIT`.
+  - Comprobado que los tests detectan el fallo: sin `ON CONFLICT`, sin la comprobación del intento al registrar, sin `SKIP LOCKED`, sin `OF d`, sin limpiar el asunto, con `th:utext`, con el límite antes de autorizar y sin `management.health.mail.enabled=false`, fallan.
 - **Security considerations:** T-33 (un proveedor lento no bloquea las entregas: timeouts y worker aparte), T-34 (inyección en las plantillas: escapado) y T-35 (rate limit del endpoint de prueba). Ningún I/O externo dentro de transacciones de negocio.
 - **Dependencies:** OW-032, OW-034, OW-035.
 - **Definition of Done:** el flujo de eventos de `events.md` coincide con la implementación.
@@ -1059,7 +1074,7 @@ Decisiones de Ricardo en el refinamiento (2026-10-05):
 ### OW-043 · Webhooks firmados con HMAC
 `feature` `security` · P2 · Milestone: v0.4.0 — Incidentes y notificaciones · **Ready**
 
-- **Context:** separado de OW-036 para que la entrega por webhook y su firma tengan su propia revisión de seguridad.
+- **Context:** separado de OW-036 para que la entrega por webhook y su firma tengan su propia revisión de seguridad. Desde OW-036, `DeliveryWorker` solo reclama las entregas de los tipos con un `ChannelSender`: las de webhook esperan `PENDING`, sin intentos, hasta que exista `WebhookSender`.
 - **Objective:** `WebhookSender` a través de `egress`, con cuerpo generado por OpsWatch y firma verificable.
 - **Tasks:**
   - [ ] `WebhookSender`: `POST` JSON por un cliente de `EgressHttpClients` con `TargetKind.WEBHOOK` y un deadline de 5 s sobre el envío entero (`opswatch.notification.webhook.timeout`), como el del motor.

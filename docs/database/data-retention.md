@@ -28,7 +28,7 @@ Lectura:
 | `monitor_checks` | **30 días** (`opswatch.retention.checks`) | Job diario de purga en lotes |
 | `monitor_state` | Mientras exista el monitor | Se purga junto con el monitor borrado |
 | `incidents`, `incident_timeline` | Indefinida mientras exista la organización | — |
-| `notification_deliveries` | 90 días (`opswatch.retention.deliveries`) | Job diario |
+| `notification_deliveries` | 90 días (`opswatch.retention.deliveries`), sea cual sea su estado | `DeliveryRetentionJob`, diario y en lotes con `SKIP LOCKED`, como la purga de checks (OW-036). Por `created_at`, sin índice: la tabla es pequeña frente a `monitor_checks` |
 | `refresh_tokens` | Hasta 7 días después de caducar o revocarse | Job diario |
 | `event_publication_archive` (publicaciones completadas) | 7 días (`opswatch.retention.event-publications`) | Job que purga solo el archivo. Las pendientes de `event_publication` nunca se purgan |
 | Monitores borrados lógicamente | Sus checks se purgan en el siguiente ciclo del job y la fila de `monitors` se conserva mientras la referencien incidentes | Job diario |

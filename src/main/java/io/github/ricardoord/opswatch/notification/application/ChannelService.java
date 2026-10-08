@@ -55,6 +55,7 @@ public class ChannelService {
     private final ChannelConfigs configs;
     private final SigningSecrets secrets;
     private final AccessControl access;
+    private final ChannelAccess channelAccess;
     private final ProjectDirectory projects;
     private final TargetPolicy targets;
     private final AdvisoryLocks locks;
@@ -68,6 +69,7 @@ public class ChannelService {
             ChannelConfigs configs,
             SigningSecrets secrets,
             AccessControl access,
+            ChannelAccess channelAccess,
             ProjectDirectory projects,
             TargetPolicy targets,
             AdvisoryLocks locks,
@@ -79,6 +81,7 @@ public class ChannelService {
         this.configs = configs;
         this.secrets = secrets;
         this.access = access;
+        this.channelAccess = channelAccess;
         this.projects = projects;
         this.targets = targets;
         this.locks = locks;
@@ -269,14 +272,7 @@ public class ChannelService {
     }
 
     private NotificationChannel authorized(UUID userId, UUID channelId, Permission permission) {
-        NotificationChannel channel = channels.findById(channelId)
-                .orElseThrow(() -> new ResourceNotFoundException("notification channel", channelId));
-        try {
-            access.require(userId, channel.organizationId(), permission);
-        } catch (ResourceNotFoundException ex) {
-            throw new ResourceNotFoundException("notification channel", channelId);
-        }
-        return channel;
+        return channelAccess.require(userId, channelId, permission);
     }
 
     private ChannelView view(NotificationChannel channel) {

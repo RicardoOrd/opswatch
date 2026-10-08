@@ -134,14 +134,16 @@ Los rangos de validación del dominio (intervalo de 30 a 3600 s, timeout de 1 a 
 
 | Propiedad | Por defecto |
 |---|---|
+| `opswatch.notification.delivery.enabled` | `true`. `false` en el perfil `test` (el contexto compartido enviaría las entregas de los demás tests) y en una instancia que solo sirva la API. Sin worker no hay `EmailSender`, y no se exigen `email.from` ni `spring.mail.host` (OW-036) |
 | `opswatch.notification.delivery.poll-interval` | `5s` |
 | `opswatch.notification.delivery.batch-size` | `50` |
 | `opswatch.notification.delivery.max-attempts` | `6` |
-| `opswatch.notification.delivery.backoff` | `0s,30s,2m,10m,30m,1h` |
+| `opswatch.notification.delivery.backoff` | `0s,30s,2m,10m,30m,1h`. La espera antes de cada intento, también del primero: tantas como `max-attempts`, o el arranque falla |
+| `opswatch.notification.delivery.lease` | `5m`. Lo que una entrega reclamada queda apartada mientras se envía. Más que cualquier envío con sus timeouts de SMTP: al vencer, otro worker puede repetirla (OW-036) |
 | `opswatch.notification.webhook.timeout` | `5s` |
 | `opswatch.notification.test.rate-limit` | `5/1m` por canal |
-| `opswatch.notification.email.from` | Sin valor por defecto: **obligatoria**. `local` y `test` la definen en su perfil (OW-036) |
-| `spring.mail.*` | Según el entorno (host, puerto, usuario, contraseña **secreta**, STARTTLS) |
+| `opswatch.notification.email.from` | Sin valor por defecto: **obligatoria** con el worker activo. Admite nombre (`OpsWatch <alerts@example.com>`). `local` y `test` usan `OpsWatch <alerts@opswatch.test>` (OW-036) |
+| `spring.mail.*` | Según el entorno (host, puerto, usuario, contraseña **secreta**, STARTTLS). En `local`, el Mailpit de Compose (`localhost:1025`; el servicio `app` usa `SPRING_MAIL_HOST=mailpit`) |
 | `spring.mail.properties.mail.smtp.connectiontimeout`, `timeout`, `writetimeout` | `5000`, `10000` y `10000` ms. Jakarta Mail espera sin límite si no se fijan (T-33, OW-036) |
 | `management.health.mail.enabled` | `false`: un SMTP caído no tiene que tumbar la readiness, las entregas lo reintentan (OW-036) |
 

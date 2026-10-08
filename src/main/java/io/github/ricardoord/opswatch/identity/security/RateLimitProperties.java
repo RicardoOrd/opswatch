@@ -1,5 +1,6 @@
 package io.github.ricardoord.opswatch.identity.security;
 
+import io.github.ricardoord.opswatch.shared.ratelimit.RateLimit;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 

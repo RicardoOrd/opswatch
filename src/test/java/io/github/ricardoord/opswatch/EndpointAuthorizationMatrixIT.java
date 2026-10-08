@@ -95,6 +95,8 @@ class EndpointAuthorizationMatrixIT {
             PATCH  /api/v1/notification-channels/{channelId}                200 200 403 403 404 401
             DELETE /api/v1/notification-channels/{channelId}                204 204 403 403 404 401
             POST   /api/v1/notification-channels/{channelId}/rotate-secret  200 200 403 403 404 401
+            POST   /api/v1/notification-channels/{channelId}/test           202 202 403 403 404 401
+            GET    /api/v1/notification-channels/{channelId}/deliveries     200 200 200 403 404 401
             """;
 
     private static final Pattern ROW = Pattern.compile("(GET|POST|PATCH|DELETE)\\s+(\\S+)((?:\\s+\\d{3}){6})");
@@ -344,6 +346,13 @@ class EndpointAuthorizationMatrixIT {
                 "POST /api/v1/notification-channels/{channelId}/rotate-secret",
                 (mvc, fixture) ->
                         mvc.post().uri("/api/v1/notification-channels/{channelId}/rotate-secret", fixture.channel()));
+        requests.put(
+                "POST /api/v1/notification-channels/{channelId}/test",
+                (mvc, fixture) -> mvc.post().uri("/api/v1/notification-channels/{channelId}/test", fixture.channel()));
+        requests.put(
+                "GET /api/v1/notification-channels/{channelId}/deliveries",
+                (mvc, fixture) ->
+                        mvc.get().uri("/api/v1/notification-channels/{channelId}/deliveries", fixture.channel()));
         return requests;
     }
 

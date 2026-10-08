@@ -32,8 +32,15 @@ import org.springframework.security.web.FilterChainProxy;
 @SpringBootTest(
         webEnvironment = WebEnvironment.RANDOM_PORT,
         // Without the test profile the engine would run, and keep checking every monitor due in the shared database
-        // for as long as this context stays cached, with the real DNS and the real client (OW-030)
-        properties = "opswatch.monitoring.engine.enabled=false")
+        // for as long as this context stays cached, with the real DNS and the real client (OW-030). The same goes for
+        // the deliveries of the shared database, and the worker needs an SMTP server (OW-036)
+        properties = {
+            "opswatch.monitoring.engine.enabled=false",
+            "opswatch.notification.delivery.enabled=false",
+            // An SMTP server that is not there: the application must stay healthy and ready without it
+            "spring.mail.host=127.0.0.1",
+            "spring.mail.port=1"
+        })
 @Import({PostgresTestcontainer.class, TestJwtKeys.class, TestEncryptionKeys.class})
 @ExtendWith(OutputCaptureExtension.class)
 class ApplicationStartupIT {
@@ -82,6 +89,17 @@ class ApplicationStartupIT {
 
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.body()).contains("\"status\":\"UP\"");
+    }
+
+    /** Acceptance criterion of OW-036: the deliveries retry a server that is down, so it never takes traffic away. */
+    @Test
+    void staysHealthyAndReadyWithTheSmtpServerDown() throws Exception {
+        HttpResponse<String> health = get(managementPort, "/actuator/health", null);
+
+        assertThat(health.statusCode()).isEqualTo(200);
+        assertThat(health.body()).contains("\"status\":\"UP\"");
+        assertThat(get(managementPort, "/actuator/health/readiness", null).statusCode())
+                .isEqualTo(200);
     }
 
     @Test

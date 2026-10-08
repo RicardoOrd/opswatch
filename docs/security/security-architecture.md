@@ -231,7 +231,7 @@ Las contraseñas no se cifran: se **hashean**. Los refresh tokens tampoco: se **
 | Resto de la API autenticada | 300/min (Fase 5) | usuario |
 | `POST /api/v1/notification-channels/{id}/test` | 5/min | canal |
 
-- Implementación en V1: **Bucket4j en memoria** (una instancia), en `AuthRateLimiter`. Respuesta `429 rate-limited` con `Retry-After` en segundos.
+- Implementación en V1: **Bucket4j en memoria** (una instancia), en `KeyedRateLimiter` (`shared.ratelimit`), que usan `AuthRateLimiter` y la prueba de canales (OW-036). La prueba se autoriza antes del límite: un rechazo por permisos no gasta pruebas del canal, y alcanzar el límite deja un evento `notification.test_rate_limited` por ráfaga. Respuesta `429 rate-limited` con `Retry-After` en segundos.
 - Relleno gradual: tras agotar el cupo, vuelve un intento cada `periodo / límite` (uno cada 6 s en el login por IP), no el cupo entero al acabar el periodo.
 - Nunca se bloquea una cuenta: solo se rechazan los intentos por encima del límite, así que un atacante no puede dejar fuera al dueño más allá de lo que dure el ataque. Un intento que rechaza el límite por IP no cuenta contra el email.
 - La clave por email usa el email normalizado. La clave por IP es la dirección IPv4 o el prefijo /64 de una IPv6: un cliente IPv6 suele tener el /64 entero, y con una clave por dirección tendría 2^64 cupos.

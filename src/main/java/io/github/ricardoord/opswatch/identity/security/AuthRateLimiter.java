@@ -1,21 +1,14 @@
 package io.github.ricardoord.opswatch.identity.security;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import io.github.bucket4j.Bandwidth;
-import io.github.bucket4j.Bucket;
-import io.github.bucket4j.ConsumptionProbe;
-import io.github.bucket4j.TimeMeter;
 import io.github.ricardoord.opswatch.identity.domain.User;
 import io.github.ricardoord.opswatch.shared.error.RateLimitExceededException;
+import io.github.ricardoord.opswatch.shared.ratelimit.KeyedRateLimiter;
+import io.github.ricardoord.opswatch.shared.ratelimit.RateLimit;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.time.Clock;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.HexFormat;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.UnaryOperator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,18 +21,11 @@ import org.springframework.stereotype.Component;
  * any other work. In memory: exact with one instance, multiplied by the number of instances with more (ADR-009).
  *
  * <p>Nothing gets locked: a request over the limit is rejected until the bucket refills, so an attacker cannot keep
- * the owner of an account out any longer than the attack itself.
+ * the owner of an account out any longer than the attack itself ({@link KeyedRateLimiter}).
  */
 @Component
 @EnableConfigurationProperties(RateLimitProperties.class)
 public class AuthRateLimiter {
-
-    /**
-     * Keys each limit remembers at most. An entry takes a few hundred bytes, so the limits stay within a few MB however
-     * many addresses or emails an attacker sends. A full cache keeps the keys used most, which are the ones under
-     * attack.
-     */
-    static final int MAX_KEYS_PER_LIMIT = 10_000;
 
     private static final Logger log = LoggerFactory.getLogger(AuthRateLimiter.class);
 
@@ -50,12 +36,11 @@ public class AuthRateLimiter {
     private final Limit passwordChangePerUser;
 
     public AuthRateLimiter(RateLimitProperties properties, Clock clock) {
-        TimeMeter time = new ClockTimeMeter(clock);
-        this.loginPerIp = new Limit("login-per-ip", properties.loginPerIp(), time);
-        this.loginPerEmail = new Limit("login-per-email", properties.loginPerEmail(), time);
-        this.registerPerIp = new Limit("register-per-ip", properties.registerPerIp(), time);
-        this.refreshPerIp = new Limit("refresh-per-ip", properties.refreshPerIp(), time);
-        this.passwordChangePerUser = new Limit("password-change-per-user", properties.passwordChangePerUser(), time);
+        this.loginPerIp = new Limit("login-per-ip", properties.loginPerIp(), clock);
+        this.loginPerEmail = new Limit("login-per-email", properties.loginPerEmail(), clock);
+        this.registerPerIp = new Limit("register-per-ip", properties.registerPerIp(), clock);
+        this.refreshPerIp = new Limit("refresh-per-ip", properties.refreshPerIp(), clock);
+        this.passwordChangePerUser = new Limit("password-change-per-user", properties.passwordChangePerUser(), clock);
     }
 
     /**
@@ -110,43 +95,20 @@ public class AuthRateLimiter {
         return address.getHostAddress();
     }
 
-    /** One limit: a bucket per key, in a cache bounded in size and in time. */
+    /** One named limit, with the security event it logs. */
     private static final class Limit {
 
         private final String name;
-        private final Bandwidth bandwidth;
-        private final TimeMeter time;
-        private final Cache<String, KeyBucket> buckets;
+        private final KeyedRateLimiter limiter;
 
-        Limit(String name, RateLimit limit, TimeMeter time) {
+        Limit(String name, RateLimit limit, Clock clock) {
             this.name = name;
-            this.bandwidth = Bandwidth.builder()
-                    .capacity(limit.capacity())
-                    .refillGreedy(limit.capacity(), limit.period())
-                    .build();
-            this.time = time;
-            this.buckets = Caffeine.newBuilder()
-                    .maximumSize(MAX_KEYS_PER_LIMIT)
-                    // An idle bucket is full again after one period: forgetting it then changes nothing
-                    .expireAfterAccess(limit.period())
-                    .ticker(time::currentTimeNanos)
-                    .build();
+            this.limiter = new KeyedRateLimiter(limit, clock);
         }
 
         /** @param subject adds the account the key names, if any, to the security event (the email only as a hash) */
         void consume(String key, String clientAddress, UnaryOperator<LoggingEventBuilder> subject) {
-            KeyBucket bucket = buckets.get(key, unused -> new KeyBucket(bandwidth, time));
-            ConsumptionProbe probe = bucket.tokens.tryConsumeAndReturnRemaining(1);
-            if (probe.isConsumed()) {
-                bucket.rejecting.set(false);
-                return;
-            }
-            // One security event when a key hits the limit, not one per rejected request: a flood of requests must
-            // not become a flood of log lines
-            if (bucket.rejecting.compareAndSet(false, true)) {
-                logLimitReached(clientAddress, subject);
-            }
-            throw new RateLimitExceededException(Duration.ofNanos(probe.getNanosToWaitForRefill()));
+            limiter.consume(key, () -> logLimitReached(clientAddress, subject));
         }
 
         /** A security event (docs/devops/observability.md#eventos-de-seguridad). */
@@ -157,36 +119,6 @@ public class AuthRateLimiter {
                     .addKeyValue("event.reason", name)
                     .addKeyValue("client.address", clientAddress);
             subject.apply(event).log("Rate limit {} reached", name);
-        }
-    }
-
-    private static final class KeyBucket {
-
-        private final Bucket tokens;
-
-        /** Whether the last request was rejected, so the event is logged once per burst. */
-        private final AtomicBoolean rejecting = new AtomicBoolean();
-
-        KeyBucket(Bandwidth bandwidth, TimeMeter time) {
-            this.tokens = Bucket.builder()
-                    .addLimit(bandwidth)
-                    .withCustomTimePrecision(time)
-                    .build();
-        }
-    }
-
-    /** Bucket4j and Caffeine read the injected clock, so tests can move time forward. */
-    private record ClockTimeMeter(Clock clock) implements TimeMeter {
-
-        @Override
-        public long currentTimeNanos() {
-            Instant now = clock.instant();
-            return Math.addExact(Math.multiplyExact(now.getEpochSecond(), 1_000_000_000L), now.getNano());
-        }
-
-        @Override
-        public boolean isWallClockBased() {
-            return true;
         }
     }
 }
