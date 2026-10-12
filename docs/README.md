@@ -38,6 +38,7 @@ Para entender el proyecto en una hora:
 | | [ssrf-protection.md](security/ssrf-protection.md) | Controles concretos contra SSRF y DNS rebinding |
 | `api/` | [api-guidelines.md](api/api-guidelines.md) | Convenciones REST, errores (Problem Details), paginación |
 | | [endpoints-v1.md](api/endpoints-v1.md) | Catálogo de endpoints `/api/v1` con DTOs y validaciones |
+| | [webhooks.md](api/webhooks.md) | Guía para receptores de webhooks: cuerpo, verificación de la firma y respuesta esperada (OW-043) |
 | `database/` | [database-design.md](database/database-design.md) | Esquema, claves, índices, bloqueos y DDL preliminar |
 | | [migrations.md](database/migrations.md) | Reglas de Flyway y cambios compatibles hacia atrás |
 | | [data-retention.md](database/data-retention.md) | Crecimiento de `monitor_checks`, retención, rollups y particionado |

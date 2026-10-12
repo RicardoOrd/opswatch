@@ -315,9 +315,9 @@ No hay endpoint de resolución manual en V1 ([por qué](../architecture/incident
 }
 ```
 
-Cuerpo que recibe un webhook (`POST`, `Content-Type: application/json`, header `X-OpsWatch-Signature`):
+Cuerpo que recibe un webhook (`POST`, `Content-Type: application/json`, headers `X-OpsWatch-Signature` y `X-OpsWatch-Webhook-Version: 1`). Cómo verificar la firma, qué campos llegan y qué se espera de la respuesta: [guía para receptores de webhooks](webhooks.md) (OW-043):
 
-```json
+```jsonc
 {
   "id": "0192…",
   "type": "INCIDENT_OPENED",
@@ -325,15 +325,15 @@ Cuerpo que recibe un webhook (`POST`, `Content-Type: application/json`, header `
   "incident": {
     "id": "0192…", "status": "OPEN", "monitorId": "0192…", "monitorName": "Payments API",
     "projectId": "0192…", "cause": "TIMEOUT", "openedAt": "2026-09-28T10:03:00Z"
+    // httpStatus si hubo respuesta; resolvedAt y resolution una vez resuelto. En una prueba (TEST), incident es null
   }
 }
 ```
 
 - `id` es el de la entrega: la entrega es at-least-once, y el receptor descarta los duplicados por él. `type` es `INCIDENT_OPENED`, `INCIDENT_RESOLVED` o `TEST`.
-- OpsWatch no sigue redirects: un `3xx` cuenta como intento fallido, igual que cualquier respuesta fuera de `2xx` o que tarde más de 5 s (OW-043).
+- OpsWatch no sigue redirects: un `3xx` cuenta como intento fallido, igual que cualquier respuesta fuera de `2xx` o que tarde más de 5 s (OW-043). La firma es `t=<segundos Unix>,v1=<HMAC-SHA256>` sobre `t + "." + cuerpo`, con el secreto `whsec_…` entero como clave.
 - `POST …/test` crea una entrega `TEST` que procesa el mismo worker que las reales, así que aparece en `…/deliveries` (OW-036). Se autoriza antes del límite: quien no puede probar el canal no gasta sus pruebas. Un canal deshabilitado también la recibe, y el worker la deja `FAILED` con `channel disabled`.
 - `…/deliveries` da el estado y los intentos de cada entrega, nunca su contenido. `lastError` dice qué falló del servidor, nunca qué destinatario: `SMTP server unreachable`, `SMTP server timed out`, `SMTP authentication failed`, `SMTP server rejected the message or a recipient`, `channel disabled` o `internal error: <excepción>`.
-- Hasta OW-043, las entregas de los webhooks esperan `PENDING`, sin intentos: todavía no hay quien las envíe.
 - Un canal limitado a un proyecto se borra, con sus entregas, cuando se borra el proyecto, y todos los de una organización cuando se borra la organización (OW-035).
 - La configuración sale enmascarada para todos: los destinatarios como `o***@example.com` y la URL solo con su origen. Los destinatarios se guardan en minúsculas y sin repetir (`400` sobre `email.recipients`), de 1 a 10.
 - El tipo no cambia nunca. En `PATCH`, `email` o `webhook` (el del tipo del canal) reemplaza esa parte entera; una URL nueva conserva el secreto. `projectId: null` hace que el canal reciba los incidentes de todos los proyectos.

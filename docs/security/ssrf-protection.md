@@ -284,5 +284,8 @@ Los webhooks reutilizan exactamente la misma política a través de `EgressHttpC
 - solo `https` (`TargetKind.WEBHOOK`);
 - **sin redirects**: un `3xx` cuenta como intento fallido y el cuerpo firmado nunca sale hacia otra URL, como en GitHub o Stripe (decisión de Ricardo del 2026-10-05, OW-043);
 - `POST` con cuerpo JSON generado por OpsWatch, nunca por el usuario;
-- timeout fijo de 5 s;
-- firma `X-OpsWatch-Signature: t=<timestamp>,v1=<HMAC-SHA256(secret, t + "." + body)>` para que el receptor verifique el origen y descarte las repeticiones antiguas.
+- un plazo de 5 s sobre el envío entero (`opswatch.notification.webhook.timeout`), que corta también a un receptor que gotea los headers;
+- firma `X-OpsWatch-Signature: t=<timestamp>,v1=<HMAC-SHA256(secret, t + "." + body)>` para que el receptor verifique el origen y descarte las repeticiones antiguas;
+- la URL vuelve a pasar la política en cada envío: una que pase a resolver a una red privada, o que no sea `https` porque se escribió en la base fuera de la API, falla sin que salga nada.
+
+Implementado en OW-043 (`WebhookSender`, en `notification.delivery`). Cómo verifica un receptor la firma: [guía para receptores](../api/webhooks.md).

@@ -3,6 +3,7 @@ package io.github.ricardoord.opswatch.egress.internal;
 import io.github.ricardoord.opswatch.egress.EgressClientSettings;
 import io.github.ricardoord.opswatch.egress.EgressHttpClients;
 import io.micrometer.core.instrument.MeterRegistry;
+import javax.net.ssl.SSLContext;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.config.TlsConfig;
@@ -13,9 +14,12 @@ import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.impl.routing.DefaultRoutePlanner;
+import org.apache.hc.client5.http.ssl.ClientTlsStrategyBuilder;
 import org.apache.hc.core5.http.config.Http1Config;
 import org.apache.hc.core5.http.ssl.TLS;
 import org.apache.hc.core5.util.Timeout;
+import org.jspecify.annotations.Nullable;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -35,17 +39,36 @@ class DefaultEgressHttpClients implements EgressHttpClients {
     private final IpRangeClassifier classifier;
     private final BlockedTargets blocked;
 
+    /** Null: the trust store of the JVM, always outside the tests. */
+    private final @Nullable SSLContext trust;
+
+    @Autowired
     DefaultEgressHttpClients(HostResolver resolver, EgressProperties properties, MeterRegistry meters) {
+        this(resolver, properties, meters, null);
+    }
+
+    /**
+     * For the tests of this package only: a target on the loopback with a certificate of its own. Nothing outside
+     * {@code egress} can reach this constructor, and the hostname is still verified.
+     */
+    DefaultEgressHttpClients(
+            HostResolver resolver, EgressProperties properties, MeterRegistry meters, @Nullable SSLContext trust) {
         this.resolver = resolver;
         this.classifier = new IpRangeClassifier(properties.allowedPrivateBlocks());
         this.blocked = new BlockedTargets(meters);
+        this.trust = trust;
     }
 
     @Override
     public CloseableHttpClient create(EgressClientSettings settings) {
         Timeout timeout = Timeout.of(settings.timeout());
-        PoolingHttpClientConnectionManager connections = PoolingHttpClientConnectionManagerBuilder.create()
-                .setDnsResolver(new GuardedDnsResolver(resolver, classifier, blocked))
+        PoolingHttpClientConnectionManagerBuilder builder = PoolingHttpClientConnectionManagerBuilder.create();
+        if (trust != null) {
+            builder.setTlsSocketStrategy(
+                    ClientTlsStrategyBuilder.create().setSslContext(trust).buildClassic());
+        }
+        PoolingHttpClientConnectionManager connections = builder.setDnsResolver(
+                        new GuardedDnsResolver(resolver, classifier, blocked))
                 .setMaxConnTotal(settings.maxConnections())
                 .setMaxConnPerRoute(settings.maxConnections())
                 .setDefaultConnectionConfig(ConnectionConfig.custom()

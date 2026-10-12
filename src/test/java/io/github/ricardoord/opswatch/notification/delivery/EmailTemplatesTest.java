@@ -107,6 +107,7 @@ class EmailTemplatesTest {
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 monitorName,
+                resolvedAt == null ? "OPEN" : "RESOLVED",
                 "UNEXPECTED_STATUS",
                 httpStatus,
                 OPENED_AT,

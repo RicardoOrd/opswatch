@@ -140,7 +140,8 @@ Los rangos de validación del dominio (intervalo de 30 a 3600 s, timeout de 1 a 
 | `opswatch.notification.delivery.max-attempts` | `6` |
 | `opswatch.notification.delivery.backoff` | `0s,30s,2m,10m,30m,1h`. La espera antes de cada intento, también del primero: tantas como `max-attempts`, o el arranque falla |
 | `opswatch.notification.delivery.lease` | `5m`. Lo que una entrega reclamada queda apartada mientras se envía. Más que cualquier envío con sus timeouts de SMTP: al vencer, otro worker puede repetirla (OW-036) |
-| `opswatch.notification.webhook.timeout` | `5s` |
+| `opswatch.notification.webhook.timeout` | `5s`, sobre el envío entero: conectar, TLS, enviar y recibir el código. Un receptor más lento es un intento fallido (T-33, OW-043) |
+| `opswatch.notification.webhook.user-agent` | `OpsWatch-Webhook/<versión del pom> (+https://github.com/RicardoOrd/opswatch)`. En `application.yml`: Maven pone la versión al copiar los recursos. No puede quedar vacío (OW-043) |
 | `opswatch.notification.test.rate-limit` | `5/1m` por canal |
 | `opswatch.notification.email.from` | Sin valor por defecto: **obligatoria** con el worker activo. Admite nombre (`OpsWatch <alerts@example.com>`). `local` y `test` usan `OpsWatch <alerts@opswatch.test>` (OW-036) |
 | `spring.mail.*` | Según el entorno (host, puerto, usuario, contraseña **secreta**, STARTTLS). En `local`, el Mailpit de Compose (`localhost:1025`; el servicio `app` usa `SPRING_MAIL_HOST=mailpit`) |

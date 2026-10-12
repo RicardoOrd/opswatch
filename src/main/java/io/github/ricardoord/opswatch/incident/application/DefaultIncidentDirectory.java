@@ -31,6 +31,7 @@ class DefaultIncidentDirectory implements IncidentDirectory {
                 incident.projectId(),
                 incident.monitorId(),
                 incident.monitorName(),
+                incident.status().name(),
                 incident.cause(),
                 incident.causeHttpStatus(),
                 incident.openedAt(),

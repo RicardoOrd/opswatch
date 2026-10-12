@@ -68,7 +68,7 @@ Crear el tag es responsabilidad de esa issue de release y de nadie más.
 
 ### Webhooks
 
-El cuerpo de los webhooks es un contrato público más, con su propio campo de versión en el header: `X-OpsWatch-Webhook-Version: 1`. Sigue las mismas reglas de compatibilidad que la API.
+El cuerpo de los webhooks es un contrato público más, con su propio campo de versión en el header: `X-OpsWatch-Webhook-Version: 1`. Sigue las mismas reglas de compatibilidad que la API. Qué contiene la versión `1`: [guía para receptores](../api/webhooks.md).
 
 ## Base de datos
 
