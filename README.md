@@ -10,7 +10,7 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 
 ## Estado actual
 
-**v0.3.0 publicada** (Motor de monitoreo): sobre los proyectos y monitores de la v0.2.0, el motor comprueba cada monitor en su intervalo, sin duplicados aunque corran varias instancias, con un cliente HTTP que vuelve a aplicar la política SSRF en cada petición y en cada redirect. Guarda cada resultado, lleva el estado del monitor (`UP`, `DEGRADED`, `DOWN`), da el historial y las estadísticas por API, purga lo antiguo y exporta sus métricas a Prometheus. Todavía no avisa: los incidentes y las notificaciones llegan con la v0.4.0.
+**v0.4.0 publicada** (Incidentes y notificaciones): sobre el motor de la v0.3.0, cada caída abre un incidente y cada recuperación lo resuelve, con un solo incidente activo por monitor garantizado por la base de datos. Los incidentes se consultan y se reconocen por la API, con su timeline. Cada apertura y cada resolución se avisan por email y por webhooks firmados con HMAC, con entregas que sobreviven a un reinicio y se reintentan con backoff. Todavía no hay despliegue: el endurecimiento de seguridad llega con la v0.5.0 y el despliegue con la v1.0.0.
 
 | Qué | Estado |
 |---|---|
@@ -44,7 +44,7 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | Webhooks firmados con HMAC-SHA256 y marca de tiempo, sin redirects, con la política SSRF en cada envío y un plazo de 5 s; guía de verificación para los receptores (OW-043) | **Implemented** |
 | Resto de funcionalidades de producto | Planned |
 
-**Qué se hace ahora:** el milestone [v0.4.0 — Incidentes y notificaciones](https://github.com/RicardoOrd/opswatch/milestone/5), refinado contra lo que dejó construido la v0.3.0. Siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
+**Qué se hace ahora:** refinar el milestone [v0.5.0 — Endurecimiento de seguridad](https://github.com/RicardoOrd/opswatch/milestone/6) contra lo que dejó construido la v0.4.0. Siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
 
 ---
 

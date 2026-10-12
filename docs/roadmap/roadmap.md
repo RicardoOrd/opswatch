@@ -1,6 +1,6 @@
 # Roadmap
 
-Estado: diseño inicial · Última revisión: 2026-10-05
+Estado: diseño inicial · Última revisión: 2026-10-12
 
 Sin fechas: es un proyecto personal y el ritmo es variable. El orden y los criterios de salida sí son firmes. Cada fase cumple la [Definition of Done global](definition-of-done.md) además de la suya.
 
@@ -8,9 +8,9 @@ Sin fechas: es un proyecto personal y el ritmo es variable. El orden y los crite
 
 | | |
 |---|---|
-| **Ahora** | **v0.4.0 — Incidentes y notificaciones**, refinada el 2026-10-05 ([backlog](backlog.md#v040--incidentes-y-notificaciones)) contra lo que dejó construido la v0.3.0. Los eventos del monitor se publican dentro de la transacción de `CheckResultRecorder`, que nunca lanza, así que el listener de `incident` no hace I/O y el acknowledge se serializa con la resolución bloqueando la fila del incidente. Los webhooks salen por `egress` sin seguir redirects; el endpoint de prueba de canales y Mailpit van con el envío de emails (OW-036). Hechas OW-032, OW-033 y OW-035: los incidentes se abren y se resuelven solos y se gestionan por la API, y los canales de email y webhook se configuran con su configuración cifrada |
-| **Hecho** | v0.3.0 — Motor de monitoreo, publicada el 2026-10-05 (release #90). v0.2.0 — Proyectos y monitores, publicada el 2026-10-03 (release #79). v0.1.0 — Identity y organizaciones, publicada el 2026-09-29 (release #69). Sprint 0 cerrado el 2026-09-28 |
-| **Orden** | OW-032 (incidentes) → OW-033 (acknowledge y listados) → OW-035 (canales) → OW-036 (entregas y email) → OW-043 (webhooks firmados) |
+| **Ahora** | **Refinar la v0.5.0 — Endurecimiento de seguridad** (OW-037 a OW-042) contra lo que dejó construido la v0.4.0. El envío de emails vive en `notification` y solo existe en las instancias con el worker de entregas (`opswatch.notification.delivery.enabled`), pero ni `identity` ni `organization` pueden depender de `notification`: la verificación de email, el reset de contraseña y las invitaciones tienen que decidir por dónde salen. `RateLimit` y `KeyedRateLimiter` ya están en `shared.ratelimit` para el rate limiting general. El límite de concurrencia por host de destino afecta al motor y a los webhooks, que salen los dos por `egress`. Sus issues siguen *Por detallar* hasta ese refinamiento |
+| **Hecho** | v0.4.0 — Incidentes y notificaciones, publicada el 2026-10-12 (release #102). v0.3.0 — Motor de monitoreo, publicada el 2026-10-05 (release #90). v0.2.0 — Proyectos y monitores, publicada el 2026-10-03 (release #79). v0.1.0 — Identity y organizaciones, publicada el 2026-09-29 (release #69). Sprint 0 cerrado el 2026-09-28 |
+| **Orden** | Se fija al refinar la v0.5.0 |
 | **Fuera de foco** | Todo lo de V2 a V5 (Redis, broker, microservicios, tiempo real). Vive en este roadmap y en los ADR propuestos, no en issues |
 
 ## Milestones
