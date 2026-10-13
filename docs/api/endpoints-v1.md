@@ -350,8 +350,10 @@ Cuerpo que recibe un webhook (`POST`, `Content-Type: application/json`, headers 
 
 | Ruta | Fase |
 |---|---|
-| `POST /api/v1/auth/verify-email`, `POST /api/v1/auth/password-reset`, `POST /api/v1/auth/password-reset/confirm` | 5 |
-| `POST /api/v1/organizations/{orgId}/invitations`, `POST /api/v1/invitations/{token}/accept` | 5 |
-| `GET /api/v1/organizations/{orgId}/audit-log` | 5 |
+| `POST /api/v1/auth/verify-email`, `POST /api/v1/auth/verify-email/resend` (OW-037). El registro pasa a responder siempre `202` | 5 |
+| `POST /api/v1/auth/password-reset`, `POST /api/v1/auth/password-reset/confirm` (OW-047) | 5 |
+| `POST` y `GET /api/v1/organizations/{orgId}/invitations`, `DELETE /api/v1/invitations/{invitationId}`, `POST /api/v1/invitations/{invitationId}/resend`, `POST /api/v1/invitations/accept` con el token en el cuerpo (OW-038). Se retira `POST /api/v1/organizations/{orgId}/members` | 5 |
+| `POST /api/v1/notification-recipients/confirm`, `POST /api/v1/notification-channels/{channelId}/recipients/resend` (OW-046) | 5 |
+| `GET /api/v1/organizations/{orgId}/audit-log` (OW-040) | 5 |
 | `GET /api/v1/public/status-pages/{slug}` | 8 |
 | Stream de eventos en tiempo real (SSE o WebSocket) | 8 ([ADR-013](../adr/ADR-013-realtime-transport.md)) |

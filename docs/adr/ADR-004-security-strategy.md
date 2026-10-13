@@ -78,7 +78,7 @@ Hay que autenticar a los usuarios de una API REST y autorizar cada acción dentr
 - Tests del refresh: rotación, reutilización (familia revocada), refresh concurrente y atributos de la cookie.
 - Matriz de autorización endpoint × rol, más IDOR entre dos organizaciones en cada endpoint.
 - Rate limiting de la autenticación.
-- Fase 5: escaneo ZAP baseline y CodeQL sin hallazgos altos.
+- Fase 5: API scan de ZAP en CI (staging no existe hasta la Fase 6) y CodeQL sin hallazgos altos (OW-042).
 - Métrica: latencia p95 de la consulta de membresía (Fase 7).
 
 ## 10. ¿Qué tendría que pasar para reconsiderarla?

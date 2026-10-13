@@ -8,9 +8,9 @@ Sin fechas: es un proyecto personal y el ritmo es variable. El orden y los crite
 
 | | |
 |---|---|
-| **Ahora** | **Refinar la v0.5.0 — Endurecimiento de seguridad** (OW-037 a OW-042) contra lo que dejó construido la v0.4.0. El envío de emails vive en `notification` y solo existe en las instancias con el worker de entregas (`opswatch.notification.delivery.enabled`), pero ni `identity` ni `organization` pueden depender de `notification`: la verificación de email, el reset de contraseña y las invitaciones tienen que decidir por dónde salen. `RateLimit` y `KeyedRateLimiter` ya están en `shared.ratelimit` para el rate limiting general. El límite de concurrencia por host de destino afecta al motor y a los webhooks, que salen los dos por `egress`. Sus issues siguen *Por detallar* hasta ese refinamiento |
+| **Ahora** | **v0.5.0 — Endurecimiento de seguridad**, refinada el 2026-10-12 ([backlog](backlog.md#v050--endurecimiento-de-seguridad)) contra lo que dejó construido la v0.4.0. Los emails de cuenta salen por `shared.mail`, desde listeners con registro de eventos y con un reintento de las publicaciones fallidas; el token se genera al enviar y nunca se guarda en claro. Una cuenta sin verificar no inicia sesión, los destinatarios externos de un canal confirman su dirección (OW-046, nueva) y ZAP corre en CI contra la aplicación levantada con Compose |
 | **Hecho** | v0.4.0 — Incidentes y notificaciones, publicada el 2026-10-12 (release #102). v0.3.0 — Motor de monitoreo, publicada el 2026-10-05 (release #90). v0.2.0 — Proyectos y monitores, publicada el 2026-10-03 (release #79). v0.1.0 — Identity y organizaciones, publicada el 2026-09-29 (release #69). Sprint 0 cerrado el 2026-09-28 |
-| **Orden** | Se fija al refinar la v0.5.0 |
+| **Orden** | OW-039 (contraseñas comunes) → OW-037 (emails de cuenta, verificación y registro) → OW-047 (reset) → OW-038 (invitaciones) → OW-046 (destinatarios) → OW-040 (audit log) → OW-041 (rate limiting y límite por host) → OW-042 (CodeQL, ZAP, OpenAPI y threat model) |
 | **Fuera de foco** | Todo lo de V2 a V5 (Redis, broker, microservicios, tiempo real). Vive en este roadmap y en los ADR propuestos, no en issues |
 
 ## Milestones
@@ -147,11 +147,11 @@ flowchart LR
 ## Fase 5: Endurecimiento → 0.5.0
 
 - **Objetivo:** cerrar los riesgos aceptados de forma temporal y revisar la seguridad completa antes de publicar.
-- **Funcionalidades:** verificación de email, reset de contraseña, invitaciones (sustituyen al alta directa por email), lista de contraseñas comunes, audit log, rate limiting general de la API, límite de concurrencia por host de destino, CodeQL, escaneo con ZAP, revisión del threat model.
-- **Tareas:** OW-037 a OW-042 (se detallan al cerrar la Fase 4).
+- **Funcionalidades:** registro sin enumeración y verificación de email, reset de contraseña, invitaciones (sustituyen al alta directa por email), confirmación de los destinatarios de los canales de email, lista de contraseñas comunes, audit log, rate limiting general de la API, límite de concurrencia por host de destino, CodeQL, escaneo con ZAP en CI, comparación de la especificación OpenAPI, revisión del threat model.
+- **Tareas:** OW-037 a OW-042, OW-046 y OW-047, refinadas el 2026-10-12 ([backlog](backlog.md#v050--endurecimiento-de-seguridad)).
 - **Dependencias:** Fase 4 (email).
 - **Definition of Done:** todos los riesgos de "hasta la Fase 5" del [threat model](../security/threat-model.md#7-riesgos-aceptados-de-forma-explícita) están cerrados o re-aceptados con una razón escrita. CodeQL sin alertas altas abiertas.
-- **Criterios de aceptación:** el registro no revela si un email existe; una invitación caducada no sirve; los cambios de rol aparecen en el audit log; ZAP baseline sin hallazgos altos.
+- **Criterios de aceptación:** el registro no revela si un email existe; una cuenta sin verificar no inicia sesión; una invitación caducada no sirve; un destinatario externo no recibe avisos hasta confirmar su dirección; los cambios de rol aparecen en el audit log; el API scan de ZAP, autenticado y en CI contra la aplicación levantada con Compose, sin hallazgos altos (staging no existe hasta la Fase 6).
 - **Tests:** los de cada funcionalidad nueva, más la regresión completa de seguridad.
 - **Riesgos:** el alcance se alarga ("un control más"). Mitigación: la lista cerrada de esta fase; lo demás va al backlog.
 - **Documentación:** threat model revisado, arquitectura de seguridad actualizada.

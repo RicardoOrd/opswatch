@@ -106,8 +106,9 @@ El job `image` compila de nuevo dentro de Docker. Con la cache tarda menos de un
 | Workflow | Disparador | Fase |
 |---|---|---|
 | Dependabot (Maven, Docker, GitHub Actions) | Semanal | 0 |
-| CodeQL (Java) | PR y semanal | 5 |
-| Comparación de OpenAPI con `main` | PR | 5 |
+| CodeQL (Java, `security-extended`) | PR, push a `main` y semanal | 5 (OW-042) |
+| Comparación de OpenAPI con `main` (`oasdiff` sobre `docs/api/openapi.json`) | PR | 5 (OW-042) |
+| API scan de ZAP, autenticado, contra la aplicación levantada con Compose | Push a `main`, semanal y manual | 5 (OW-042) |
 | Release (`release.yml`) | Tag `v*` | 6 |
 
 ## Pipeline de despliegue (Fase 6)
