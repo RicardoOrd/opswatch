@@ -89,7 +89,7 @@ Leyenda de fase: el número indica en qué fase se implementa el control. **Resi
 
 | ID | STRIDE | Amenaza | Control | Fase | Residual |
 |---|---|---|---|---|---|
-| T-01 | S | Fuerza bruta o credential stuffing | Rate limit por IP y por email, bcrypt con coste 12, sin bloqueo de cuentas | 1 | Bajo |
+| T-01 | S | Fuerza bruta o credential stuffing | Rate limit por IP y por email, bcrypt con coste 12, rechazo de contraseñas comunes al fijarlas, sin bloqueo de cuentas | 1 | Bajo |
 | T-02 | S | Robo del access token (XSS en el cliente, logs) | TTL de 15 min, token en memoria, nunca en logs | 1 | Medio: válido hasta que caduca |
 | T-03 | S | Robo del refresh token | `HttpOnly`, `Secure`, `SameSite=Strict`, rotación, detección de reutilización | 1 | Bajo |
 | T-04 | T | Falsificación de un JWT (`alg: none`, confusión de algoritmo) | Algoritmo fijado a RS256, validación de `iss` y `aud` con el Resource Server estándar | 1 | Bajo |

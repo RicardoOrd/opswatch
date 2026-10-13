@@ -109,7 +109,12 @@ sequenceDiagram
 - bcrypt con coste 12. Se revisa si el login p95 supera los 300 ms en el hardware de producción.
 - Longitud de **12 caracteres a 72 bytes UTF-8**. El máximo es un límite de bcrypt: por encima se truncaría o se rechazaría según la versión. Se valida antes de hashear.
 - Sin reglas de composición (mayúsculas obligatorias y demás) ni caducidad forzada, en línea con NIST SP 800-63B.
-- A partir de la Fase 5 (OW-039), rechazo de contraseñas comunes con una lista local, sin llamadas a servicios externos: el top 1 000 000 de SecLists filtrado a lo que admiten estas reglas (de 12 caracteres a 72 bytes) y comparado sin distinguir mayúsculas. Las 10 000 más frecuentes no servían: casi ninguna llega a 12 caracteres.
+- **Contraseñas comunes** (OW-039): el registro y el cambio de contraseña (y el reset, con OW-047) rechazan con `common-password` las que aparecen en una lista local, sin llamadas a servicios externos: ni la contraseña ni su hash salen del proceso. Se compara sin distinguir mayúsculas.
+  - La lista es el top 1 000 000 de la de xato.net en SecLists (MIT), fijado por commit y por SHA-256, con solo lo que admiten estas reglas (de 12 caracteres a 72 bytes), en minúsculas y sin duplicados: **46 146 contraseñas**, 675 KB en `src/main/resources/identity/common-passwords.txt` y unos **3 MB de heap** una vez cargadas (`GC.class_histogram`).
+  - `node scripts/common-passwords.mjs` la regenera: el mismo commit da siempre el mismo fichero. La procedencia y la licencia van en `common-passwords.NOTICE`, junto al recurso.
+  - Sin el recurso, o con el recurso vacío, la aplicación no arranca.
+  - Las contraseñas que ya existen no se revisan: la lista solo se aplica al fijar una.
+  - Las 10 000 más frecuentes no servían: casi ninguna llega a 12 caracteres.
 - `DelegatingPasswordEncoder` permite migrar a Argon2id más adelante: los hashes nuevos se generan con el algoritmo nuevo y los viejos se actualizan en el siguiente login.
 - Por qué bcrypt y no Argon2id: Argon2id es la primera opción de OWASP, pero en Spring Security necesita BouncyCastle como dependencia extra. bcrypt con coste 12 sigue siendo aceptable y no añade dependencias. Es un compromiso consciente y reversible.
 

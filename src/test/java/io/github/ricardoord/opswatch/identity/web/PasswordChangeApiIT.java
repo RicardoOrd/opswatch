@@ -84,6 +84,22 @@ class PasswordChangeApiIT {
     }
 
     @Test
+    void theNewPasswordCannotBeACommonOneWhateverItsCase() throws Exception {
+        String email = registered();
+        MvcTestResult session = login(email, PASSWORD);
+
+        // From common-passwords.txt, in other case
+        MvcTestResult result = changePassword(accessToken(session), PASSWORD, "QwertyQWERTY");
+
+        assertThat(result).hasStatus(400);
+        assertThat(result).bodyJson().extractingPath("$.errors[0].field").isEqualTo("newPassword");
+        assertThat(result).bodyJson().extractingPath("$.errors[0].code").isEqualTo("common-password");
+        assertThat(result.getResponse().getContentAsString()).doesNotContainIgnoringCase("qwertyqwerty");
+        assertThat(refresh(refreshToken(session))).hasStatus(200);
+        assertThat(login(email, PASSWORD)).hasStatus(200);
+    }
+
+    @Test
     void theSixthAttemptInFifteenMinutesIsRejectedEvenWithTheRightPassword() throws Exception {
         String email = registered();
         String token = accessToken(login(email, PASSWORD));

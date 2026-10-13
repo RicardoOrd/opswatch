@@ -4,6 +4,9 @@ import static io.github.ricardoord.opswatch.identity.domain.UserBuilder.uniqueEm
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.ricardoord.opswatch.IntegrationTest;
+import java.security.SecureRandom;
+import java.util.Base64;
+import java.util.List;
 import java.util.Locale;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,6 +27,8 @@ import org.springframework.test.web.servlet.assertj.MvcTestResult;
 class RegistrationApiIT {
 
     private static final String PASSWORD = "correct horse battery";
+    // From common-passwords.txt
+    private static final String COMMON_PASSWORD = "qwertyqwerty";
 
     @Autowired
     private MockMvcTester mvc;
@@ -115,6 +120,44 @@ class RegistrationApiIT {
     }
 
     @Test
+    void rejectsACommonPasswordWhateverItsCaseWithoutRepeatingIt() throws Exception {
+        String email = uniqueEmail();
+        for (String common : List.of(COMMON_PASSWORD, "QwertyQWERTY")) {
+            MvcTestResult result = register(email, "Ana", common);
+
+            assertThat(result).hasStatus(400).hasContentType(MediaType.APPLICATION_PROBLEM_JSON);
+            assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("validation-error");
+            assertThat(result).bodyJson().extractingPath("$.errors[0].field").isEqualTo("password");
+            assertThat(result).bodyJson().extractingPath("$.errors[0].code").isEqualTo("common-password");
+            assertThat(result.getResponse().getContentAsString()).doesNotContainIgnoringCase(COMMON_PASSWORD);
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE email = ?", Integer.class, email))
+                .isZero();
+    }
+
+    @Test
+    void rejectsACommonPasswordAlsoForAnEmailAlreadyRegistered() {
+        String email = uniqueEmail();
+        assertThat(register(email, "Ana", PASSWORD)).hasStatus(201);
+
+        MvcTestResult result = register(email, "Ana", COMMON_PASSWORD);
+
+        // The same answer as for a new email: the password is checked before the account
+        assertThat(result).hasStatus(400);
+        assertThat(result).bodyJson().extractingPath("$.errors[0].code").isEqualTo("common-password");
+    }
+
+    @Test
+    void acceptsARandomPasswordOfTwelveCharacters() {
+        byte[] bytes = new byte[9];
+        new SecureRandom().nextBytes(bytes);
+        String random = Base64.getUrlEncoder().encodeToString(bytes);
+        assertThat(random).hasSize(12);
+
+        assertThat(register(uniqueEmail(), "Ana", random)).hasStatus(201);
+    }
+
+    @Test
     void rejectsDisplayNamesWithControlCharacters() {
         MvcTestResult result = register(uniqueEmail(), "Ana\u202Egnp.exe", PASSWORD);
 
@@ -143,11 +186,15 @@ class RegistrationApiIT {
             assertThat(register(email, "Ana", PASSWORD)).hasStatus(201);
             assertThat(register(email, "Ana", PASSWORD)).hasStatus(409);
             assertThat(register(uniqueEmail(), "Ana", "short")).hasStatus(400);
+            assertThat(register(uniqueEmail(), "Ana", "QwertyQWERTY")).hasStatus(400);
         } finally {
             loggingSystem.setLogLevel(logger, null);
         }
 
-        assertThat(output).doesNotContain(PASSWORD).doesNotContain("{bcrypt}");
+        assertThat(output)
+                .doesNotContain(PASSWORD)
+                .doesNotContain("{bcrypt}")
+                .doesNotContainIgnoringCase(COMMON_PASSWORD);
     }
 
     @Test

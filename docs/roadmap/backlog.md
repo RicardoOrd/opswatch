@@ -13,7 +13,7 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 
 **Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
-**Foco actual: v0.5.0 — Endurecimiento de seguridad**, refinada el 2026-10-12 contra lo que dejó construido la v0.4.0 (publicada el 2026-10-12, release #102). Orden: OW-039 → OW-037 → OW-047 → OW-038 → OW-046 → OW-040 → OW-041 → OW-042. OW-046 y OW-047 nacieron en el refinamiento. La v0.4.0 (OW-032, OW-033, OW-035, OW-036 y OW-043), la v0.3.0 (OW-024 a OW-030; OW-031 se fusionó en OW-026 y OW-027), la v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
+**Foco actual: v0.5.0 — Endurecimiento de seguridad**, refinada el 2026-10-12 contra lo que dejó construido la v0.4.0 (publicada el 2026-10-12, release #102). Orden: OW-039 → OW-037 → OW-047 → OW-038 → OW-046 → OW-040 → OW-041 → OW-042. OW-046 y OW-047 nacieron en el refinamiento. OW-039 está **Hecha**; el resto, en **Ready**. La v0.4.0 (OW-032, OW-033, OW-035, OW-036 y OW-043), la v0.3.0 (OW-024 a OW-030; OW-031 se fusionó en OW-026 y OW-027), la v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
 
 ## Convenciones
 
@@ -1136,21 +1136,28 @@ Huecos y contradicciones corregidos:
 - **El límite por host** se aplica al motor; los webhooks no se limitan por host, y el motivo queda escrito (OW-041).
 
 ### OW-039 · Rechazo de contraseñas comunes (lista local)
-`security` · P3 · Milestone: v0.5.0 — Endurecimiento de seguridad · **Ready**
+`security` · P3 · Milestone: v0.5.0 — Endurecimiento de seguridad · **Hecha**
 
 - **Context:** [contraseñas](../security/security-architecture.md#contraseñas). `PasswordRules` (`identity.domain`) solo comprueba la longitud: de 12 caracteres (code points) a 72 bytes en UTF-8. La lista de las 10 000 contraseñas más frecuentes que preveía el diseño casi no tiene ninguna de 12 caracteres, así que con nuestro mínimo apenas rechazaría nada.
 - **Objective:** rechazar al registrarse, al cambiar la contraseña y en el reset (OW-047) las contraseñas de una lista pública de filtraciones, sin llamadas a servicios externos.
 - **Tasks:**
-  - [ ] `scripts/common-passwords.mjs`: descarga `Passwords/Common-Credentials/10-million-password-list-top-1000000.txt` de SecLists **fijado por commit**, se queda con las que cumplen `PasswordRules` (de 12 code points a 72 bytes), las pasa a minúsculas (`Locale.ROOT`), quita duplicados, ordena y escribe `src/main/resources/identity/common-passwords.txt.gz`. El mismo commit da siempre el mismo fichero.
-  - [ ] La licencia MIT de SecLists y la procedencia (URL y commit) junto al recurso.
-  - [ ] `CommonPasswords` en `identity`: carga la lista una vez al arrancar y responde `contains(password)` comparando en minúsculas. Un recurso ausente o vacío impide arrancar.
-  - [ ] Código de error `common-password` en el campo de la contraseña (`400 validation-error`), distinto de `password-policy`, en `POST /api/v1/auth/register` y `POST /api/v1/me/password` (y en el reset, con OW-047). El mensaje nunca repite la contraseña.
-  - [ ] Medir las entradas, el tamaño del recurso y la memoria que ocupa la lista cargada (`jcmd <pid> GC.class_histogram`). Si pasa de 50 MB, se guarda como un array ordenado de hashes de 64 bits.
+  - [x] `scripts/common-passwords.mjs`: descarga `Passwords/Common-Credentials/xato-net-10-million-passwords-1000000.txt` de SecLists **fijado por commit** (y por SHA-256), se queda con las que cumplen `PasswordRules` (de 12 code points a 72 bytes), las pasa a minúsculas, quita duplicados, ordena y escribe `src/main/resources/identity/common-passwords.txt`. El mismo commit da siempre el mismo fichero.
+  - [x] La licencia MIT de SecLists y la procedencia (URL, commit y SHA-256) junto al recurso, en `common-passwords.NOTICE`.
+  - [x] `CommonPasswords` en `identity`: carga la lista una vez al arrancar y responde `contains(password)` comparando en minúsculas. Un recurso ausente o vacío impide arrancar.
+  - [x] Código de error `common-password` en el campo de la contraseña (`400 validation-error`), distinto de `password-policy`, en `POST /api/v1/auth/register` y `POST /api/v1/me/password` (y en el reset, con OW-047). El mensaje nunca repite la contraseña.
+  - [x] Medir las entradas, el tamaño del recurso y la memoria que ocupa la lista cargada (`GC.class_histogram`): 46 146 contraseñas, 675 KB y unos 3 MB de heap. Lejos de 50 MB: se guardan como texto.
+  - **Decisiones de la implementación:**
+    - **otro fichero de SecLists:** `10-million-password-list-top-1000000.txt` se borró en mayo de 2025 por duplicado; su sustituto es `xato-net-10-million-passwords-1000000.txt`, la misma lista;
+    - el recurso es **texto plano** y no `.txt.gz`: la salida de gzip depende de la plataforma y de la versión de zlib, y un texto se puede revisar en un diff. El jar ya comprime sus entradas;
+    - `CommonPasswords` está en `identity.application` y lo usan los servicios, no Bean Validation: el error es un `InvalidFieldException`, como `incorrect-password`. Por eso `common-password` no aparece junto a los errores de formato;
+    - se comprueba **antes que nada más**: en el registro, antes de mirar si el email existe, para que la respuesta sobre la contraseña no dependa de la cuenta; en el cambio, antes que la contraseña actual, porque no gasta un bcrypt ni dice nada de ella;
+    - las entradas también se pasan a minúsculas al cargarlas, con `Locale.ROOT`: en turco, `I` daría una `ı` sin punto;
+    - las contraseñas que ya existen no se revisan: la lista solo se aplica al fijar una.
 - **Acceptance Criteria:** una contraseña del recurso da `400 common-password` en el registro y en el cambio de contraseña, también con otras mayúsculas; una contraseña aleatoria de 12 caracteres pasa; la aplicación no arranca sin el recurso.
 - **Testing:**
-  - Unitarios de `CommonPasswords` con una lista pequeña: mayúsculas, caracteres no ASCII y los límites de 12 caracteres y 72 bytes.
-  - IT del registro y del cambio de contraseña con una entrada real del recurso.
-  - Arranque con el recurso ausente (`ApplicationContextRunner`).
+  - `CommonPasswordsTest`: con una lista pequeña, mayúsculas, caracteres no ASCII, el locale turco por defecto, el mensaje sin la contraseña y la lista vacía; sobre el recurso real, que todas sus entradas cumplen `PasswordRules` (los límites de 12 caracteres y 72 bytes), están en minúsculas, sin duplicados y ordenadas; el arranque con el recurso y sin él (`ApplicationContextRunner` con `FilteredClassLoader`).
+  - `ProfileServiceTest`: una contraseña nueva común se rechaza sin leer al usuario, también con una contraseña actual incorrecta.
+  - `RegistrationApiIT` y `PasswordChangeApiIT` con una entrada real del recurso en otras mayúsculas: `400 common-password` sin repetirla, ninguna cuenta creada ni contraseña cambiada, el mismo error con un email ya registrado y una contraseña aleatoria de 12 caracteres que pasa. Los logs no la contienen.
 - **Security considerations:** T-01: los ataques de diccionario y el credential stuffing prueban primero estas contraseñas. La lista va dentro del jar: ni la contraseña ni su hash salen del proceso. La contraseña rechazada no se registra.
 - **Dependencies:** ninguna.
 - **Definition of Done:** `security-architecture.md` dice qué lista se usa, cómo se regenera y cuánto ocupa; el catálogo de endpoints recoge `common-password`.
