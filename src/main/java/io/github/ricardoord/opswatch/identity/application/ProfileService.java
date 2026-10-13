@@ -33,6 +33,7 @@ public class ProfileService {
 
     private final UserRepository users;
     private final PasswordEncoder passwordEncoder;
+    private final CommonPasswords commonPasswords;
     private final RefreshTokenService refreshTokens;
     private final TransactionOperations transactions;
     private final Clock clock;
@@ -40,11 +41,13 @@ public class ProfileService {
     public ProfileService(
             UserRepository users,
             PasswordEncoder passwordEncoder,
+            CommonPasswords commonPasswords,
             RefreshTokenService refreshTokens,
             TransactionOperations transactions,
             Clock clock) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
+        this.commonPasswords = commonPasswords;
         this.refreshTokens = refreshTokens;
         this.transactions = transactions;
         this.clock = clock;
@@ -81,10 +84,13 @@ public class ProfileService {
      *
      * @param newPassword already validated against {@link PasswordRules}
      * @param clientAddress for the security log only
-     * @throws InvalidFieldException on {@code currentPassword} if it is not the current password
+     * @throws InvalidFieldException with {@code common-password} on {@code newPassword} if it is a common password, or
+     *     with {@code incorrect-password} on {@code currentPassword} if it is not the current password
      * @throws OptimisticLockingFailureException if another change of the password got in first
      */
     public void changePassword(UUID userId, String currentPassword, String newPassword, String clientAddress) {
+        // First: it costs no bcrypt, and it says nothing about the current password
+        commonPasswords.rejectIfCommon("newPassword", newPassword);
         String checkedHash = get(userId).passwordHash();
         // A password longer than bcrypt accepts cannot be anyone's (registration rejects it)
         if (!PasswordRules.fitsInBcrypt(currentPassword) || !passwordEncoder.matches(currentPassword, checkedHash)) {

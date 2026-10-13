@@ -3,6 +3,7 @@ package io.github.ricardoord.opswatch.identity.application;
 import io.github.ricardoord.opswatch.identity.domain.User;
 import io.github.ricardoord.opswatch.identity.domain.UserRepository;
 import io.github.ricardoord.opswatch.shared.error.ConflictException;
+import io.github.ricardoord.opswatch.shared.error.InvalidFieldException;
 import io.github.ricardoord.opswatch.shared.id.IdGenerator;
 import java.time.Clock;
 import org.hibernate.exception.ConstraintViolationException;
@@ -24,21 +25,31 @@ public class RegistrationService {
 
     private final UserRepository users;
     private final PasswordEncoder passwordEncoder;
+    private final CommonPasswords commonPasswords;
     private final IdGenerator ids;
     private final Clock clock;
 
-    public RegistrationService(UserRepository users, PasswordEncoder passwordEncoder, IdGenerator ids, Clock clock) {
+    public RegistrationService(
+            UserRepository users,
+            PasswordEncoder passwordEncoder,
+            CommonPasswords commonPasswords,
+            IdGenerator ids,
+            Clock clock) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
+        this.commonPasswords = commonPasswords;
         this.ids = ids;
         this.clock = clock;
     }
 
     /**
      * @param password already validated against {@link io.github.ricardoord.opswatch.identity.domain.PasswordRules}
+     * @throws InvalidFieldException with {@code common-password} on {@code password} if it is a common password
      * @throws ConflictException if the email is already registered, whatever its case
      */
     public User register(String email, String displayName, String password) {
+        // Before looking at the email: the answer about the password must not depend on whether the account exists
+        commonPasswords.rejectIfCommon("password", password);
         String normalizedEmail = User.normalizeEmail(email);
         // Saves a useless bcrypt hash in the common case; the unique index settles simultaneous registrations
         if (users.existsByEmail(normalizedEmail)) {

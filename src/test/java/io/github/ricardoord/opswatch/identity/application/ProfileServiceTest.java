@@ -16,6 +16,7 @@ import io.github.ricardoord.opswatch.shared.error.InvalidFieldException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -36,6 +37,7 @@ class ProfileServiceTest {
     private final ProfileService service = new ProfileService(
             users,
             passwordEncoder,
+            new CommonPasswords(List.of("qwertyqwerty")),
             refreshTokens,
             TransactionOperations.withoutTransaction(),
             Clock.fixed(Instant.parse("2026-09-29T12:00:00Z"), ZoneOffset.UTC));
@@ -66,6 +68,23 @@ class ProfileServiceTest {
                 .isInstanceOf(InvalidFieldException.class);
 
         assertThat(user.passwordHash()).isEqualTo(hash);
+        verify(refreshTokens, never()).revokeAllOf(any(), any());
+    }
+
+    @Test
+    void aCommonNewPasswordIsRejectedBeforeLookingAtTheCurrentOne() {
+        String hash = user.passwordHash();
+        given(users.findById(user.id())).willReturn(Optional.of(user));
+
+        // A wrong current password does not change the answer: the check says nothing about it
+        for (String current : List.of(PASSWORD, "wrong password!")) {
+            assertThatThrownBy(() -> service.changePassword(user.id(), current, "QwertyQwerty", ADDRESS))
+                    .isInstanceOf(InvalidFieldException.class)
+                    .hasMessage(CommonPasswords.MESSAGE);
+        }
+
+        assertThat(user.passwordHash()).isEqualTo(hash);
+        verify(users, never()).findById(any());
         verify(refreshTokens, never()).revokeAllOf(any(), any());
     }
 
