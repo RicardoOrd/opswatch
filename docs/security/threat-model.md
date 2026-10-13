@@ -135,7 +135,7 @@ Leyenda de fase: el número indica en qué fase se implementa el control. **Resi
 | T-32 | I | Lectura de la URL o del secreto de un webhook | Cifrado en reposo, enmascarado en la API | 4 | Bajo |
 | T-33 | D | Un receptor lento bloquea las entregas | Timeout de 5 s, worker con backoff, límite de intentos | 4 | Bajo |
 | T-34 | T | Inyección en las plantillas de email (nombres con HTML) | Escapado en las plantillas | 4 | Bajo |
-| T-35 | D (a terceros) | Uso de OpsWatch para enviar spam a destinatarios arbitrarios | Límite de destinatarios por canal y de canales por organización, rate limit del endpoint de prueba; verificación de destinatarios en la Fase 5 | 4 → 5 | Medio → Bajo |
+| T-35 | D (a terceros) | Uso de OpsWatch para enviar spam a destinatarios arbitrarios | Límite de destinatarios por canal y de canales por organización, rate limit del endpoint de prueba; confirmación de los destinatarios externos en la Fase 5 (OW-046) | 4 → 5 | Medio → Bajo |
 
 ### 5.5 Base de datos y datos en reposo (TB3)
 
@@ -188,6 +188,6 @@ Leyenda de fase: el número indica en qué fase se implementa el control. **Resi
 | Momento | Qué se revisa |
 |---|---|
 | Fin de cada fase | Que los controles de esa fase existen y tienen tests. Se actualiza la columna "Fase" |
-| Fase 5 | Revisión completa, escaneo con ZAP y CodeQL |
+| Fase 5 | Revisión completa (OW-042), API scan de ZAP en CI contra la aplicación levantada con Compose y CodeQL |
 | Fase 8 | Endpoints públicos anónimos (páginas de estado) |
 | Fase 10 | Fronteras nuevas entre servicios (autenticación entre servicios, red de Monitoring) |

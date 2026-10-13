@@ -497,7 +497,7 @@ Un error **interno** de OpsWatch (un bug, la base de datos caída al guardar) **
 | `MaintenanceWindow` | No abrir incidentes y excluir del uptime durante un mantenimiento planificado | Fase 8 | Afecta al cálculo del uptime y a las páginas de estado, que llegan en esa fase |
 | `StatusPage` | Página pública de una organización con slug propio | Fase 8 | Exige lectura anónima, cache y consideraciones de privacidad |
 | `StatusPageComponent` | Qué monitores aparecen en una página de estado y con qué nombre público | Fase 8 | Depende de `StatusPage` |
-| `Invitation` | Invitar por email a alguien sin cuenta | Fase 5 | Necesita la infraestructura de email (Fase 4) y la verificación de email |
-| `AuditLogEntry` | Registro de acciones sensibles (roles, borrados, cambios de canales) | Fase 5 | Se diseña junto con el endurecimiento de seguridad |
+| `Invitation` | Invitar por email; sustituye al alta directa de miembros | Fase 5 (OW-038) | Necesita los emails de cuenta y la verificación de email (OW-037) |
+| `AuditLogEntry` | Registro de acciones sensibles (roles, borrados, cambios de canales) | Fase 5 (OW-040) | Módulo propio `audit`, escrito en la transacción de cada acción |
 | `MonitorCheckRollup` | Agregados por hora para el uptime de ventanas largas | Fase 9, si los benchmarks lo piden | Con 30 días de datos crudos y la PK adecuada, las consultas de V1 son baratas ([retención](../database/data-retention.md)) |
 | `ApiKey` | Acceso programático por organización | Después de V1 | Con JWT basta para la API de V1 |

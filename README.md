@@ -44,7 +44,7 @@ Es un proyecto de portafolio de backend con **Java y Spring Boot**. La arquitect
 | Webhooks firmados con HMAC-SHA256 y marca de tiempo, sin redirects, con la política SSRF en cada envío y un plazo de 5 s; guía de verificación para los receptores (OW-043) | **Implemented** |
 | Resto de funcionalidades de producto | Planned |
 
-**Qué se hace ahora:** refinar el milestone [v0.5.0 — Endurecimiento de seguridad](https://github.com/RicardoOrd/opswatch/milestone/6) contra lo que dejó construido la v0.4.0. Siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
+**Qué se hace ahora:** el milestone [v0.5.0 — Endurecimiento de seguridad](https://github.com/RicardoOrd/opswatch/milestone/6), refinado contra lo que dejó construido la v0.4.0. Siguientes pasos en el [roadmap](docs/roadmap/roadmap.md#foco-actual).
 
 ---
 

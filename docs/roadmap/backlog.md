@@ -13,7 +13,7 @@ El script crea las issues que faltan, actualiza título, cuerpo, etiquetas de ti
 
 **Project de GitHub:** [OpsWatch](https://github.com/users/RicardoOrd/projects/3), público y enlazado al repositorio. Tiene un solo campo propio, `Status`: Backlog, Ready, In Progress, Review y Done. La prioridad y el tipo van en etiquetas y la fase en el milestone, que el Project muestra como campos nativos. `Status` no lo gestiona `sync-issues.mjs`: se mueve a mano al empezar una issue. Los workflows del Project (**Item closed** → Done, **Pull request merged** → Done, **Item added** → Backlog y **Auto-add** para las issues nuevas del repositorio) se activan desde la configuración del Project, porque la API de GitHub no permite activarlos.
 
-**Foco actual: refinar la v0.5.0 — Endurecimiento de seguridad** contra lo que dejó construido la v0.4.0 (publicada el 2026-10-12, release #102). Hasta ese refinamiento, sus issues siguen **Por detallar** y nada está listo para empezar. La v0.4.0 (OW-032, OW-033, OW-035, OW-036 y OW-043), la v0.3.0 (OW-024 a OW-030; OW-031 se fusionó en OW-026 y OW-027), la v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
+**Foco actual: v0.5.0 — Endurecimiento de seguridad**, refinada el 2026-10-12 contra lo que dejó construido la v0.4.0 (publicada el 2026-10-12, release #102). Orden: OW-039 → OW-037 → OW-047 → OW-038 → OW-046 → OW-040 → OW-041 → OW-042. OW-046 y OW-047 nacieron en el refinamiento. La v0.4.0 (OW-032, OW-033, OW-035, OW-036 y OW-043), la v0.3.0 (OW-024 a OW-030; OW-031 se fusionó en OW-026 y OW-027), la v0.2.0 (OW-019 a OW-022, OW-034 y OW-044), la v0.1.0 (OW-012 a OW-018 y OW-045) y el Sprint 0 están **Hechas**.
 
 ## Convenciones
 
@@ -59,7 +59,7 @@ Cada fase del roadmap es un milestone. Cerrar un milestone de versión = publica
 | v0.2.0 — Proyectos y monitores | OW-019 a OW-022, OW-034, OW-044 | Configurar monitores con la política SSRF aplicada al guardar |
 | v0.3.0 — Motor de monitoreo | OW-024 a OW-030 | Checks reales, historial, uptime y métricas, sin duplicados con varias instancias |
 | v0.4.0 — Incidentes y notificaciones | OW-032, OW-033, OW-035, OW-036, OW-043 | Una caída = un incidente, un aviso de apertura y uno de resolución |
-| v0.5.0 — Endurecimiento de seguridad | OW-037 a OW-042 | Riesgos aceptados de forma temporal cerrados |
+| v0.5.0 — Endurecimiento de seguridad | OW-037 a OW-042, OW-046 y OW-047 | Riesgos aceptados de forma temporal cerrados |
 | v1.0.0 — V1 desplegada | Se crean al cerrar la v0.5.0 | V1 pública, recuperable y con CD |
 
 La descripción de cada milestone en GitHub repite su objetivo y criterio de cierre del [roadmap](roadmap.md#milestones).
@@ -1104,18 +1104,275 @@ Decisiones de Ricardo en el refinamiento (2026-10-05):
 
 ---
 
-## v0.5.0 — Endurecimiento de seguridad (por detallar)
+## v0.5.0 — Endurecimiento de seguridad
 
-Estas issues existen para que el alcance de la v0.5.0 sea visible, pero **no están listas**: se detallan con el formato completo al cerrar la v0.4.0.
+Orden: OW-039 → OW-037 → OW-047 → OW-038 → OW-046 → OW-040 → OW-041 → OW-042. La lista de contraseñas comunes (OW-039) va primero porque la validan el registro y el reset. La infraestructura de emails de cuenta de OW-037 la reutilizan el reset (OW-047), las invitaciones (OW-038) y la confirmación de destinatarios (OW-046). El audit log (OW-040) llega después, para registrar las acciones de esas tres desde el principio. La revisión completa (OW-042) cierra la fase sobre todo lo construido.
 
-| ID | Título | Tipos | Prioridad | Estado |
-|---|---|---|---|---|
-| OW-037 | Verificación de email y reset de contraseña; registro sin enumeración | `feature` `security` | P2 | Por detallar |
-| OW-038 | Invitaciones a organizaciones (sustituyen al alta directa por email) | `feature` `security` | P2 | Por detallar |
-| OW-039 | Rechazo de contraseñas comunes (lista local) | `security` | P3 | Por detallar |
-| OW-040 | Audit log de acciones sensibles | `feature` `security` | P2 | Por detallar |
-| OW-041 | Rate limiting general de la API y límite de concurrencia por host de destino | `security` `performance` | P2 | Por detallar |
-| OW-042 | CodeQL, escaneo ZAP baseline, comparación de OpenAPI en CI y revisión completa del threat model | `security` `devops` `documentation` | P2 | Por detallar |
+Refinada el 2026-10-12 contra lo que dejó construido la v0.4.0:
+- el envío de emails vive en `notification.delivery` (`EmailSender`: Spring Mail, timeouts de SMTP y una clasificación de errores que nunca nombra destinatarios), y solo existe con `opswatch.notification.delivery.enabled`. Ni `identity` ni `organization` pueden depender de `notification`;
+- `KeyedRateLimiter` y `RateLimit` están en `shared.ratelimit`, en memoria, y los usan `AuthRateLimiter` y la prueba de canales;
+- el registro de eventos reenvía al arrancar lo que quedó pendiente, pero nada reintenta una publicación `FAILED` mientras la aplicación sigue viva: `IncompleteEventPublicationsMonitor` solo avisa;
+- `users.email_verified_at` existe desde V1 y siempre es nulo; el registro responde `201` o `409` según el email exista o no, y el alta de miembros responde `404` a un email sin cuenta (T-06);
+- los destinatarios de un canal de email reciben avisos sin haber aceptado nada (T-35);
+- el dispatcher limita la concurrencia total con un semáforo, sin mirar el host de destino (T-26);
+- CI tiene `build`, `secrets-scan` e `image`, sin CodeQL, sin ZAP y sin comparación de la especificación OpenAPI.
+
+Decisiones de Ricardo en el refinamiento (2026-10-12):
+- **los emails de cuenta salen por `shared.mail`**: el transporte SMTP de `EmailSender` pasa a `shared`, y cada módulo envía sus emails desde un listener con registro de eventos. El token se genera al enviar, así que nunca se guarda en claro;
+- **un email sin verificar no inicia sesión**: con la contraseña correcta, `403 email-not-verified`. Las cuentas que ya existen se dan por verificadas en la migración, porque no hay producción;
+- **la verificación de destinatarios que prometía T-35 es una issue nueva**, OW-046: un destinatario externo confirma su dirección antes de recibir avisos;
+- **ZAP corre en CI** contra la aplicación levantada con Compose, con el API scan autenticado sobre la especificación OpenAPI: staging no existe hasta la Fase 6;
+- **los emails llevan el token** y el endpoint al que enviarlo. Con `opswatch.web.base-url` configurada, también un enlace con el token en el fragmento (`#token=`), que no llega a los logs ni al `Referer`. Nunca un `GET` que gaste el token: los escáneres de correo abren los enlaces antes que la persona;
+- **contraseñas comunes:** el top 1 000 000 de SecLists (licencia MIT), filtrado a lo que nuestras reglas admiten (de 12 caracteres a 72 bytes) y comparado sin distinguir mayúsculas. El mínimo **sigue en 12**: se valoró bajarlo a 8, y NIST SP 800-63B rev. 4 pide 15 cuando la contraseña es el único factor;
+- **audit log** legible por `OWNER` y `ADMIN`, con 365 días de retención;
+- **OW-037 se parte**: el reset de contraseña pasa a OW-047.
+
+Huecos y contradicciones corregidos:
+- **T-35 no tenía issue** aunque el threat model prometía la verificación de destinatarios en la Fase 5: OW-046.
+- **ZAP "contra staging"** era imposible en la Fase 5: pasa a CI (OW-042).
+- **La lista de las 10 000 contraseñas más frecuentes** casi no tiene ninguna de 12 caracteres o más: con nuestro mínimo no habría rechazado casi nada (OW-039).
+- **Reintento de las publicaciones fallidas:** un email de cuenta que falla con el SMTP caído se quedaría `FAILED` hasta el siguiente arranque. OW-037 añade el reintento en `shared.events`.
+- **`POST /api/v1/invitations/{token}/accept`** dejaba el token en la ruta y, con ella, en los logs de acceso: el token va en el cuerpo (OW-038).
+- **El límite por host** se aplica al motor; los webhooks no se limitan por host, y el motivo queda escrito (OW-041).
+
+### OW-039 · Rechazo de contraseñas comunes (lista local)
+`security` · P3 · Milestone: v0.5.0 — Endurecimiento de seguridad · **Ready**
+
+- **Context:** [contraseñas](../security/security-architecture.md#contraseñas). `PasswordRules` (`identity.domain`) solo comprueba la longitud: de 12 caracteres (code points) a 72 bytes en UTF-8. La lista de las 10 000 contraseñas más frecuentes que preveía el diseño casi no tiene ninguna de 12 caracteres, así que con nuestro mínimo apenas rechazaría nada.
+- **Objective:** rechazar al registrarse, al cambiar la contraseña y en el reset (OW-047) las contraseñas de una lista pública de filtraciones, sin llamadas a servicios externos.
+- **Tasks:**
+  - [ ] `scripts/common-passwords.mjs`: descarga `Passwords/Common-Credentials/10-million-password-list-top-1000000.txt` de SecLists **fijado por commit**, se queda con las que cumplen `PasswordRules` (de 12 code points a 72 bytes), las pasa a minúsculas (`Locale.ROOT`), quita duplicados, ordena y escribe `src/main/resources/identity/common-passwords.txt.gz`. El mismo commit da siempre el mismo fichero.
+  - [ ] La licencia MIT de SecLists y la procedencia (URL y commit) junto al recurso.
+  - [ ] `CommonPasswords` en `identity`: carga la lista una vez al arrancar y responde `contains(password)` comparando en minúsculas. Un recurso ausente o vacío impide arrancar.
+  - [ ] Código de error `common-password` en el campo de la contraseña (`400 validation-error`), distinto de `password-policy`, en `POST /api/v1/auth/register` y `POST /api/v1/me/password` (y en el reset, con OW-047). El mensaje nunca repite la contraseña.
+  - [ ] Medir las entradas, el tamaño del recurso y la memoria que ocupa la lista cargada (`jcmd <pid> GC.class_histogram`). Si pasa de 50 MB, se guarda como un array ordenado de hashes de 64 bits.
+- **Acceptance Criteria:** una contraseña del recurso da `400 common-password` en el registro y en el cambio de contraseña, también con otras mayúsculas; una contraseña aleatoria de 12 caracteres pasa; la aplicación no arranca sin el recurso.
+- **Testing:**
+  - Unitarios de `CommonPasswords` con una lista pequeña: mayúsculas, caracteres no ASCII y los límites de 12 caracteres y 72 bytes.
+  - IT del registro y del cambio de contraseña con una entrada real del recurso.
+  - Arranque con el recurso ausente (`ApplicationContextRunner`).
+- **Security considerations:** T-01: los ataques de diccionario y el credential stuffing prueban primero estas contraseñas. La lista va dentro del jar: ni la contraseña ni su hash salen del proceso. La contraseña rechazada no se registra.
+- **Dependencies:** ninguna.
+- **Definition of Done:** `security-architecture.md` dice qué lista se usa, cómo se regenera y cuánto ocupa; el catálogo de endpoints recoge `common-password`.
+
+### OW-037 · Emails de cuenta, verificación de email y registro sin enumeración
+`feature` `security` `architecture` · P1 · Milestone: v0.5.0 — Endurecimiento de seguridad · **Ready**
+
+- **Context:** T-06 ([threat model](../security/threat-model.md)). El registro responde `409` a un email registrado, y el login acepta cualquier cuenta `ACTIVE`, verificada o no. El envío de emails vive en `notification.delivery`, y `identity` no puede depender de `notification` ([módulos](../architecture/modules.md#4-reglas-de-dependencia)). OW-047, OW-038 y OW-046 reutilizan lo que construye esta issue.
+- **Objective:** un registro que responde igual exista o no el email, cuentas que no inician sesión hasta verificar su email, y la infraestructura para enviar emails de cuenta.
+- **Tasks:**
+  - **`shared.mail`** (decisión de Ricardo del 2026-10-12):
+    - [ ] el transporte sale de `EmailSender` a `shared.mail`: mensaje multipart, `From` (`opswatch.mail.from`, que sustituye a `opswatch.notification.email.from`), `Auto-Submitted`, envío y la clasificación de errores sin destinatarios. `EmailSender` lo usa sin cambiar de comportamiento: sus tests pasan sin tocar sus casos;
+    - [ ] las plantillas siguen siendo de cada módulo, con Thymeleaf como en OW-036;
+    - [ ] el transporte existe en toda instancia, no solo con el worker de entregas: el registro envía emails. `spring.mail.host` y `opswatch.mail.from` pasan a ser obligatorias siempre, y `DeploymentGuardrails` lo comprueba en `staging` y `production`.
+  - **Reintento de las publicaciones fallidas** (`shared.events`):
+    - [ ] `EventPublicationRetryJob` reenvía con `IncompleteEventPublications` las publicaciones `FAILED` con menos de `opswatch.events.retry.max-attempts` intentos (`completion_attempts`), cuando su último intento es más antiguo que la espera que les toca (1 min, 5 min, 30 min y 2 h por defecto). Las que agotan los intentos se quedan para el operador, con el aviso de `IncompleteEventPublicationsMonitor`;
+    - [ ] nunca reenvía una publicación `PROCESSING`: puede tenerla en vuelo otra instancia;
+    - [ ] vale para todos los listeners asíncronos: comprobar que los de `monitoring` y `notification` soportan un reenvío (borran monitor a monitor y crean entregas con `ON CONFLICT`).
+  - **Tokens de un solo uso** (`identity`):
+    - [ ] migración `identity_create_account_tokens`: `id`, `user_id`, `purpose` (`VERIFY_EMAIL`, `RESET_PASSWORD`), `token_hash` (SHA-256, único), `created_at`, `expires_at` y `used_at`;
+    - [ ] 32 bytes de `SecureRandom` en Base64URL, con un prefijo por propósito (`ovt_` y `ort_`) para que un escáner de secretos los reconozca. Solo se guarda el hash. Un token nuevo invalida los anteriores sin usar del mismo propósito, y uno usado, caducado o invalidado da el mismo `400 invalid-token`;
+    - [ ] el de verificación caduca a las 24 h (`opswatch.identity.tokens.verify-email-ttl`). La purga diaria borra los usados o caducados hace más de 7 días.
+  - **Registro sin enumeración:**
+    - [ ] `POST /api/v1/auth/register` responde **siempre** `202`, sin cuerpo y sin `Location`, exista o no el email. **Cambio incompatible** con la v0.4.0, que daba `201` con la cuenta o `409`: va en la nota de la release;
+    - [ ] con un email nuevo, crea la cuenta sin verificar y publica `VerificationEmailRequested` en la misma transacción;
+    - [ ] con un email registrado, no toca la cuenta y publica `RegistrationAttemptedForExistingAccount`. La cuenta recibe un aviso: alguien intentó registrarse con su email, y si fue ella puede iniciar sesión o restablecer la contraseña. Como mucho, un aviso por cuenta y hora;
+    - [ ] los dos caminos tardan lo mismo: el del email registrado también calcula el bcrypt de la contraseña recibida, y ningún email sale antes del commit;
+    - [ ] dos registros simultáneos con el mismo email acaban como el del email registrado: `202`.
+  - **Verificación:**
+    - [ ] listener `@ApplicationModuleListener` de `VerificationEmailRequested` en `identity`: guarda el token nuevo en una transacción corta y envía el email fuera de ella. Si el envío falla, lanza: la publicación queda `FAILED` y el reintento manda otro email con otro token;
+    - [ ] el email trae el token y explica cómo usarlo (`POST /api/v1/auth/verify-email`). Con `opswatch.web.base-url`, añade el enlace `<base-url>/verify-email#token=<token>` (decisión de Ricardo del 2026-10-12);
+    - [ ] `POST /api/v1/auth/verify-email` con `{ "token": "…" }` → `204` y `email_verified_at`; un token inválido da `400 invalid-token`. Público, con límite por IP;
+    - [ ] `POST /api/v1/auth/verify-email/resend` con `{ "email": "…" }` → siempre `202`. Solo envía si la cuenta existe y no está verificada. Límite por IP y por email;
+    - [ ] login: con la contraseña correcta y el email sin verificar, `403 email-not-verified`, sin tokens (decisión de Ricardo del 2026-10-12). Con la contraseña incorrecta, el `401` de siempre: solo quien conoce la contraseña sabe que la cuenta existe;
+    - [ ] la migración pone `email_verified_at = created_at` en las cuentas que ya existen.
+  - [ ] Límites nuevos en `RateLimitProperties` y en la tabla de [rate limiting](../security/security-architecture.md#8-rate-limiting) (valores de partida: verificación 10/min por IP; reenvío 5/h por IP y 3/h por email).
+  - [ ] Eventos de seguridad del registro, la verificación y el reenvío, con `EmailHash` en lugar del email.
+  - [ ] Filas nuevas en `EndpointAuthorizationMatrixIT`.
+- **Acceptance Criteria:**
+  - el registro con un email nuevo y con uno registrado da la misma respuesta (estado, headers y cuerpo), y los dos calculan un bcrypt;
+  - el email nuevo recibe un token con el que verifica la cuenta, y después inicia sesión. Antes de verificar, el login correcto da `403 email-not-verified` y el incorrecto `401`;
+  - un token usado, caducado o sustituido por otro da `400 invalid-token`;
+  - con el SMTP caído, el email llega cuando vuelve, por el reintento de la publicación;
+  - el token en claro no aparece en ninguna tabla (`account_tokens`, `event_publication`, `event_publication_archive`).
+- **Testing:**
+  - IT del registro, la verificación, el reenvío y el login contra GreenMail, leyendo el token del email.
+  - Unitarios del token (formato, prefijo, hash) y de las esperas del reintento.
+  - `EventPublicationRetryJobIT`: una publicación `FAILED` reciente no se reenvía, una vencida sí, una `PROCESSING` nunca, y una sin intentos restantes se queda.
+  - Un test busca el token recibido en todas las columnas de texto de esas tablas.
+  - Comprobar que los tests detectan el fallo: sin el bcrypt del camino del email registrado (con un spy del `PasswordEncoder`) y con el token guardado en claro.
+  - Los tests de `EmailSender` pasan sin cambios.
+- **Security considerations:** cierra la parte de registro de T-06. El aviso a la cuenta existente le dice a su dueño que alguien usó su email, sin revelárselo a quien se registra. Tokens de 256 bits y de un solo uso, guardados como SHA-256: no hace falta bcrypt porque no se pueden adivinar. El token nunca viaja en una URL que llegue al servidor. Un reintento genera un token nuevo, así que el del email anterior deja de servir.
+- **Dependencies:** OW-039 (el registro valida con la lista).
+- **Definition of Done:** catálogo de endpoints (el registro como cambio incompatible), catálogo de propiedades, `modules.md` (`shared.mail`), `events.md` (reintento de publicaciones), threat model (T-06) y ADR-004 (login con el email verificado).
+
+### OW-047 · Reset de contraseña
+`feature` `security` · P2 · Milestone: v0.5.0 — Endurecimiento de seguridad · **Ready**
+
+- **Context:** sale de OW-037 al partirla (decisión de Ricardo del 2026-10-12). Reutiliza `shared.mail`, los tokens de un solo uso y el reintento de publicaciones. `POST /api/v1/me/password` (OW-045) ya revoca todas las sesiones y comprueba el hash dentro de la transacción.
+- **Objective:** quien olvidó su contraseña la cambia demostrando que controla su email, sin que el endpoint revele si la cuenta existe.
+- **Tasks:**
+  - [ ] `POST /api/v1/auth/password-reset` con `{ "email": "…" }` → siempre `202`. Con una cuenta `ACTIVE`, publica `PasswordResetRequested`; sin cuenta o con una deshabilitada, no hace nada. Ningún email sale antes del commit.
+  - [ ] Listener en `identity`: token `RESET_PASSWORD` que caduca a los 30 min (`opswatch.identity.tokens.reset-password-ttl`), email con el token y, con `opswatch.web.base-url`, el enlace `<base-url>/reset-password#token=<token>`.
+  - [ ] `POST /api/v1/auth/password-reset/confirm` con `{ "token": "…", "newPassword": "…" }` → `204`:
+    - valida la contraseña (longitud y OW-039) antes de gastar el token;
+    - calcula el bcrypt fuera de la transacción y, dentro, comprueba el token con su fila bloqueada;
+    - marca el token como usado, invalida los demás de reset, cambia el hash y **revoca todas las sesiones**, como OW-045;
+    - si el email no estaba verificado, lo verifica: el reset demuestra que controla el buzón.
+  - [ ] La cuenta recibe un aviso de que su contraseña cambió, sin token, tanto con el reset como con `POST /api/v1/me/password`.
+  - [ ] Límites (valores de partida): la petición, 5/h por IP y 3/h por email; la confirmación, 10/min por IP.
+  - [ ] Eventos de seguridad de la petición y del cambio, con `EmailHash`.
+  - [ ] Filas nuevas en `EndpointAuthorizationMatrixIT`.
+- **Acceptance Criteria:** la petición responde igual con un email registrado y con uno que no existe; el token del email cambia la contraseña una sola vez y cierra todas las sesiones (el refresh token anterior da `401`); un token caducado, usado o sustituido da `400 invalid-token`; una contraseña común da `400 common-password` y no gasta el token.
+- **Testing:** IT contra GreenMail; dos confirmaciones simultáneas con el mismo token (una gana y la otra da `400`); el aviso de contraseña cambiada en los dos caminos; la respuesta uniforme de la petición.
+- **Security considerations:** T-06 en el reset. Contra la toma de cuenta con un token filtrado: 30 min de vida, un solo uso, invalidación al pedir otro y revocación de todas las sesiones. El token nunca va en una URL que llegue al servidor.
+- **Dependencies:** OW-037, OW-039.
+- **Definition of Done:** catálogo de endpoints y threat model.
+
+### OW-038 · Invitaciones a organizaciones (sustituyen al alta directa por email)
+`feature` `security` · P2 · Milestone: v0.5.0 — Endurecimiento de seguridad · **Ready**
+
+- **Context:** T-06 al añadir miembros: `POST /api/v1/organizations/{orgId}/members` responde `404` a un email sin cuenta, y añade a alguien sin su consentimiento. El diseño preveía aceptar con el token en la ruta (`POST /api/v1/invitations/{token}/accept`), que lo dejaría en los logs de acceso.
+- **Objective:** sumar miembros solo con invitaciones que la persona invitada acepta, sin revelar si un email tiene cuenta.
+- **Tasks:**
+  - [ ] Migración `organization_create_invitations`: `id`, `organization_id`, `email` (normalizado), `role`, `token_hash` (único, nulo hasta el primer envío), `invited_by`, `created_at`, `expires_at`, `accepted_at`, `accepted_by`, `revoked_at` y `revoked_by`. Un índice único parcial impide dos invitaciones pendientes al mismo email en una organización.
+  - [ ] `POST /api/v1/organizations/{orgId}/invitations` con `{ "email": "…", "role": "MEMBER" }` → `201` con la invitación, sin token:
+    - con los permisos del alta de hoy: `MEMBER_MANAGE_BASIC` o `_PRIVILEGED` según el rol;
+    - la misma respuesta tenga o no cuenta el email;
+    - `409` si ya es miembro (quien invita ya ve la lista de miembros) o si ya tiene una invitación pendiente;
+    - la cuota de 50 cuenta los miembros más las invitaciones pendientes, con la organización bloqueada como en OW-017.
+  - [ ] `GET …/invitations` (pendientes, paginado), `DELETE /api/v1/invitations/{invitationId}` (revocar) y `POST /api/v1/invitations/{invitationId}/resend` (token nuevo), con los mismos permisos.
+  - [ ] Email por `shared.mail` desde un listener de `organization` (`InvitationCreated`): el token se genera al enviar (`oit_`), caduca a los 7 días (`opswatch.organization.invitations.ttl`), y el nombre de la organización y el de quien invita van escapados.
+  - [ ] `POST /api/v1/invitations/accept` con `{ "token": "…" }` → `200` con la membresía:
+    - autenticado, con el email verificado e **igual** al de la invitación (los dos normalizados);
+    - si el email no coincide, el mismo `400 invalid-token` que un token desconocido: no confirma a quién se invitó;
+    - bloquea la organización, vuelve a comprobar la cuota y crea la membresía. Una organización borrada da `400 invalid-token`.
+  - [ ] Se retira `POST /api/v1/organizations/{orgId}/members`. **Cambio incompatible**, con nota en la release. Los tests que lo usan para preparar datos pasan a insertar membresías o a invitar.
+  - [ ] Una cuenta que se registra con un email invitado no entra sola: acepta la invitación después de verificar.
+  - [ ] Límite de invitaciones por organización (valor de partida: 20 por hora), para que no sirvan para enviar emails a terceros.
+  - [ ] La purga diaria borra las invitaciones caducadas, aceptadas o revocadas hace más de 30 días.
+  - [ ] Filas nuevas en `EndpointAuthorizationMatrixIT` y en el [modelo de autorización](../security/authorization-model.md).
+- **Acceptance Criteria:** invitar a un email con cuenta y a uno sin cuenta da la misma respuesta; la persona invitada acepta con su cuenta verificada y entra con el rol de la invitación; una invitación caducada, revocada o ya aceptada no sirve; otra cuenta no puede aceptarla aunque tenga el token; un `MEMBER` no puede invitar a un `ADMIN`; la cuota cuenta las invitaciones pendientes.
+- **Testing:** IT de cada endpoint contra GreenMail; dos aceptaciones simultáneas, y una aceptación a la vez que una revocación; la cuota con invitaciones pendientes; IDOR: alguien de otra organización recibe `404` al revocar.
+- **Security considerations:** cierra la parte de miembros de T-06. El token solo se guarda como hash y nunca va en la URL. Como el email tiene que coincidir, un token reenviado o filtrado no sirve a otra cuenta. T-35: el límite por organización y el contenido fijo impiden usar las invitaciones como spam.
+- **Dependencies:** OW-037.
+- **Definition of Done:** catálogo de endpoints (alta retirada e invitaciones), modelo de dominio (`Invitation`), modelo de autorización y threat model (T-06).
+
+### OW-046 · Confirmación de los destinatarios de los canales de email
+`feature` `security` · P2 · Milestone: v0.5.0 — Endurecimiento de seguridad · **Ready**
+
+- **Context:** T-35. Un canal de email envía avisos a cualquier dirección que escriba quien tiene `CHANNEL_WRITE`, sin que el destinatario lo haya aceptado. El threat model prometía la verificación para la Fase 5 sin una issue que la incluyera: esta nace en el refinamiento (decisión de Ricardo del 2026-10-12). Los destinatarios se guardan cifrados dentro de la configuración del canal (OW-035), y la API los muestra enmascarados.
+- **Objective:** un destinatario solo recibe avisos de una organización después de confirmar su dirección, salvo que sea un miembro de ella con el email verificado.
+- **Tasks:**
+  - [ ] Migración `notification_create_recipient_confirmations`, una fila por organización y dirección:
+    - la dirección cifrada con `SecretCipher`, con un dato asociado propio;
+    - una huella con clave (HMAC-SHA256) para buscarla sin descifrar. Un SHA-256 sin clave se invertiría con un diccionario de emails;
+    - `status` (`PENDING`, `CONFIRMED`), `token_hash`, `requested_at`, `confirmed_at` y `expires_at`.
+  - [ ] Al crear un canal o cambiar sus destinatarios, cada dirección nueva sin confirmar recibe **un** email de confirmación por `shared.mail`, desde un listener de `notification`:
+    - el token (`oct_`) caduca a los 7 días;
+    - el email dice qué organización y qué canal piden enviarle avisos y que puede ignorarlo, sin enlaces de seguimiento;
+    - como mucho, uno por dirección y organización cada 24 h: la confirmación no puede servir para enviar spam.
+  - [ ] Los miembros de la organización con el email verificado quedan confirmados sin email. Lo pregunta una API nueva de `organization` sobre `UserDirectory`, para que `notification` no dependa de `identity`.
+  - [ ] `POST /api/v1/notification-recipients/confirm` con `{ "token": "…" }` → `204`. **Público**, porque el destinatario puede no tener cuenta, y con límite por IP.
+  - [ ] `EmailSender` envía solo a los destinatarios confirmados. Si no hay ninguno, la entrega acaba `FAILED` con `no confirmed recipients`, sin reintentos. Con la prueba del canal pasa lo mismo.
+  - [ ] La API muestra cada destinatario enmascarado y con su estado (`confirmed`). `POST /api/v1/notification-channels/{channelId}/recipients/resend` (`CHANNEL_WRITE`) reenvía las confirmaciones pendientes, con el mismo límite.
+  - [ ] Los destinatarios de los canales que ya existen quedan `PENDING` y reciben su confirmación (no hay producción).
+- **Acceptance Criteria:** un destinatario externo no recibe avisos ni pruebas hasta confirmar, y después sí; un miembro con el email verificado los recibe desde el principio; dos canales de la organización con la misma dirección comparten la confirmación; pedir confirmaciones repetidas no envía más de una al día a la misma dirección; el token sirve una sola vez.
+- **Testing:** IT contra GreenMail de la confirmación y de una entrega con destinatarios confirmados y pendientes; entrega sin ningún destinatario confirmado; límite de confirmaciones; enmascarado con el estado; la huella no coincide con el SHA-256 sin clave del email.
+- **Security considerations:** cierra T-35: OpsWatch solo envía avisos a quien los aceptó, y el único email que recibe una dirección sin confirmar es la confirmación, limitada. La huella con clave permite buscar sin descifrar y no es un diccionario de emails.
+- **Dependencies:** OW-037 (`shared.mail` y tokens), OW-035 y OW-036.
+- **Definition of Done:** catálogo de endpoints, modelo de dominio y threat model (T-35 con riesgo residual bajo).
+
+### OW-040 · Audit log de acciones sensibles
+`feature` `security` · P2 · Milestone: v0.5.0 — Endurecimiento de seguridad · **Ready**
+
+- **Context:** T-07: hoy solo el timeline de los incidentes registra quién hizo algo. Las membresías, los canales y los refresh tokens se borran físicamente ([diseño de la base de datos](../database/database-design.md)), así que no queda rastro de quién los borró.
+- **Objective:** cada acción sensible de una organización deja una entrada, de forma atómica con la acción, que pueden leer su `OWNER` y sus `ADMIN`.
+- **Tasks:**
+  - [ ] Módulo nuevo `audit`: escucha eventos de `organization`, `monitoring` y `notification`, lee nombres con `UserDirectory` (como `incident`) y ningún módulo depende de él. Actualizar `modules.md`; la verificación de Spring Modulith lo comprueba.
+  - [ ] Migración `audit_create_audit_log`:
+    - `id` (UUIDv7), `organization_id` (sin FK: la entrada sobrevive a la organización hasta la purga), `occurred_at`, `actor_user_id` (nulo si lo hizo el sistema), `action`, `target_type`, `target_id`, `details` (`jsonb`) y `request_id`;
+    - índice por `(organization_id, occurred_at DESC, id)`.
+  - [ ] Catálogo cerrado de acciones:
+    - `organization.updated` y `organization.deleted`;
+    - `invitation.created`, `invitation.revoked`, `member.joined`, `member.role_changed` (con el rol de antes y el de después), `member.removed` y `member.left`;
+    - `project.deleted`;
+    - `monitor.deleted`, `monitor.paused` y `monitor.resumed`;
+    - `channel.created`, `channel.updated` (qué campos cambiaron, sin sus valores), `channel.deleted`, `channel.secret_rotated` y `recipient.confirmed` (sin la dirección).
+
+    Los eventos que faltan (miembros, cambios de la organización, canales) los publican sus módulos con quien hizo la acción.
+  - [ ] Escritura con un `@EventListener` síncrono, en la transacción de la acción, no con `@ApplicationModuleListener`: si la acción se confirma, su entrada también. Si el audit log falla, la acción falla. Es una decisión fail-closed y queda documentada.
+  - [ ] `GET /api/v1/organizations/{orgId}/audit-log`:
+    - con cursor (`CursorQuery`, como el historial de checks), de la entrada más reciente a la más antigua;
+    - filtros `action`, `actorId`, `from` y `to`;
+    - permiso nuevo `AUDIT_READ`, para `OWNER` y `ADMIN` (decisión de Ricardo del 2026-10-12);
+    - el nombre de quien hizo la acción, con `UserDirectory`.
+  - [ ] Purga diaria con el cron de retención: `opswatch.retention.audit-log`, 365 días, en lotes con `SKIP LOCKED`.
+  - [ ] Filas nuevas en `EndpointAuthorizationMatrixIT` y en el modelo de autorización.
+- **Acceptance Criteria:** un cambio de rol aparece en el audit log con quien lo hizo y los dos roles (criterio de la fase); una acción que hace rollback no deja entrada; un `MEMBER` recibe `403` y quien no es miembro `404`; ninguna entrada contiene un secreto, una URL de webhook ni un destinatario en claro; la purga borra lo que tiene más de 365 días.
+- **Testing:**
+  - IT por acción del catálogo.
+  - Atomicidad: una acción revertida no deja entrada, y un listener de audit que falla hace fallar la acción.
+  - Un test recorre los `details` de todas las acciones buscando los secretos de prueba.
+  - `@ApplicationModuleTest` del módulo con `Scenario`.
+- **Security considerations:** T-07, no repudio. Fail-closed: no hay acción sensible sin su entrada. Solo `OWNER` y `ADMIN` lo leen, y `details` nunca guarda secretos ni datos de contacto.
+- **Dependencies:** OW-038 y OW-046, para que sus acciones entren desde el principio.
+- **Definition of Done:** `modules.md` (módulo `audit`), modelo de dominio (`AuditLogEntry`), diseño de la base de datos, catálogo de endpoints, retención y threat model (T-07).
+
+### OW-041 · Rate limiting general de la API y límite de concurrencia por host de destino
+`security` `performance` · P2 · Milestone: v0.5.0 — Endurecimiento de seguridad · **Ready**
+
+- **Context:** la tabla de [rate limiting](../security/security-architecture.md#8-rate-limiting) prevé 300 peticiones por minuto y usuario para el resto de la API autenticada, y el [motor](../architecture/monitoring-engine.md#límite-por-host-de-destino) un límite por host contra el uso de OpsWatch como amplificador (T-26). `KeyedRateLimiter` está en `shared.ratelimit`, y el dispatcher solo tiene el semáforo global.
+- **Objective:** que un usuario no pueda saturar la API y que OpsWatch no concentre checks contra un mismo host.
+- **Tasks:**
+  - **API:**
+    - [ ] filtro después de la autenticación, con `opswatch.security.rate-limit.api-per-user` (`300/1m`) por el `sub` del JWT, para toda la API autenticada. Se suma a los límites propios de algunos endpoints;
+    - [ ] `429 rate-limited` con `Retry-After`, y un evento `api.rate_limited` por ráfaga;
+    - [ ] el perfil `test` sube el límite, como los de autenticación. Un test con el límite real usa su propio contexto, como `AuthRateLimitIT`.
+  - **Motor:**
+    - [ ] `opswatch.monitoring.engine.max-concurrent-per-host` (valor de partida: 10). `CheckDispatcher` toma un permiso del host además del global;
+    - [ ] sin permiso para el host, el check no se ejecuta: se aplaza `opswatch.monitoring.engine.host-defer` (5 s), escribiendo `next_check_at` con la fila de `monitor_state` bloqueada, como cualquier escritura del estado. No cuenta como check. Métrica `opswatch_monitor_checks_deferred_total`;
+    - [ ] el host es el de la URL normalizada, no la IP resuelta: dos nombres que resuelven a la misma IP no comparten límite. Es un límite conocido y queda escrito;
+    - [ ] gauge `opswatch_monitor_hosts_max_monitors`: el mayor número de monitores activos contra un mismo host, recalculado cada minuto y sin etiqueta de host (la regla de las métricas). Un `WARN` cuando pasa de `opswatch.monitoring.engine.host-concentration-warning` (valor de partida: 50).
+  - [ ] Los webhooks no se limitan por host: solo salen por incidentes, el lote es de 50 y cada envío tiene 5 s de plazo. Queda escrito en `ssrf-protection.md`.
+- **Acceptance Criteria:** un usuario que pasa de 300 peticiones en un minuto recibe `429` con `Retry-After`, y otro usuario no se ve afectado; con 30 monitores contra el mismo host y un límite de 10, ese host nunca tiene más de 10 checks en vuelo (medido en el destino), y los aplazados se ejecutan después sin perderse; la métrica de aplazados y el gauge de concentración aparecen en `/actuator/prometheus`.
+- **Testing:**
+  - IT del límite de la API en su propio contexto.
+  - IT del dispatcher con un destino lento que cuenta las conexiones simultáneas, y que falla sin el permiso por host.
+  - Unitario del host de una URL (mayúsculas, puerto, IPv6).
+- **Security considerations:** T-26 (OpsWatch como amplificador) y abuso de la API. Los límites viven en memoria y se multiplican por el número de instancias, como los de autenticación ([ADR-009](../adr/ADR-009-redis.md)).
+- **Dependencies:** ninguna.
+- **Definition of Done:** catálogo de propiedades, `monitoring-engine.md`, `ssrf-protection.md` (capa 7), observabilidad, tabla de rate limiting y threat model (T-26).
+
+### OW-042 · CodeQL, ZAP API scan, comparación de OpenAPI en CI y revisión completa del threat model
+`security` `devops` `documentation` · P2 · Milestone: v0.5.0 — Endurecimiento de seguridad · **Ready**
+
+- **Context:** la Definition of Done de la Fase 5 pide cerrar o volver a aceptar, con una razón escrita, todos los riesgos "hasta la Fase 5" del threat model, y cerrar la fase con CodeQL sin alertas altas y ZAP sin hallazgos altos. ZAP iba a correr contra staging, que no existe hasta la Fase 6, así que corre en CI contra la aplicación levantada con Compose (decisión de Ricardo del 2026-10-12). La guía de API prevé que CI compare la especificación con la de `main`.
+- **Objective:** tres controles automáticos en CI y el threat model revisado entero sobre lo construido.
+- **Tasks:**
+  - **CodeQL:**
+    - [ ] `codeql.yml` en los PR y los push a `main` y una vez por semana: Java con las consultas `security-extended`, acciones fijadas por SHA y `security-events: write` solo en ese job. Comprobar primero que CodeQL soporta Java 25; si no compila, `build-mode: none`;
+    - [ ] cero alertas altas o críticas abiertas al cerrar la issue. Una falsa se descarta con su motivo.
+  - **OpenAPI:**
+    - [ ] la especificación se versiona en `docs/api/openapi.json`. Un test la genera desde la aplicación y falla si no coincide con el fichero, diciendo cómo regenerarlo;
+    - [ ] un job compara el fichero del PR con el de `main` con `oasdiff` (versión fijada) y falla con un cambio incompatible, salvo que el PR lleve la etiqueta `breaking-change`. Antes de la 1.0.0, esos cambios se permiten con nota en la release.
+  - **ZAP:**
+    - [ ] `zap.yml`, en cada push a `main`, una vez por semana y a mano: construye la imagen y levanta la aplicación, Postgres y Mailpit con Compose, con el perfil más parecido a producción que publique la especificación;
+    - [ ] registra un usuario, lo verifica con el token que lee de Mailpit, inicia sesión y le pasa el access token a ZAP. El API scan (`zaproxy/action-api-scan`, fijada por SHA) recorre `docs/api/openapi.json` con las reglas de `.zap/rules.tsv`, falla con hallazgos altos y deja el informe como artefacto;
+    - [ ] el access token dura lo que el escaneo solo en ese job, nunca en otro perfil;
+    - [ ] cero hallazgos altos al cerrar la issue. Los medios se revisan y se anotan.
+  - **Threat model:**
+    - [ ] revisión completa: cada amenaza con su control comprobado (un enlace al test o a la configuración) y la columna Fase al día;
+    - [ ] cada riesgo "hasta la Fase 5" cerrado, o vuelto a aceptar con una razón escrita;
+    - [ ] `security-architecture.md`, `risk-register.md` y ADR-004 al día.
+  - [ ] `ci-cd.md` con los workflows nuevos. CodeQL y la comparación de OpenAPI pasan a ser checks obligatorios de `main`; ZAP no, porque no corre en los PR.
+- **Acceptance Criteria:** CodeQL sin alertas altas abiertas; el API scan autenticado de ZAP sin hallazgos altos contra la aplicación de `main`; un PR que quita un campo de una respuesta falla la comparación de OpenAPI; el threat model no tiene ningún riesgo "hasta la Fase 5" sin cerrar o sin razón escrita.
+- **Testing:** un PR de prueba, que no se mergea, con un cambio incompatible en la API y una vulnerabilidad sembrada (SQL concatenado), para ver que la comparación y CodeQL fallan.
+- **Security considerations:** T-60 y T-61: acciones fijadas por SHA y permisos mínimos. El job de ZAP no usa secretos reales: las claves salen de `scripts/dev-keys.sh` dentro del job.
+- **Dependencies:** el resto de la v0.5.0, porque escanea y revisa lo construido. ZAP necesita OW-037 para tener un usuario verificado.
+- **Definition of Done:** `ci-cd.md`, la sección de pruebas de seguridad de `security-architecture.md` y el threat model con su fecha de revisión.
+
+---
 
 ## v1.0.0 — V1 desplegada
 

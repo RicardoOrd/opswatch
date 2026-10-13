@@ -109,7 +109,7 @@ sequenceDiagram
 - bcrypt con coste 12. Se revisa si el login p95 supera los 300 ms en el hardware de producción.
 - Longitud de **12 caracteres a 72 bytes UTF-8**. El máximo es un límite de bcrypt: por encima se truncaría o se rechazaría según la versión. Se valida antes de hashear.
 - Sin reglas de composición (mayúsculas obligatorias y demás) ni caducidad forzada, en línea con NIST SP 800-63B.
-- A partir de la Fase 5, rechazo de contraseñas comunes con una lista local (las 10 000 más frecuentes), sin llamadas a servicios externos.
+- A partir de la Fase 5 (OW-039), rechazo de contraseñas comunes con una lista local, sin llamadas a servicios externos: el top 1 000 000 de SecLists filtrado a lo que admiten estas reglas (de 12 caracteres a 72 bytes) y comparado sin distinguir mayúsculas. Las 10 000 más frecuentes no servían: casi ninguna llega a 12 caracteres.
 - `DelegatingPasswordEncoder` permite migrar a Argon2id más adelante: los hashes nuevos se generan con el algoritmo nuevo y los viejos se actualizan en el siguiente login.
 - Por qué bcrypt y no Argon2id: Argon2id es la primera opción de OWASP, pero en Spring Security necesita BouncyCastle como dependencia extra. bcrypt con coste 12 sigue siendo aceptable y no añade dependencias. Es un compromiso consciente y reversible.
 
@@ -121,7 +121,7 @@ sequenceDiagram
 | Credential stuffing desde una IP | Límite de 10 intentos por minuto por IP |
 | Enumeración de usuarios por el mensaje | El mismo `401 invalid-credentials` para un email inexistente y para una contraseña errónea |
 | Enumeración por tiempo de respuesta | Si el email no existe, se compara contra un hash bcrypt señuelo para igualar el tiempo |
-| Enumeración en el registro | V1 responde `409` si el email ya existe, con rate limit (5 registros por hora por IP). **Riesgo aceptado** hasta la Fase 5, cuando el registro pase a verificación por email con respuesta uniforme |
+| Enumeración en el registro | V1 responde `409` si el email ya existe, con rate limit (5 registros por hora por IP). **Riesgo aceptado** hasta la Fase 5 (OW-037), cuando el registro responda siempre `202` y la cuenta tenga que verificar su email para iniciar sesión |
 | Bloqueo de cuenta como denegación de servicio | No se bloquean cuentas: se limita la tasa. Un atacante no puede dejar fuera a la víctima |
 | Robo del refresh token | Rotación, detección de reutilización (revoca la familia), `HttpOnly` y `Secure` |
 
@@ -305,4 +305,4 @@ Detalle en la [estrategia de testing](../testing/testing-strategy.md#pruebas-de-
 - rotación y reutilización de refresh tokens;
 - la tabla completa de casos de SSRF;
 - redacción de logs;
-- en la Fase 5, un escaneo baseline con OWASP ZAP contra staging.
+- en la Fase 5 (OW-042), el API scan de OWASP ZAP, autenticado y en CI, contra la aplicación levantada con Compose: staging no existe hasta la Fase 6.
