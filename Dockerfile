@@ -2,7 +2,7 @@
 # Imagen de la aplicación (docs/devops/docker.md). Imágenes base fijadas por digest; Dependabot las actualiza.
 
 # ---------- build ----------
-FROM eclipse-temurin:25-jdk-alpine@sha256:3fd2d245c4e0eba615fe366a71b8bd25f5db7104f53e4026b24bf508b880bd2a AS build
+FROM eclipse-temurin:25-jdk-alpine@sha256:1e20ead9eec7234db293f1913438090d533ed47c0b9e12dc8c7627a802a44ed6 AS build
 WORKDIR /workspace
 
 # Primero las dependencias: esta capa se cachea mientras el pom no cambie
@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/root/.m2 ./mvnw -B -q package -Dmaven.test.skip=t
 RUN java -Djarmode=tools -jar target/opswatch.jar extract --layers --destination target/extracted
 
 # ---------- runtime ----------
-FROM eclipse-temurin:25-jre-alpine@sha256:3c0a9084927a221ccd1d007fcaf614465672c0af37aaa834c5184483afe56d61 AS runtime
+FROM eclipse-temurin:25-jre-alpine@sha256:b7528962e65d43064d8a8b67ba175367896bc948363ea2d3fcd7f10d34e1f048 AS runtime
 
 RUN addgroup -S -g 10001 opswatch && adduser -S -u 10001 -G opswatch -H -s /sbin/nologin opswatch
 
